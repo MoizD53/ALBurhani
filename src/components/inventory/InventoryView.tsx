@@ -5,11 +5,9 @@ import {
   Search, 
   Tag, 
   AlertTriangle, 
-  Calendar, 
-  ArrowUpDown, 
   Barcode, 
-  Filter,
-  Check,
+  Check, 
+  X,
   Edit2
 } from 'lucide-react';
 import { Product, ProductCategory } from '../../types';
@@ -93,16 +91,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2 font-serif">
+          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 font-serif">
             <Package className="w-5 h-5 text-[#D4AF37]" />
-            Stock & Inventory Management
+            Stock & Inventory Catalog
           </h2>
-          <p className="text-xs text-[#B8B8B8] mt-0.5">
+          <p className="text-xs text-gray-400 mt-0.5">
             Real-time stock tracking with barcode integration & expiry monitoring
           </p>
         </div>
@@ -112,51 +110,58 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             handleGenerateBarcode();
             setIsAddModalOpen(true);
           }}
-          className="btn-gold text-xs flex items-center gap-2"
+          className="btn-gold text-xs py-2.5 px-4 flex items-center gap-2 shrink-0 font-bold"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>Add New Product & Barcode</span>
         </button>
       </div>
 
-      {/* Filter and Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl liquid-glass border border-white/10">
-          <span className="text-[11px] uppercase tracking-wider text-gray-400 block">Total Items</span>
-          <span className="text-2xl font-bold text-white mt-1 block font-mono">{products.length} Products</span>
+      {/* Filter and Stats Row (Responsive grid: 1 col on mobile, 2 on tablet, 4 on desktop) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        
+        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+          <span className="text-[11px] uppercase tracking-wider text-gray-400 block font-semibold">Total Items</span>
+          <span className="text-xl sm:text-2xl font-bold text-white mt-1 block font-mono">{products.length} Products</span>
         </div>
-        <div className="p-4 rounded-xl liquid-glass border border-white/10">
-          <span className="text-[11px] uppercase tracking-wider text-gray-400 block">Total Units in Stock</span>
-          <span className="text-2xl font-bold text-white mt-1 block font-mono">
+
+        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+          <span className="text-[11px] uppercase tracking-wider text-gray-400 block font-semibold">Total Units in Stock</span>
+          <span className="text-xl sm:text-2xl font-bold text-white mt-1 block font-mono">
             {products.reduce((acc, p) => acc + p.stock, 0)} Units
           </span>
         </div>
-        <div className="p-4 rounded-xl liquid-glass border border-amber-500/20 bg-amber-500/5">
-          <span className="text-[11px] uppercase tracking-wider text-amber-400 block flex items-center gap-1">
+
+        <div className="p-4 rounded-2xl liquid-glass border border-amber-500/25 bg-amber-500/5">
+          <span className="text-[11px] uppercase tracking-wider text-amber-400 block flex items-center gap-1 font-semibold">
             <AlertTriangle className="w-3.5 h-3.5" /> Low Stock Alerts
           </span>
-          <span className="text-2xl font-bold text-amber-300 mt-1 block font-mono">
+          <span className="text-xl sm:text-2xl font-bold text-amber-300 mt-1 block font-mono">
             {products.filter((p) => p.stock <= p.minStock).length} Items Low
           </span>
         </div>
-        <div className="p-4 rounded-xl liquid-glass border border-[#D4AF37]/20 bg-[#D4AF37]/5">
-          <span className="text-[11px] uppercase tracking-wider text-[#D4AF37] block">Inventory Valuation</span>
-          <span className="text-2xl font-bold text-[#E5C158] mt-1 block font-mono">
+
+        <div className="p-4 rounded-2xl liquid-glass border border-[#D4AF37]/25 bg-[#D4AF37]/5">
+          <span className="text-[11px] uppercase tracking-wider text-[#D4AF37] block font-semibold">Inventory Valuation</span>
+          <span className="text-xl sm:text-2xl font-bold text-[#E5C158] mt-1 block font-mono">
             ₹{products.reduce((acc, p) => acc + p.stock * p.sellingPrice, 0).toLocaleString('en-IN')}
           </span>
         </div>
+
       </div>
 
       {/* Controls: Search and Categories */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-1 no-scrollbar">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        
+        {/* Category Pills Slider */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar flex-nowrap">
           {categories.map((c) => (
             <button
               key={c}
               onClick={() => setSelectedCategory(c)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
                 selectedCategory === c
-                  ? 'bg-[#D4AF37] text-black font-semibold'
+                  ? 'bg-[#D4AF37] text-black shadow-[0_0_10px_rgba(212,175,55,0.3)]'
                   : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
               }`}
             >
@@ -165,32 +170,34 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           ))}
         </div>
 
-        <div className="relative w-full sm:w-72">
+        {/* Search Bar */}
+        <div className="relative w-full sm:w-72 shrink-0">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or barcode..."
-            className="pl-9 pr-4 py-2 text-xs bg-black/40 border border-white/10 rounded-xl"
+            className="pl-9 pr-4 py-2 text-xs bg-black/40 border border-white/10 rounded-xl text-white w-full"
           />
         </div>
+
       </div>
 
-      {/* Inventory Table (TENS11 Glass Table Styling) */}
-      <div className="rounded-2xl liquid-glass border border-[#D4AF37]/15 overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
+      {/* 1. Desktop & Laptop Table View (hidden on mobile < 768px) */}
+      <div className="hidden md:block rounded-2xl liquid-glass border border-[#D4AF37]/20 overflow-hidden shadow-xl">
+        <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-[#D4AF37]/20 bg-[#D4AF37]/5 text-gray-300 uppercase tracking-wider font-semibold text-[10px]">
-                <th className="py-3.5 px-4">Barcode / SKU</th>
-                <th className="py-3.5 px-4">Item Name & Pack</th>
-                <th className="py-3.5 px-4">Category</th>
-                <th className="py-3.5 px-4 text-right">Cost</th>
-                <th className="py-3.5 px-4 text-right">MRP / Selling</th>
-                <th className="py-3.5 px-4 text-center">Stock Units</th>
-                <th className="py-3.5 px-4">Batch & Expiry</th>
-                <th className="py-3.5 px-4 text-center">Barcode Action</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">Barcode / SKU</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">Item Name & Pack</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">Category</th>
+                <th className="py-3.5 px-4 text-right whitespace-nowrap">Cost</th>
+                <th className="py-3.5 px-4 text-right whitespace-nowrap">MRP / Selling</th>
+                <th className="py-3.5 px-4 text-center whitespace-nowrap">Stock Units</th>
+                <th className="py-3.5 px-4 whitespace-nowrap">Batch & Expiry</th>
+                <th className="py-3.5 px-4 text-center whitespace-nowrap">Sticker Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -201,45 +208,47 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 return (
                   <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
                     {/* Barcode */}
-                    <td className="py-3 px-4 font-mono text-[#D4AF37] font-semibold flex items-center gap-1.5">
-                      <Barcode className="w-4 h-4 text-gray-500" />
-                      <span>{p.barcode}</span>
+                    <td className="py-3 px-4 font-mono text-[#D4AF37] font-semibold whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <Barcode className="w-4 h-4 text-gray-500 shrink-0" />
+                        <span>{p.barcode}</span>
+                      </div>
                     </td>
 
                     {/* Item Name */}
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-white text-sm">{p.name}</div>
+                    <td className="py-3 px-4 min-w-[200px]">
+                      <div className="font-semibold text-white text-sm leading-snug">{p.name}</div>
                       <div className="text-[11px] text-gray-400 font-medium">
                         Net Wt: {p.netWeight} ({p.unit})
                       </div>
                     </td>
 
                     {/* Category */}
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-300 border border-white/10">
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-300 border border-white/10 font-medium">
                         {p.category}
                       </span>
                     </td>
 
                     {/* Cost */}
-                    <td className="py-3 px-4 text-right font-mono text-gray-400">
+                    <td className="py-3 px-4 text-right font-mono text-gray-400 whitespace-nowrap">
                       ₹{p.costPrice}
                     </td>
 
                     {/* MRP */}
-                    <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm whitespace-nowrap">
                       ₹{p.sellingPrice}
                     </td>
 
                     {/* Stock Units (with quick edit) */}
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
                       {isEditingStock ? (
                         <div className="flex items-center justify-center gap-1">
                           <input
                             type="number"
                             value={editStockVal}
                             onChange={(e) => setEditStockVal(Number(e.target.value))}
-                            className="w-16 py-1 px-1.5 text-center text-xs bg-black border border-[#D4AF37] rounded"
+                            className="w-16 py-1 px-1.5 text-center text-xs bg-black border border-[#D4AF37] rounded font-mono text-white"
                             autoFocus
                           />
                           <button
@@ -248,8 +257,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                               setQuickStockEditingId(null);
                             }}
                             className="p-1 rounded bg-[#D4AF37] text-black"
+                            title="Save stock"
                           >
-                            <Check className="w-3.5 h-3.5" />
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           </button>
                         </div>
                       ) : (
@@ -258,39 +268,34 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             setQuickStockEditingId(p.id);
                             setEditStockVal(p.stock);
                           }}
-                          className="inline-flex items-center gap-1 cursor-pointer group"
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg cursor-pointer border transition-colors ${
+                            isLow 
+                              ? 'bg-red-950/60 border-red-500/40 text-red-300 hover:border-red-400' 
+                              : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400 hover:border-emerald-400'
+                          }`}
+                          title="Click to quickly edit stock count"
                         >
-                          <span
-                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold ${
-                              isLow
-                                ? 'bg-red-950/80 text-red-300 border border-red-500/30'
-                                : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/20'
-                            }`}
-                          >
-                            {p.stock} units
-                          </span>
-                          <Edit2 className="w-3 h-3 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <span className="font-bold font-mono text-xs">{p.stock}</span>
+                          <span className="text-[10px] text-gray-400">units</span>
+                          <Edit2 className="w-3 h-3 text-gray-400 hover:text-white" />
                         </div>
                       )}
                     </td>
 
                     {/* Batch & Expiry */}
-                    <td className="py-3 px-4">
-                      <div className="text-[11px] text-gray-300">{p.batchNo}</div>
-                      <div className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
-                        <Calendar className="w-3 h-3 text-[#D4AF37]" />
-                        <span>Exp: {p.expiryDate}</span>
-                      </div>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <div className="font-mono text-gray-300 text-[11px]">{p.batchNo}</div>
+                      <div className="text-[10px] text-gray-400">Exp: {p.expiryDate}</div>
                     </td>
 
-                    {/* Action: Print Label */}
-                    <td className="py-3 px-4 text-center">
+                    {/* Action: Print Sticker */}
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
                       <button
                         onClick={() => onOpenStickerModal(p)}
-                        className="btn-dark text-xs py-1.5 px-3 hover:border-[#D4AF37] hover:text-[#D4AF37] flex items-center gap-1.5 mx-auto"
-                        title="Print Barcode Label"
+                        className="btn-gold text-[11px] py-1 px-2.5 inline-flex items-center gap-1 font-semibold"
+                        title="Generate & print 50mm thermal sticker"
                       >
-                        <Tag className="w-3.5 h-3.5 text-[#D4AF37]" />
+                        <Tag className="w-3.5 h-3.5" />
                         <span>Print Sticker</span>
                       </button>
                     </td>
@@ -302,28 +307,120 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       </div>
 
-      {/* Modal: Add New Product */}
+      {/* 2. Mobile Responsive Card List (visible on phones < 768px) */}
+      <div className="md:hidden space-y-3">
+        {filtered.map((p) => {
+          const isLow = p.stock <= p.minStock;
+          const isEditingStock = quickStockEditingId === p.id;
+
+          return (
+            <div
+              key={p.id}
+              className="p-4 rounded-2xl liquid-glass border border-white/10 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h4 className="font-semibold text-white text-sm leading-snug">{p.name}</h4>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                    <span>{p.netWeight} ({p.unit})</span>
+                    <span>•</span>
+                    <span className="text-[#D4AF37] font-mono font-semibold">{p.barcode}</span>
+                  </div>
+                </div>
+
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-300 border border-white/10 shrink-0 font-medium">
+                  {p.category.split(' ')[0]}
+                </span>
+              </div>
+
+              {/* Pricing & Stock row */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5 text-xs">
+                <div>
+                  <span className="text-[10px] text-gray-400 block uppercase">Selling MRP</span>
+                  <span className="text-base font-bold text-white font-mono">₹{p.sellingPrice}</span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-gray-400 block uppercase">Stock Units</span>
+                  {isEditingStock ? (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <input
+                        type="number"
+                        value={editStockVal}
+                        onChange={(e) => setEditStockVal(Number(e.target.value))}
+                        className="w-16 py-0.5 px-1.5 text-xs bg-black border border-[#D4AF37] rounded font-mono text-white"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => {
+                          onUpdateStock(p.id, editStockVal);
+                          setQuickStockEditingId(null);
+                        }}
+                        className="p-1 rounded bg-[#D4AF37] text-black"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div 
+                      onClick={() => {
+                        setQuickStockEditingId(p.id);
+                        setEditStockVal(p.stock);
+                      }}
+                      className="flex items-center gap-1 mt-0.5 cursor-pointer"
+                    >
+                      <span className={`font-mono font-bold ${isLow ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {p.stock} units
+                      </span>
+                      <Edit2 className="w-3 h-3 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                <span className="text-[10px] text-gray-500 font-mono">
+                  Exp: {p.expiryDate}
+                </span>
+
+                <button
+                  onClick={() => onOpenStickerModal(p)}
+                  className="btn-gold text-xs py-1.5 px-3 flex items-center gap-1.5 font-semibold"
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  <span>Thermal Sticker</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Modal: Add New Product (TENS11 Glass & Safe Viewport) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg rounded-2xl bg-[#121212] border border-[#D4AF37]/30 shadow-2xl p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-lg rounded-2xl bg-[#0E0E0E] border border-[#D4AF37]/35 shadow-[0_20px_60px_rgba(0,0,0,0.9)] max-h-[90vh] flex flex-col overflow-hidden">
             
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <h3 className="font-semibold text-white flex items-center gap-2">
-                <Plus className="w-4 h-4 text-[#D4AF37]" />
-                Add New Sweet or Dry Snack
+            {/* Modal Header */}
+            <div className="px-5 sm:px-6 py-4 border-b border-[#D4AF37]/20 bg-gradient-to-r from-black via-[#161616] to-black flex items-center justify-between shrink-0">
+              <h3 className="font-bold text-white text-sm sm:text-base font-serif flex items-center gap-2">
+                <Plus className="w-4 h-4 text-[#D4AF37] stroke-[2.5]" />
+                Add New Sweet or Namkeen Item
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-gray-400 hover:text-white"
+                className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateProduct} className="mt-4 space-y-4">
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleCreateProduct} className="p-5 sm:p-6 overflow-y-auto space-y-4 custom-scrollbar flex-1">
               
               <div>
-                <label className="text-xs text-gray-300 font-medium block mb-1">
+                <label className="text-xs text-gray-300 font-semibold block mb-1">
                   Product Name
                 </label>
                 <input
@@ -332,14 +429,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   placeholder="e.g. Royal Pista Roll, Dry Fruit Halwa"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="text-sm"
+                  className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
-                    Barcode (EAN-13 / UPC)
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
+                    Barcode (EAN-13 / CODE128)
                   </label>
                   <div className="flex gap-1.5">
                     <input
@@ -347,12 +444,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       required
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
-                      className="text-sm font-mono"
+                      className="text-xs sm:text-sm font-mono bg-black/50 border-[#D4AF37]/30 text-white"
                     />
                     <button
                       type="button"
                       onClick={handleGenerateBarcode}
-                      className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-xs text-gray-300 hover:text-white"
+                      className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-lg text-xs text-[#D4AF37] hover:bg-white/10 font-bold shrink-0"
                       title="Auto-Generate Barcode"
                     >
                       Gen
@@ -361,13 +458,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Category
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as ProductCategory)}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
                   >
                     <option value="Sweets">Sweets (Mithai)</option>
                     <option value="Namkeen & Farsan">Namkeen & Farsan</option>
@@ -378,9 +475,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Net Weight
                   </label>
                   <input
@@ -388,17 +485,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     value={netWeight}
                     onChange={(e) => setNetWeight(e.target.value)}
                     placeholder="e.g. 250g, 500g, 1kg"
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Packaging Unit
                   </label>
                   <select
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
                   >
                     <option value="Box">Box</option>
                     <option value="Pouch">Pouch</option>
@@ -409,76 +507,80 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Cost Price (₹)
                   </label>
                   <input
                     type="number"
                     value={costPrice}
                     onChange={(e) => setCostPrice(Number(e.target.value))}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Selling Price / MRP (₹)
                   </label>
                   <input
                     type="number"
                     value={sellingPrice}
                     onChange={(e) => setSellingPrice(Number(e.target.value))}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Initial Stock
                   </label>
                   <input
                     type="number"
                     value={stock}
                     onChange={(e) => setStock(Number(e.target.value))}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Min Stock Alert
                   </label>
                   <input
                     type="number"
                     value={minStock}
                     onChange={(e) => setMinStock(Number(e.target.value))}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Shelf Life (Days)
                   </label>
                   <input
                     type="number"
                     value={shelfLifeDays}
                     onChange={(e) => setShelfLifeDays(Number(e.target.value))}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-white/10 flex justify-end gap-3">
+              {/* Modal Footer Actions */}
+              <div className="pt-4 border-t border-white/10 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-xs text-gray-400 hover:text-white"
+                  className="px-4 py-2 text-xs text-gray-400 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-gold text-xs">
+                <button type="submit" className="btn-gold text-xs py-2 px-4 font-bold">
                   Save Product & Ready Barcode
                 </button>
               </div>

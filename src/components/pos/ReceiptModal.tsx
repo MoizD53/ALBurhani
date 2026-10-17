@@ -15,18 +15,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-      <div className="relative w-full max-w-md rounded-2xl bg-[#121212] border border-[#D4AF37]/30 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-md rounded-2xl bg-[#0E0E0E] border border-[#D4AF37]/35 shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#D4AF37]/15 bg-[#171717]">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-[#D4AF37]/20 bg-gradient-to-r from-black via-[#161616] to-black shrink-0">
           <div className="flex items-center gap-2 text-emerald-400">
             <CheckCircle className="w-5 h-5" />
-            <h3 className="font-semibold text-white">Bill Completed Successfully</h3>
+            <h3 className="font-semibold text-white font-serif text-sm sm:text-base">Bill Completed Successfully</h3>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5"
+            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

@@ -38,18 +38,18 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md rounded-2xl bg-[#121212] border border-[#D4AF37]/30 shadow-[0_20px_50px_rgba(0,0,0,0.9)] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-md rounded-2xl bg-[#0E0E0E] border border-[#D4AF37]/35 shadow-[0_20px_60px_rgba(0,0,0,0.9)] max-h-[92vh] flex flex-col overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#D4AF37]/15 bg-[#181818]/70">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-[#D4AF37]/20 bg-gradient-to-r from-black via-[#161616] to-black shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20">
+            <div className="p-2 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 shrink-0">
               <Tag className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-white tracking-wide">Barcode Sticker Preview</h3>
-              <p className="text-xs text-[#B8B8B8]">Thermal Sticker (50mm × 35mm)</p>
+              <h3 className="font-semibold text-white tracking-wide text-sm sm:text-base font-serif">Barcode Sticker Preview</h3>
+              <p className="text-[11px] text-gray-400">Thermal Sticker (50mm × 35mm)</p>
             </div>
           </div>
           <button 
@@ -61,7 +61,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
         </div>
 
         {/* Sticker Card Body (What will be printed) */}
-        <div className="p-6 flex flex-col items-center">
+        <div className="p-4 sm:p-6 flex flex-col items-center overflow-y-auto custom-scrollbar flex-1">
           
           <div 
             id="barcode-sticker-print"

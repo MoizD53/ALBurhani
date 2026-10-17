@@ -3,16 +3,37 @@ import { Product, OrderBill } from './types';
 import { INITIAL_PRODUCTS } from './data/mockProducts';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
+import { TursoModal } from './components/layout/TursoModal';
 import { PosBillingView } from './components/pos/PosBillingView';
 import { InventoryView } from './components/inventory/InventoryView';
 import { FinanceView } from './components/finance/FinanceView';
 import { BarcodeGuideView } from './components/barcode/BarcodeGuideView';
 import { BarcodeStickerModal } from './components/barcode/BarcodeStickerModal';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
-import { playBeep } from './lib/utils';
+import { 
+  checkTursoConfig, 
+  initializeTursoSchema, 
+  fetchProductsFromTurso, 
+  fetchOrdersFromTurso, 
+  saveOrderToTurso, 
+  saveProductToTurso, 
+  updateStockOnTurso 
+} from './lib/turso';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('pos');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return typeof window !== 'undefined' ? localStorage.getItem('albhurani_sidebar_collapsed') === 'true' : false;
+    } catch {
+      return false;
+    }
+  });
+
+  const [isTursoModalOpen, setIsTursoModalOpen] = useState(false);
+  const [isTursoConnected, setIsTursoConnected] = useState(false);
+
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_products') : null;
@@ -91,6 +112,11 @@ export function App() {
 
   const [stickerModalProduct, setStickerModalProduct] = useState<Product | null>(null);
 
+  // Save sidebar collapsed state
+  useEffect(() => {
+    localStorage.setItem('albhurani_sidebar_collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
+
   // Save to localStorage
   useEffect(() => {
     localStorage.setItem('albhurani_products', JSON.stringify(products));
@@ -100,9 +126,39 @@ export function App() {
     localStorage.setItem('albhurani_orders', JSON.stringify(orders));
   }, [orders]);
 
+  // Initialize Turso connection on mount
+  useEffect(() => {
+    const connectTurso = async () => {
+      const cfg = checkTursoConfig();
+      if (!cfg.isConfigured) {
+        setIsTursoConnected(false);
+        return;
+      }
+
+      const res = await initializeTursoSchema();
+      if (res.success) {
+        setIsTursoConnected(true);
+        // Fetch remote products
+        const remoteProds = await fetchProductsFromTurso();
+        if (remoteProds && remoteProds.length > 0) {
+          setProducts(remoteProds);
+        }
+        // Fetch remote orders
+        const remoteOrders = await fetchOrdersFromTurso();
+        if (remoteOrders && remoteOrders.length > 0) {
+          setOrders(remoteOrders);
+        }
+      } else {
+        setIsTursoConnected(false);
+      }
+    };
+
+    connectTurso();
+  }, []);
+
   // Global Barcode Scanner Listener
   useBarcodeScanner({
-    onScan: (scannedBarcode) => {
+    onScan: () => {
       // Auto-switch to POS if not already there
       if (activeTab !== 'pos') {
         setActiveTab('pos');
@@ -111,33 +167,44 @@ export function App() {
     enabled: true,
   });
 
-  // Handlers
+  // Handlers with Turso Cloud Sync
   const handleCompleteSale = (newOrder: OrderBill) => {
     setOrders((prev) => [newOrder, ...prev]);
 
-    // Deduct stock
+    // Deduct stock in state
     setProducts((prev) =>
       prev.map((prod) => {
         const itemInBill = newOrder.items.find((i) => i.product.id === prod.id);
         if (itemInBill) {
+          const updatedStock = Math.max(0, prod.stock - itemInBill.quantity);
+          // Sync stock to Turso in background
+          updateStockOnTurso(prod.id, updatedStock);
           return {
             ...prod,
-            stock: Math.max(0, prod.stock - itemInBill.quantity),
+            stock: updatedStock,
           };
         }
         return prod;
       })
     );
+
+    // Sync order to Turso in background
+    saveOrderToTurso(newOrder);
   };
 
   const handleAddProduct = (newProduct: Product) => {
     setProducts((prev) => [newProduct, ...prev]);
+    // Sync product to Turso in background
+    saveProductToTurso(newProduct);
   };
 
   const handleUpdateStock = (productId: string, newStock: number) => {
+    const validStock = Math.max(0, newStock);
     setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, stock: Math.max(0, newStock) } : p))
+      prev.map((p) => (p.id === productId ? { ...p, stock: validStock } : p))
     );
+    // Sync stock to Turso in background
+    updateStockOnTurso(productId, validStock);
   };
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
@@ -145,21 +212,31 @@ export function App() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#050505] text-[#EAEAEA]">
       
-      {/* Sidebar (TENS11 Style) */}
+      {/* Sidebar (Dual-Mode: Desktop Rail + Mobile Slide-over Drawer) */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         lowStockCount={lowStockCount}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+        isMobileOpen={isMobileMenuOpen}
+        setIsMobileOpen={setIsMobileMenuOpen}
+        onOpenTursoModal={() => setIsTursoModalOpen(true)}
+        isTursoConnected={isTursoConnected}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
         
         {/* Header */}
-        <Header />
+        <Header 
+          onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
+          onOpenTursoModal={() => setIsTursoModalOpen(true)}
+          isTursoConnected={isTursoConnected}
+        />
 
         {/* View Body */}
-        <main className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 custom-scrollbar min-w-0">
           {activeTab === 'pos' && (
             <PosBillingView
               products={products}
@@ -191,6 +268,16 @@ export function App() {
       <BarcodeStickerModal
         product={stickerModalProduct}
         onClose={() => setStickerModalProduct(null)}
+      />
+
+      {/* Turso Database Connection Modal */}
+      <TursoModal
+        isOpen={isTursoModalOpen}
+        onClose={() => setIsTursoModalOpen(false)}
+        onProductsSynced={(syncedProds) => {
+          setProducts(syncedProds);
+          setIsTursoConnected(true);
+        }}
       />
 
     </div>

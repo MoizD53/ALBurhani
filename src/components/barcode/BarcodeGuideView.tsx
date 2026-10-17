@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Barcode, 
-  HelpCircle, 
   CheckCircle2, 
   Printer, 
   Zap, 
   Layers, 
-  ExternalLink,
-  ShieldCheck,
   Terminal
 } from 'lucide-react';
 import { playBeep } from '../../lib/utils';
@@ -55,22 +52,22 @@ export const BarcodeGuideView: React.FC = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       
       {/* Title */}
       <div>
-        <h2 className="text-xl font-bold text-white flex items-center gap-2 font-serif">
+        <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 font-serif">
           <Barcode className="w-5 h-5 text-[#D4AF37]" />
           Barcode System Hardware Guide & Live Tester
         </h2>
-        <p className="text-xs text-[#B8B8B8] mt-0.5">
+        <p className="text-xs text-gray-400 mt-0.5">
           Everything you need to demonstrate & set up barcode scanning for AL-BHURANI Franchise
         </p>
       </div>
 
       {/* LIVE HARDWARE SCANNER TEST BENCH */}
-      <div className="p-6 rounded-2xl liquid-glass border border-[#D4AF37]/35 relative overflow-hidden shadow-2xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+      <div className="p-4 sm:p-6 rounded-2xl liquid-glass border border-[#D4AF37]/35 relative overflow-hidden shadow-2xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
           <div>
             <span className="text-xs uppercase font-bold tracking-wider text-[#D4AF37] flex items-center gap-1.5">
               <Zap className="w-4 h-4 text-[#D4AF37]" /> Live Hardware Scanner Diagnostic Bench
@@ -80,41 +77,41 @@ export const BarcodeGuideView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            Listening for USB / Bluetooth Keystrokes
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Listening for USB / Bluetooth Keystrokes</span>
           </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           
-          <div className="p-4 rounded-xl bg-black/50 border border-white/10 flex flex-col justify-between">
+          <div className="p-4 rounded-xl bg-black/60 border border-white/10 flex flex-col justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-400 font-mono mb-2">
               <Terminal className="w-4 h-4 text-[#D4AF37]" />
               <span>Real-Time Raw Input Stream</span>
             </div>
-            <div className="h-16 flex items-center justify-center font-mono text-xl text-white tracking-widest bg-black/60 rounded-lg border border-white/5">
-              {testBuffer || <span className="text-gray-600 text-sm font-sans">Pull scanner trigger to test...</span>}
+            <div className="h-16 flex items-center justify-center font-mono text-lg sm:text-xl text-white tracking-widest bg-black/80 rounded-lg border border-white/5 px-2 text-center">
+              {testBuffer || <span className="text-gray-600 text-xs sm:text-sm font-sans">Pull scanner trigger to test...</span>}
             </div>
             <p className="text-[10px] text-gray-400 mt-2">
               The scanner types barcode digits in milliseconds and appends [Enter].
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-black/50 border border-white/10">
-            <div className="text-xs text-gray-400 font-mono mb-2 flex justify-between">
+          <div className="p-4 rounded-xl bg-black/60 border border-white/10 flex flex-col justify-between">
+            <div className="text-xs text-gray-400 font-mono mb-2 flex justify-between items-center">
               <span>Last Decoded Barcode</span>
-              {lastScannedResult && <span className="text-emerald-400">Status: Valid Read ✓</span>}
+              {lastScannedResult && <span className="text-emerald-400 font-medium">Valid Read ✓</span>}
             </div>
 
             {lastScannedResult ? (
-              <div className="space-y-1.5">
-                <div className="text-2xl font-bold font-mono text-[#D4AF37]">
+              <div className="space-y-1.5 py-1">
+                <div className="text-xl sm:text-2xl font-bold font-mono text-[#D4AF37] truncate">
                   {lastScannedResult.code}
                 </div>
-                <div className="flex items-center gap-4 text-xs text-gray-300">
-                  <span>Transfer Speed: <strong className="text-white">{lastScannedResult.speedMs} ms</strong></span>
-                  <span>Time: <strong className="text-white">{lastScannedResult.timestamp}</strong></span>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-300">
+                  <span>Transfer Speed: <strong className="text-white font-mono">{lastScannedResult.speedMs} ms</strong></span>
+                  <span>Time: <strong className="text-white font-mono">{lastScannedResult.timestamp}</strong></span>
                 </div>
               </div>
             ) : (
@@ -122,13 +119,16 @@ export const BarcodeGuideView: React.FC = () => {
                 Awaiting first barcode scan...
               </div>
             )}
+            <p className="text-[10px] text-gray-500 mt-2">
+              Decoded instant scan verification
+            </p>
           </div>
 
         </div>
       </div>
 
       {/* 3 Step Explanation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
         <div className="p-5 rounded-2xl liquid-glass border border-white/10">
           <div className="p-2.5 w-fit rounded-xl bg-[#D4AF37]/15 text-[#D4AF37] mb-3">
@@ -172,39 +172,39 @@ export const BarcodeGuideView: React.FC = () => {
       </div>
 
       {/* Recommended Hardware Section for Franchise Client */}
-      <div className="p-6 rounded-2xl liquid-glass border border-white/10">
-        <h3 className="font-bold text-white text-sm mb-4 font-serif">
+      <div className="p-4 sm:p-6 rounded-2xl liquid-glass border border-white/10">
+        <h3 className="font-bold text-white text-sm sm:text-base mb-4 font-serif">
           Recommended Hardware for AL-BHURANI Franchise Outlets
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           
-          <div className="p-3.5 rounded-xl bg-black/40 border border-white/5">
+          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Entry-level Barcode Gun</span>
-            <h5 className="font-semibold text-white text-xs mt-1">Pegasus / Netum USB 1D Laser</h5>
-            <p className="text-[11px] text-gray-400 mt-1">Price: ₹900 - ₹1,400</p>
-            <p className="text-[10px] text-emerald-400 mt-1">Plug & play, ideal for single counter</p>
+            <h5 className="font-semibold text-white text-xs truncate">Pegasus / Netum USB 1D</h5>
+            <p className="text-[11px] text-gray-400 font-mono">Price: ₹900 - ₹1,400</p>
+            <p className="text-[10px] text-emerald-400">Plug & play, ideal for single counter</p>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-black/40 border border-white/5">
+          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Heavy-duty 2D/QR Gun</span>
-            <h5 className="font-semibold text-white text-xs mt-1">TVS BS-C 101 Star / Honeywell</h5>
-            <p className="text-[11px] text-gray-400 mt-1">Price: ₹2,200 - ₹3,500</p>
-            <p className="text-[10px] text-emerald-400 mt-1">Reads damaged & crinkled pouch barcodes</p>
+            <h5 className="font-semibold text-white text-xs truncate">TVS BS-C 101 Star / Honeywell</h5>
+            <p className="text-[11px] text-gray-400 font-mono">Price: ₹2,200 - ₹3,500</p>
+            <p className="text-[10px] text-emerald-400">Reads crinkled pouch barcodes</p>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-black/40 border border-white/5">
+          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Thermal Label Printer</span>
-            <h5 className="font-semibold text-white text-xs mt-1">TVS LP 46 Neo / TSC TE 244</h5>
-            <p className="text-[11px] text-gray-400 mt-1">Price: ₹7,500 - ₹9,500</p>
-            <p className="text-[10px] text-emerald-400 mt-1">For Mithai box & namkeen pouch stickers</p>
+            <h5 className="font-semibold text-white text-xs truncate">TVS LP 46 Neo / TSC TE 244</h5>
+            <p className="text-[11px] text-gray-400 font-mono">Price: ₹7,500 - ₹9,500</p>
+            <p className="text-[10px] text-emerald-400">For Mithai box & pouch stickers</p>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-black/40 border border-white/5">
+          <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Thermal Receipt Printer</span>
-            <h5 className="font-semibold text-white text-xs mt-1">Epson TM-T82 / TVS RP 3200 (80mm)</h5>
-            <p className="text-[11px] text-gray-400 mt-1">Price: ₹5,000 - ₹8,500</p>
-            <p className="text-[10px] text-emerald-400 mt-1">High-speed customer bill printing</p>
+            <h5 className="font-semibold text-white text-xs truncate">Epson TM-T82 / TVS RP 3200</h5>
+            <p className="text-[11px] text-gray-400 font-mono">Price: ₹5,000 - ₹8,500</p>
+            <p className="text-[10px] text-emerald-400">High-speed customer bill printing</p>
           </div>
 
         </div>

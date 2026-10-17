@@ -7,11 +7,9 @@ import {
   QrCode, 
   Receipt, 
   ArrowUpRight, 
-  ArrowDownRight,
-  Plus,
-  Calendar,
-  Eye,
-  FileSpreadsheet
+  Plus, 
+  Eye, 
+  X
 } from 'lucide-react';
 import { OrderBill } from '../../types';
 import { ReceiptModal } from '../pos/ReceiptModal';
@@ -71,7 +69,6 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
   const cardTotal = orders.filter((o) => o.paymentMethod === 'CARD').reduce((sum, o) => sum + o.grandTotal, 0);
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const estimatedProfit = Math.max(0, totalRevenue * 0.38 - totalExpenses); // 38% gross margin on sweets/namkeen
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,41 +92,41 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2 font-serif">
+          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 font-serif">
             <DollarSign className="w-5 h-5 text-[#D4AF37]" />
             Finance & Daily Accounts
           </h2>
-          <p className="text-xs text-[#B8B8B8] mt-0.5">
+          <p className="text-xs text-gray-400 mt-0.5">
             Cash register, UPI reconciliation, daily revenue, and expense logs
           </p>
         </div>
 
         <button
           onClick={() => setIsExpenseModalOpen(true)}
-          className="btn-gold text-xs flex items-center gap-2"
+          className="btn-gold text-xs py-2.5 px-4 flex items-center gap-2 shrink-0 font-bold"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
           <span>Record Store Expense</span>
         </button>
       </div>
 
-      {/* Top Financial Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Top Financial Stat Cards (Responsive: 1 col on mobile, 2 on tablet, 4 on desktop) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
         {/* Total Revenue */}
-        <div className="p-4 rounded-2xl liquid-glass border border-[#D4AF37]/30 bg-[#D4AF37]/5">
+        <div className="p-4 rounded-2xl liquid-glass border border-[#D4AF37]/35 bg-[#D4AF37]/5">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase font-semibold text-gray-300">Total Sales Today</span>
             <div className="p-2 rounded-xl bg-[#D4AF37]/20 text-[#D4AF37]">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white mt-2 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
             ₹{totalRevenue.toLocaleString('en-IN')}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-emerald-400 mt-1">
@@ -139,14 +136,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
         </div>
 
         {/* UPI Collection */}
-        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+        <div className="p-4 rounded-2xl liquid-glass border border-purple-500/25 bg-purple-500/5">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase font-semibold text-gray-300">UPI / QR Payment</span>
             <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
               <QrCode className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white mt-2 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
             ₹{upiTotal.toLocaleString('en-IN')}
           </div>
           <div className="text-xs text-gray-400 mt-1">
@@ -155,14 +152,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
         </div>
 
         {/* Cash in Drawer */}
-        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+        <div className="p-4 rounded-2xl liquid-glass border border-emerald-500/25 bg-emerald-500/5">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase font-semibold text-gray-300">Cash in Till / Drawer</span>
             <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
               <Banknote className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white mt-2 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
             ₹{cashTotal.toLocaleString('en-IN')}
           </div>
           <div className="text-xs text-gray-400 mt-1">
@@ -171,14 +168,14 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
         </div>
 
         {/* Card Swipes */}
-        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+        <div className="p-4 rounded-2xl liquid-glass border border-blue-500/25 bg-blue-500/5">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase font-semibold text-gray-300">Card Swipes / EDC</span>
             <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
               <CreditCard className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-white mt-2 font-mono">
+          <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
             ₹{cardTotal.toLocaleString('en-IN')}
           </div>
           <div className="text-xs text-gray-400 mt-1">
@@ -189,19 +186,19 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
       </div>
 
       {/* Two Columns: Recent Bills vs Store Expenses */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
-        {/* Recent Bills (7 cols) */}
-        <div className="lg:col-span-7 rounded-2xl liquid-glass border border-[#D4AF37]/15 p-5 shadow-xl">
+        {/* Recent Bills (7 cols on laptop) */}
+        <div className="lg:col-span-7 rounded-2xl liquid-glass border border-[#D4AF37]/20 p-4 sm:p-5 shadow-xl">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <div className="flex items-center gap-2">
               <Receipt className="w-4 h-4 text-[#D4AF37]" />
               <h3 className="font-semibold text-white text-sm">Recent POS Bills & Receipts</h3>
             </div>
-            <span className="text-xs text-gray-400">{orders.length} orders</span>
+            <span className="text-xs text-gray-400 font-mono">{orders.length} orders</span>
           </div>
 
-          <div className="space-y-2.5 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+          <div className="space-y-2.5 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
             {orders.length === 0 ? (
               <p className="text-xs text-gray-500 text-center py-8">
                 No orders billed yet. Go to POS screen and scan products!
@@ -210,18 +207,18 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
               orders.map((order) => (
                 <div
                   key={order.id}
-                  className="p-3 rounded-xl bg-black/40 border border-white/5 hover:border-[#D4AF37]/30 transition-all flex items-center justify-between gap-4"
+                  className="p-3 rounded-xl bg-black/50 border border-white/5 hover:border-[#D4AF37]/30 transition-all flex items-center justify-between gap-3"
                 >
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-bold text-[#D4AF37]">
                         {order.billNumber}
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-gray-300">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-gray-300 border border-white/10">
                         {order.paymentMethod}
                       </span>
                     </div>
-                    <div className="text-[11px] text-gray-400 mt-1">
+                    <div className="text-[11px] text-gray-400 mt-1 truncate">
                       {order.items.map((i) => `${i.product.name} (x${i.quantity})`).join(', ')}
                     </div>
                     <div className="text-[10px] text-gray-500 mt-0.5">
@@ -229,12 +226,12 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0 flex items-center gap-3">
+                  <div className="text-right shrink-0 flex items-center gap-2 sm:gap-3">
                     <div>
                       <div className="font-mono font-bold text-white text-sm">
                         ₹{order.grandTotal}
                       </div>
-                      <div className="text-[10px] text-emerald-400">Paid</div>
+                      <div className="text-[10px] text-emerald-400 font-medium">Paid ✓</div>
                     </div>
                     <button
                       onClick={() => setSelectedOrderForReceipt(order)}
@@ -250,8 +247,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
           </div>
         </div>
 
-        {/* Expenses & Outflows (5 cols) */}
-        <div className="lg:col-span-5 rounded-2xl liquid-glass border border-white/10 p-5 shadow-xl">
+        {/* Expenses & Outflows (5 cols on laptop) */}
+        <div className="lg:col-span-5 rounded-2xl liquid-glass border border-white/10 p-4 sm:p-5 shadow-xl">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <h3 className="font-semibold text-white text-sm">Today's Store Outflows</h3>
             <span className="text-xs font-mono font-bold text-red-400">
@@ -259,26 +256,26 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
             </span>
           </div>
 
-          <div className="space-y-3 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+          <div className="space-y-2.5 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
             {expenses.map((exp) => (
               <div
                 key={exp.id}
-                className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between"
+                className="p-3 rounded-xl bg-black/50 border border-white/5 flex items-center justify-between gap-3"
               >
-                <div>
-                  <h5 className="text-xs font-semibold text-white leading-tight">
+                <div className="min-w-0 flex-1">
+                  <h5 className="text-xs font-semibold text-white leading-tight truncate">
                     {exp.title}
                   </h5>
-                  <div className="text-[10px] text-gray-400 mt-0.5">
+                  <div className="text-[10px] text-gray-400 mt-0.5 truncate">
                     {exp.category} • {exp.date}
                   </div>
-                  <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] bg-white/5 text-gray-300">
+                  <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] bg-white/5 text-gray-300 font-mono">
                     Paid via {exp.paymentMode}
                   </span>
                 </div>
 
                 <div className="text-right shrink-0">
-                  <span className="font-mono font-bold text-red-400 text-sm">
+                  <span className="text-sm font-bold font-mono text-red-400">
                     -₹{exp.amount.toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -289,30 +286,27 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
 
       </div>
 
-      {/* Re-print Receipt Modal */}
-      <ReceiptModal
-        order={selectedOrderForReceipt}
-        onClose={() => setSelectedOrderForReceipt(null)}
-      />
-
-      {/* Add Expense Modal */}
+      {/* Modal: Record Expense (Safe Viewport) */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#121212] border border-[#D4AF37]/30 shadow-2xl p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#0E0E0E] border border-[#D4AF37]/35 shadow-[0_20px_60px_rgba(0,0,0,0.9)] max-h-[90vh] flex flex-col overflow-hidden">
             
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <h3 className="font-semibold text-white">Record Store Outflow / Expense</h3>
+            <div className="px-5 sm:px-6 py-4 border-b border-[#D4AF37]/20 bg-gradient-to-r from-black via-[#161616] to-black flex items-center justify-between shrink-0">
+              <h3 className="font-bold text-white text-sm sm:text-base font-serif flex items-center gap-2">
+                <Plus className="w-4 h-4 text-[#D4AF37] stroke-[2.5]" />
+                Record Store Expense
+              </h3>
               <button
                 onClick={() => setIsExpenseModalOpen(false)}
-                className="text-gray-400 hover:text-white"
+                className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddExpense} className="mt-4 space-y-4">
+            <form onSubmit={handleAddExpense} className="p-5 sm:p-6 overflow-y-auto space-y-4 custom-scrollbar flex-1">
               <div>
-                <label className="text-xs text-gray-300 font-medium block mb-1">
+                <label className="text-xs text-gray-300 font-semibold block mb-1">
                   Expense Description
                 </label>
                 <input
@@ -321,18 +315,18 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
                   placeholder="e.g. Milk & Khoya purchase, Sweets Box packaging"
                   value={expTitle}
                   onChange={(e) => setExpTitle(e.target.value)}
-                  className="text-sm"
+                  className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-gray-300 font-medium block mb-1">
+                <label className="text-xs text-gray-300 font-semibold block mb-1">
                   Category
                 </label>
                 <select
                   value={expCategory}
                   onChange={(e) => setExpCategory(e.target.value as any)}
-                  className="text-sm"
+                  className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
                 >
                   <option value="Raw Materials (Ghee/Mawa/Nuts)">Raw Materials (Ghee/Mawa/Nuts)</option>
                   <option value="Packaging & Boxes">Packaging & Boxes</option>
@@ -342,9 +336,9 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Amount (₹)
                   </label>
                   <input
@@ -352,17 +346,18 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
                     required
                     value={expAmount}
                     onChange={(e) => setExpAmount(Number(e.target.value))}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
                   />
                 </div>
+
                 <div>
-                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                  <label className="text-xs text-gray-300 font-semibold block mb-1">
                     Paid Via
                   </label>
                   <select
                     value={expPaymentMode}
                     onChange={(e) => setExpPaymentMode(e.target.value as any)}
-                    className="text-sm"
+                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
                   >
                     <option value="UPI">UPI</option>
                     <option value="Cash">Cash</option>
@@ -371,22 +366,29 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-white/10 flex justify-end gap-3">
+              <div className="pt-4 border-t border-white/10 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsExpenseModalOpen(false)}
-                  className="px-4 py-2 text-xs text-gray-400 hover:text-white"
+                  className="px-4 py-2 text-xs text-gray-400 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-gold text-xs">
+                <button type="submit" className="btn-gold text-xs py-2 px-4 font-bold">
                   Save Expense
                 </button>
               </div>
             </form>
+
           </div>
         </div>
       )}
+
+      {/* Completed Thermal Receipt Modal */}
+      <ReceiptModal
+        order={selectedOrderForReceipt}
+        onClose={() => setSelectedOrderForReceipt(null)}
+      />
 
     </div>
   );
