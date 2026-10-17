@@ -4,20 +4,15 @@ import {
   Clock, 
   Volume2, 
   Menu, 
-  Database,
 } from 'lucide-react';
 import { playBeep } from '../../lib/utils';
 
 interface HeaderProps {
   onToggleMobileMenu?: () => void;
-  onOpenTursoModal?: () => void;
-  isTursoConnected?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
   onToggleMobileMenu,
-  onOpenTursoModal,
-  isTursoConnected = false
 }) => {
   const [time, setTime] = useState<string>('');
 
@@ -60,26 +55,6 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right: Status indicators */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
 
-        {/* DB status */}
-        {onOpenTursoModal && (
-          <button
-            onClick={onOpenTursoModal}
-            className="flex items-center gap-1.5 text-xs transition-colors shrink-0"
-            title="Database connection status"
-          >
-            <Database className="w-3.5 h-3.5 text-gray-500" />
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-              isTursoConnected 
-                ? 'bg-emerald-400' 
-                : 'bg-amber-400 animate-pulse'
-            }`} />
-            <span className={`hidden md:inline text-[11px] font-medium ${
-              isTursoConnected ? 'text-emerald-400' : 'text-amber-400'
-            }`}>
-              {isTursoConnected ? 'Cloud' : 'Setup'}
-            </span>
-          </button>
-        )}
 
         {/* Divider */}
         <div className="w-px h-4 bg-white/10 hidden sm:block" />

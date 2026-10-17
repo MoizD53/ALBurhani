@@ -3,7 +3,6 @@ import { Product, OrderBill } from './types';
 import { INITIAL_PRODUCTS } from './data/mockProducts';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
-import { TursoModal } from './components/layout/TursoModal';
 import { PosBillingView } from './components/pos/PosBillingView';
 import { InventoryView } from './components/inventory/InventoryView';
 import { FinanceView } from './components/finance/FinanceView';
@@ -31,7 +30,6 @@ export function App() {
     }
   });
 
-  const [isTursoModalOpen, setIsTursoModalOpen] = useState(false);
   const [isTursoConnected, setIsTursoConnected] = useState(false);
 
   const [products, setProducts] = useState<Product[]>(() => {
@@ -221,8 +219,6 @@ export function App() {
         setIsCollapsed={setIsSidebarCollapsed}
         isMobileOpen={isMobileMenuOpen}
         setIsMobileOpen={setIsMobileMenuOpen}
-        onOpenTursoModal={() => setIsTursoModalOpen(true)}
-        isTursoConnected={isTursoConnected}
       />
 
       {/* Main Content Area */}
@@ -231,8 +227,6 @@ export function App() {
         {/* Header */}
         <Header 
           onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
-          onOpenTursoModal={() => setIsTursoModalOpen(true)}
-          isTursoConnected={isTursoConnected}
         />
 
         {/* View Body */}
@@ -272,15 +266,6 @@ export function App() {
         onClose={() => setStickerModalProduct(null)}
       />
 
-      {/* Turso Database Connection Modal */}
-      <TursoModal
-        isOpen={isTursoModalOpen}
-        onClose={() => setIsTursoModalOpen(false)}
-        onProductsSynced={(syncedProds) => {
-          setProducts(syncedProds);
-          setIsTursoConnected(true);
-        }}
-      />
 
     </div>
   );

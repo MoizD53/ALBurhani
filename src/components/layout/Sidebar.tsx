@@ -7,7 +7,6 @@ import {
   Store, 
   ChevronLeft,
   ChevronRight,
-  Database,
   X,
   AlertTriangle
 } from 'lucide-react';
@@ -22,8 +21,6 @@ interface SidebarProps {
   setIsCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
-  onOpenTursoModal: () => void;
-  isTursoConnected: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -34,8 +31,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsCollapsed,
   isMobileOpen,
   setIsMobileOpen,
-  onOpenTursoModal,
-  isTursoConnected
 }) => {
   const navItems = [
     {
@@ -191,31 +186,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer */}
       <div className={`pt-4 border-t border-white/[0.06] space-y-2 shrink-0`}>
         
-        {/* DB status button */}
-        <button
-          onClick={onOpenTursoModal}
-          className={`w-full ${showLabels ? 'flex items-center gap-2.5 px-3 py-2' : 'flex justify-center p-2.5'} rounded-xl transition-colors group hover:bg-white/[0.04]`}
-          title="Database settings"
-        >
-          <div className={`shrink-0 ${isTursoConnected ? 'text-emerald-500' : 'text-amber-500'}`}>
-            <Database className="w-4 h-4 stroke-[1.75]" />
-          </div>
-          {showLabels && (
-            <div className="min-w-0 flex-1 text-left">
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] font-medium text-gray-400 group-hover:text-white truncate">
-                  Turso Database
-                </span>
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ml-2 ${
-                  isTursoConnected ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'
-                }`} />
-              </div>
-              <p className="text-[11px] text-gray-600 truncate">
-                {isTursoConnected ? 'Cloud sync active' : 'Click to configure'}
-              </p>
-            </div>
-          )}
-        </button>
 
         {/* Branch info (expanded only) */}
         {showLabels && (
