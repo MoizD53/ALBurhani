@@ -3,11 +3,8 @@ import {
   Barcode, 
   Clock, 
   Volume2, 
-  Sparkles, 
   Menu, 
   Database,
-  CheckCircle2,
-  AlertCircle
 } from 'lucide-react';
 import { playBeep } from '../../lib/utils';
 
@@ -26,108 +23,104 @@ export const Header: React.FC<HeaderProps> = ({
 
   useEffect(() => {
     const update = () => {
-      setTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
     };
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleTestBeep = () => {
-    playBeep('scan');
-  };
-
   return (
-    <header className="h-16 px-3 sm:px-6 liquid-glass border-b border-[#D4AF37]/15 flex items-center justify-between z-10 shrink-0">
+    <header className="h-14 px-3 sm:px-5 bg-[#0a0a0a] border-b border-white/[0.07] flex items-center justify-between z-10 shrink-0 gap-3">
       
-      {/* Left: Mobile Hamburger + Franchise Badge */}
-      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-        
-        {/* Mobile menu toggle button */}
+      {/* Left: Mobile Hamburger + Brand */}
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Mobile menu toggle */}
         <button
           onClick={onToggleMobileMenu}
-          className="lg:hidden p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-[#D4AF37] border border-[#D4AF37]/20 transition-all shrink-0"
+          className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-colors shrink-0"
           title="Open Navigation Menu"
           aria-label="Open Navigation Menu"
         >
-          <Menu className="w-5 h-5 text-[#D4AF37]" />
+          <Menu className="w-5 h-5" />
         </button>
 
-        {/* Brand / Franchise Badge */}
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/25 text-[#D4AF37] text-[11px] sm:text-xs font-semibold shrink-0">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">AL-BHURANI FRANCHISE POS</span>
-          </div>
-
-          <span className="text-xs text-gray-400 hidden xl:inline truncate">
-            Station Road Main Counter
+        {/* Brand */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="font-black text-sm tracking-widest uppercase font-serif text-[#D4AF37] hidden sm:block shrink-0">
+            AL-BHURANI
+          </span>
+          <span className="text-white/20 hidden lg:block">·</span>
+          <span className="text-xs text-gray-500 hidden lg:block truncate">
+            Station Road · Main Counter
           </span>
         </div>
       </div>
 
-      {/* Right: Quick Tools & Status */}
+      {/* Right: Status indicators */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        
-        {/* Turso Cloud Sync Pill (Clickable to open modal) */}
+
+        {/* DB status */}
         {onOpenTursoModal && (
           <button
             onClick={onOpenTursoModal}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl border text-xs font-medium transition-all ${
-              isTursoConnected
-                ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300 hover:border-emerald-500/60'
-                : 'bg-[#D4AF37]/10 border-[#D4AF37]/30 text-[#E5C158] hover:border-[#D4AF37]/60'
-            }`}
-            title="Turso libSQL Cloud Database Status (Click to configure)"
+            className="flex items-center gap-1.5 text-xs transition-colors shrink-0"
+            title="Database connection status"
           >
-            <Database className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">
-              {isTursoConnected ? 'Turso Cloud: Connected' : 'Turso: Setup'}
+            <Database className="w-3.5 h-3.5 text-gray-500" />
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              isTursoConnected 
+                ? 'bg-emerald-400' 
+                : 'bg-amber-400 animate-pulse'
+            }`} />
+            <span className={`hidden md:inline text-[11px] font-medium ${
+              isTursoConnected ? 'text-emerald-400' : 'text-amber-400'
+            }`}>
+              {isTursoConnected ? 'Cloud' : 'Setup'}
             </span>
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isTursoConnected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-amber-400 animate-pulse'}`} />
           </button>
         )}
 
-        {/* Hardware Barcode Scanner Status indicator */}
-        <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1 rounded-xl bg-black/40 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-          <Barcode className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span className="hidden md:inline">Scanner: Ready</span>
+        {/* Divider */}
+        <div className="w-px h-4 bg-white/10 hidden sm:block" />
+
+        {/* Scanner status */}
+        <div className="flex items-center gap-1.5 text-xs shrink-0">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+          <Barcode className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+          <span className="hidden md:inline text-[11px] text-gray-400 font-medium">Scanner Ready</span>
         </div>
 
-        {/* Test Beep button */}
+        {/* Beep test */}
         <button
-          onClick={handleTestBeep}
+          onClick={() => playBeep('scan')}
           title="Test POS Audio Beep"
-          className="p-1.5 sm:p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-[#D4AF37] border border-white/10 transition-colors flex items-center gap-1.5 text-xs shrink-0"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-white/[0.06] transition-colors shrink-0"
         >
-          <Volume2 className="w-4 h-4 shrink-0" />
-          <span className="hidden md:inline">Beep</span>
+          <Volume2 className="w-3.5 h-3.5" />
         </button>
 
-        {/* Live Clock (Hidden on narrow screens to avoid wrapping) */}
-        <div className="hidden lg:flex items-center gap-1.5 text-xs text-gray-400 font-mono px-2.5 py-1 rounded-lg bg-black/30 border border-white/5 shrink-0">
-          <Clock className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
+        {/* Clock */}
+        <div className="hidden lg:flex items-center gap-1 text-[11px] text-gray-400 font-mono shrink-0">
+          <Clock className="w-3 h-3 text-gray-600" />
           <span>{time}</span>
         </div>
 
-        {/* Cashier Profile */}
-        <div className="flex items-center gap-2 pl-1 sm:pl-2 border-l border-white/10 shrink-0">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#D4AF37] to-amber-200 text-black flex items-center justify-center font-bold text-xs shadow-[0_0_10px_rgba(212,175,55,0.2)] shrink-0 select-none">
+        {/* Divider */}
+        <div className="w-px h-4 bg-white/10" />
+
+        {/* Cashier avatar */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#D4AF37] to-amber-200 text-black flex items-center justify-center font-bold text-[10px] select-none shrink-0">
             C1
           </div>
-          <div className="hidden sm:block text-left">
-            <span className="text-xs font-semibold text-white block leading-none">
-              Counter 01
-            </span>
-            <span className="text-[10px] text-[#D4AF37] block mt-0.5">
-              Shift Active
-            </span>
+          <div className="hidden sm:block text-left leading-tight">
+            <span className="text-xs font-semibold text-white block">Counter 01</span>
+            <span className="text-[10px] text-emerald-400 block">Shift Active</span>
           </div>
         </div>
 
       </div>
-
     </header>
   );
 };
