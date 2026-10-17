@@ -1,0 +1,393 @@
+import React, { useState } from 'react';
+import { 
+  DollarSign, 
+  TrendingUp, 
+  CreditCard, 
+  Banknote, 
+  QrCode, 
+  Receipt, 
+  ArrowUpRight, 
+  ArrowDownRight,
+  Plus,
+  Calendar,
+  Eye,
+  FileSpreadsheet
+} from 'lucide-react';
+import { OrderBill } from '../../types';
+import { ReceiptModal } from '../pos/ReceiptModal';
+
+interface FinanceViewProps {
+  orders: OrderBill[];
+}
+
+interface ExpenseItem {
+  id: string;
+  title: string;
+  category: 'Raw Materials (Ghee/Mawa/Nuts)' | 'Packaging & Boxes' | 'Store Utilities' | 'Staff Wages' | 'Other';
+  amount: number;
+  date: string;
+  paymentMode: 'Cash' | 'UPI' | 'Bank Transfer';
+}
+
+export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
+  const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<OrderBill | null>(null);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([
+    {
+      id: 'exp-1',
+      title: 'Amul Pure Ghee 15kg Tin (x2)',
+      category: 'Raw Materials (Ghee/Mawa/Nuts)',
+      amount: 14500,
+      date: 'Today, 11:30 AM',
+      paymentMode: 'UPI',
+    },
+    {
+      id: 'exp-2',
+      title: 'Printed Mithai & Namkeen Boxes (500 units)',
+      category: 'Packaging & Boxes',
+      amount: 6200,
+      date: 'Yesterday',
+      paymentMode: 'Bank Transfer',
+    },
+    {
+      id: 'exp-3',
+      title: 'Store Commercial Electricity Bill',
+      category: 'Store Utilities',
+      amount: 4800,
+      date: '14 Oct 2026',
+      paymentMode: 'UPI',
+    },
+  ]);
+
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [expTitle, setExpTitle] = useState('');
+  const [expCategory, setExpCategory] = useState<ExpenseItem['category']>('Raw Materials (Ghee/Mawa/Nuts)');
+  const [expAmount, setExpAmount] = useState<number>(1000);
+  const [expPaymentMode, setExpPaymentMode] = useState<ExpenseItem['paymentMode']>('UPI');
+
+  // Calculations
+  const totalRevenue = orders.reduce((sum, o) => sum + o.grandTotal, 0);
+  const cashTotal = orders.filter((o) => o.paymentMethod === 'CASH').reduce((sum, o) => sum + o.grandTotal, 0);
+  const upiTotal = orders.filter((o) => o.paymentMethod === 'UPI').reduce((sum, o) => sum + o.grandTotal, 0);
+  const cardTotal = orders.filter((o) => o.paymentMethod === 'CARD').reduce((sum, o) => sum + o.grandTotal, 0);
+
+  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const estimatedProfit = Math.max(0, totalRevenue * 0.38 - totalExpenses); // 38% gross margin on sweets/namkeen
+
+  const handleAddExpense = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expTitle || !expAmount) return;
+
+    setExpenses([
+      {
+        id: `exp-${Date.now()}`,
+        title: expTitle,
+        category: expCategory,
+        amount: Number(expAmount),
+        date: 'Today, Just now',
+        paymentMode: expPaymentMode,
+      },
+      ...expenses,
+    ]);
+
+    setIsExpenseModalOpen(false);
+    setExpTitle('');
+    setExpAmount(1000);
+  };
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2 font-serif">
+            <DollarSign className="w-5 h-5 text-[#D4AF37]" />
+            Finance & Daily Accounts
+          </h2>
+          <p className="text-xs text-[#B8B8B8] mt-0.5">
+            Cash register, UPI reconciliation, daily revenue, and expense logs
+          </p>
+        </div>
+
+        <button
+          onClick={() => setIsExpenseModalOpen(true)}
+          className="btn-gold text-xs flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+          <span>Record Store Expense</span>
+        </button>
+      </div>
+
+      {/* Top Financial Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* Total Revenue */}
+        <div className="p-4 rounded-2xl liquid-glass border border-[#D4AF37]/30 bg-[#D4AF37]/5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-gray-300">Total Sales Today</span>
+            <div className="p-2 rounded-xl bg-[#D4AF37]/20 text-[#D4AF37]">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-white mt-2 font-mono">
+            ₹{totalRevenue.toLocaleString('en-IN')}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400 mt-1">
+            <ArrowUpRight className="w-3.5 h-3.5" />
+            <span>{orders.length} Completed Bills</span>
+          </div>
+        </div>
+
+        {/* UPI Collection */}
+        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-gray-300">UPI / QR Payment</span>
+            <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
+              <QrCode className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-white mt-2 font-mono">
+            ₹{upiTotal.toLocaleString('en-IN')}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Instant Bank Settlement
+          </div>
+        </div>
+
+        {/* Cash in Drawer */}
+        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-gray-300">Cash in Till / Drawer</span>
+            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+              <Banknote className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-white mt-2 font-mono">
+            ₹{cashTotal.toLocaleString('en-IN')}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            Physical Cash to Deposit
+          </div>
+        </div>
+
+        {/* Card Swipes */}
+        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase font-semibold text-gray-300">Card Swipes / EDC</span>
+            <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
+              <CreditCard className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-white mt-2 font-mono">
+            ₹{cardTotal.toLocaleString('en-IN')}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            POS Terminal Batch
+          </div>
+        </div>
+
+      </div>
+
+      {/* Two Columns: Recent Bills vs Store Expenses */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Recent Bills (7 cols) */}
+        <div className="lg:col-span-7 rounded-2xl liquid-glass border border-[#D4AF37]/15 p-5 shadow-xl">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+            <div className="flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-[#D4AF37]" />
+              <h3 className="font-semibold text-white text-sm">Recent POS Bills & Receipts</h3>
+            </div>
+            <span className="text-xs text-gray-400">{orders.length} orders</span>
+          </div>
+
+          <div className="space-y-2.5 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+            {orders.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-8">
+                No orders billed yet. Go to POS screen and scan products!
+              </p>
+            ) : (
+              orders.map((order) => (
+                <div
+                  key={order.id}
+                  className="p-3 rounded-xl bg-black/40 border border-white/5 hover:border-[#D4AF37]/30 transition-all flex items-center justify-between gap-4"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-[#D4AF37]">
+                        {order.billNumber}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-gray-300">
+                        {order.paymentMethod}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-1">
+                      {order.items.map((i) => `${i.product.name} (x${i.quantity})`).join(', ')}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">
+                      {order.createdAt}
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0 flex items-center gap-3">
+                    <div>
+                      <div className="font-mono font-bold text-white text-sm">
+                        ₹{order.grandTotal}
+                      </div>
+                      <div className="text-[10px] text-emerald-400">Paid</div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedOrderForReceipt(order)}
+                      className="p-2 rounded-lg bg-white/5 hover:bg-[#D4AF37]/20 text-gray-400 hover:text-[#D4AF37] transition-colors"
+                      title="View / Re-print Receipt"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Expenses & Outflows (5 cols) */}
+        <div className="lg:col-span-5 rounded-2xl liquid-glass border border-white/10 p-5 shadow-xl">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+            <h3 className="font-semibold text-white text-sm">Today's Store Outflows</h3>
+            <span className="text-xs font-mono font-bold text-red-400">
+              -₹{totalExpenses.toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          <div className="space-y-3 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
+            {expenses.map((exp) => (
+              <div
+                key={exp.id}
+                className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between"
+              >
+                <div>
+                  <h5 className="text-xs font-semibold text-white leading-tight">
+                    {exp.title}
+                  </h5>
+                  <div className="text-[10px] text-gray-400 mt-0.5">
+                    {exp.category} • {exp.date}
+                  </div>
+                  <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] bg-white/5 text-gray-300">
+                    Paid via {exp.paymentMode}
+                  </span>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="font-mono font-bold text-red-400 text-sm">
+                    -₹{exp.amount.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+
+      {/* Re-print Receipt Modal */}
+      <ReceiptModal
+        order={selectedOrderForReceipt}
+        onClose={() => setSelectedOrderForReceipt(null)}
+      />
+
+      {/* Add Expense Modal */}
+      {isExpenseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl bg-[#121212] border border-[#D4AF37]/30 shadow-2xl p-6">
+            
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <h3 className="font-semibold text-white">Record Store Outflow / Expense</h3>
+              <button
+                onClick={() => setIsExpenseModalOpen(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddExpense} className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs text-gray-300 font-medium block mb-1">
+                  Expense Description
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Milk & Khoya purchase, Sweets Box packaging"
+                  value={expTitle}
+                  onChange={(e) => setExpTitle(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300 font-medium block mb-1">
+                  Category
+                </label>
+                <select
+                  value={expCategory}
+                  onChange={(e) => setExpCategory(e.target.value as any)}
+                  className="text-sm"
+                >
+                  <option value="Raw Materials (Ghee/Mawa/Nuts)">Raw Materials (Ghee/Mawa/Nuts)</option>
+                  <option value="Packaging & Boxes">Packaging & Boxes</option>
+                  <option value="Store Utilities">Store Utilities</option>
+                  <option value="Staff Wages">Staff Wages</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                    Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={expAmount}
+                    onChange={(e) => setExpAmount(Number(e.target.value))}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-300 font-medium block mb-1">
+                    Paid Via
+                  </label>
+                  <select
+                    value={expPaymentMode}
+                    onChange={(e) => setExpPaymentMode(e.target.value as any)}
+                    className="text-sm"
+                  >
+                    <option value="UPI">UPI</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/10 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsExpenseModalOpen(false)}
+                  className="px-4 py-2 text-xs text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-gold text-xs">
+                  Save Expense
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

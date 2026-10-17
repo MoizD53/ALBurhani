@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    /* === LUXURY BLACK & GOLD PALETTE === */
+    --background: 0, 0%, 4%;
+    --secondary: 0, 0%, 6.7%;
+    --card: 0, 0%, 8.2%;
+    --sidebar: 0, 0%, 4%;
+    --sidebar-border: 43, 72%, 30%;
+    --border: 43, 72%, 52%;
+
+    --foreground: 0, 0%, 100%;
+    --text: 0, 0%, 100%;
+    --secondary-foreground: 0, 0%, 72%;
+
+    /* Luxury Gold: #D4AF37 */
+    --primary: 43, 72%, 52%;
+    --primary-foreground: 0, 0%, 4%;
+    --primary-hover: 45, 74%, 62%;
+
+    --accent: 43, 72%, 52%;
+    --accent-foreground: 0, 0%, 100%;
+    --muted: 0, 0%, 8%;
+    --muted-foreground: 0, 0%, 55%;
+
+    --success: 122, 39%, 55%;
+    --warning: 45, 74%, 62%;
+    --danger: 350, 65%, 61%;
+
+    --gold: #D4AF37;
+    --gold-light: #E5C158;
+    --gold-dark: #C9A227;
+    --gold-muted: rgba(212, 175, 55, 0.4);
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: #050505;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+    color: #EAEAEA;
+    min-height: 100vh;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.2);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(212, 175, 55, 0.4);
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="search"],
+  select,
+  textarea {
+    @apply w-full rounded-xl transition-all duration-200;
+    background: #121212;
+    border: 1px solid rgba(212, 175, 55, 0.18);
+    color: #EAEAEA;
+    padding: 0.625rem 0.875rem;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: rgba(212, 175, 55, 0.6);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
+    background: #171717;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgba(184, 184, 184, 0.45);
+  }
+}
+
+@layer utilities {
+  .liquid-glass {
+    background: rgba(18, 18, 18, 0.82);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(212, 175, 55, 0.12);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(212, 175, 55, 0.05) inset;
+  }
+
+  .glass-card {
+    background: rgba(18, 18, 18, 0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(212, 175, 55, 0.14);
+    border-radius: 1rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  }
+
+  .glass-card-hover {
+    transition: all 0.25s ease;
+  }
+  .glass-card-hover:hover {
+    background: rgba(24, 24, 24, 0.95);
+    border-color: rgba(212, 175, 55, 0.35);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .glass-sidebar {
+    background: rgba(10, 10, 10, 0.97);
+    backdrop-filter: blur(32px);
+    border-right: 1px solid rgba(212, 175, 55, 0.1);
+  }
+
+  .gold-gradient-text {
+    background: linear-gradient(135deg, #F3E7C4 0%, #D4AF37 50%, #AA820A 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .btn-gold {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #E5C158, #C9A227);
+    color: #0A0A0A;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.25);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-gold:hover {
+    background: linear-gradient(135deg, #F0CF6F, #D4AF37);
+    box-shadow: 0 6px 22px rgba(212, 175, 55, 0.4);
+    transform: translateY(-1px);
+  }
+  .btn-gold:active {
+    transform: translateY(0);
+  }
+
+  .btn-dark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: rgba(255, 255, 255, 0.04);
+    color: #EAEAEA;
+    font-weight: 500;
+    font-size: 0.875rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(212, 175, 55, 0.15);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-dark:hover {
+    background: rgba(212, 175, 55, 0.08);
+    border-color: rgba(212, 175, 55, 0.35);
+    color: #FFFFFF;
+  }
+
+  /* Thermal print format container */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    #thermal-receipt, #thermal-receipt * {
+      visibility: visible;
+    }
+    #thermal-receipt {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 80mm;
+      background: white !important;
+      color: black !important;
+      padding: 10px;
+      font-family: monospace;
+    }
+    #barcode-sticker-print, #barcode-sticker-print * {
+      visibility: visible;
+    }
+    #barcode-sticker-print {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 50mm;
+      background: white !important;
+      color: black !important;
+    }
+  }
+}
