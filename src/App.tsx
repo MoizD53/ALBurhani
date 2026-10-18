@@ -219,6 +219,7 @@ export function App() {
         setIsCollapsed={setIsSidebarCollapsed}
         isMobileOpen={isMobileMenuOpen}
         setIsMobileOpen={setIsMobileMenuOpen}
+        isTursoConnected={isTursoConnected}
       />
 
       {/* Main Content Area */}
@@ -227,6 +228,7 @@ export function App() {
         {/* Header */}
         <Header 
           onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
+          isTursoConnected={isTursoConnected}
         />
 
         {/* View Body */}
