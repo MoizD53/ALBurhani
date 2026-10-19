@@ -115,6 +115,7 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
         onClick={handleInstallClick}
         disabled={installState === 'prompting'}
         className={`w-full py-3 px-4 rounded-xl sm:rounded-2xl bg-[#141417] hover:bg-[#1A1A1F] border border-white/[0.1] hover:border-[#D4AF37]/50 text-white font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2.5 shadow-md group cursor-pointer ${className}`}
+        title="Install App"
       >
         {installState === 'prompting' ? (
           <>
@@ -124,10 +125,7 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
         ) : (
           <>
             <Download className="w-4 h-4 text-[#D4AF37] group-hover:scale-110 transition-transform shrink-0" />
-            <span>Install App on this Device</span>
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-zinc-400 group-hover:text-white">
-              PWA
-            </span>
+            <span>Install App</span>
           </>
         )}
       </button>
@@ -138,17 +136,12 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
         type="button"
         onClick={handleInstallClick}
         disabled={installState === 'prompting'}
-        className={`w-full py-2 px-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-[#D4AF37]/30 hover:border-[#D4AF37] text-white text-xs font-semibold flex items-center justify-between transition-all group ${className}`}
-        title="Install AL-BHURANI POS App"
+        className={`w-full py-2 px-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-[#D4AF37]/30 hover:border-[#D4AF37] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all group ${className}`}
+        title="Install App"
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <Download className="w-3.5 h-3.5 text-[#D4AF37] group-hover:scale-110 transition-transform shrink-0" />
-          <span className="truncate">
-            {installState === 'prompting' ? 'Opening installer…' : 'Install POS App'}
-          </span>
-        </div>
-        <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30">
-          PWA
+        <Download className="w-3.5 h-3.5 text-[#D4AF37] group-hover:scale-110 transition-transform shrink-0" />
+        <span className="truncate">
+          {installState === 'prompting' ? 'Opening installer…' : 'Install App'}
         </span>
       </button>
     );
@@ -160,7 +153,7 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
         onClick={handleInstallClick}
         disabled={installState === 'prompting'}
         className={`flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-[#121214] hover:bg-[#18181C] border border-[#D4AF37]/40 hover:border-[#D4AF37] text-xs font-semibold text-white shadow-sm transition-all group shrink-0 ${className}`}
-        title="Install AL-BHURANI POS App"
+        title="Install App"
       >
         {installState === 'prompting' ? (
           <>
@@ -170,8 +163,7 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
         ) : (
           <>
             <Download className="w-3.5 h-3.5 text-[#D4AF37] group-hover:scale-110 transition-transform shrink-0" />
-            <span className="hidden sm:inline">Install App</span>
-            <span className="sm:hidden">Install</span>
+            <span>Install App</span>
           </>
         )}
       </button>
@@ -194,7 +186,7 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
                   {isIos ? <Smartphone className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-sm">Install AL-BHURANI POS</h3>
+                  <h3 className="font-bold text-white text-sm">Install App</h3>
                   <p className="text-[11px] text-[#D4AF37]">Add to Home Screen</p>
                 </div>
               </div>
@@ -209,7 +201,7 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
             {/* Step-by-Step Instructions */}
             <div className="p-5 space-y-4 text-xs">
               <p className="text-zinc-300 leading-relaxed">
-                Install AL-BHURANI POS as a standalone fullscreen app on your device:
+                Install as a standalone fullscreen app on your device:
               </p>
 
               {isIos ? (
@@ -254,7 +246,7 @@ export const InstallPwaButton: React.FC<InstallPwaButtonProps> = ({
                       2
                     </span>
                     <p className="text-zinc-300">
-                      Select <strong className="text-white">Install AL-BHURANI POS</strong> to launch in dedicated standalone app mode.
+                      Select <strong className="text-white">Install App</strong> to launch in dedicated standalone app mode.
                     </p>
                   </div>
                 </div>

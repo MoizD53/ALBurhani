@@ -19,7 +19,8 @@ import {
   Clock,
   Printer,
   ChevronRight,
-  Trash2
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
 import { isOrderInDateRange } from '../../lib/utils';
@@ -30,6 +31,7 @@ interface OverviewDashboardViewProps {
   expenses: ExpenseItem[];
   onNavigateToTab: (tab: any) => void;
   onDeleteOrder?: (orderId: string) => void;
+  onModifyOrder?: (order: OrderBill) => void;
 }
 
 export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
@@ -38,6 +40,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   expenses,
   onNavigateToTab,
   onDeleteOrder,
+  onModifyOrder,
 }) => {
   // Privacy mode toggle (matches eye icon in TEN11 screenshot)
   const [isMasked, setIsMasked] = useState(false);
@@ -386,6 +389,16 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
                         </td>
                         <td className="py-2.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1">
+                            {onModifyOrder && (
+                              <button
+                                type="button"
+                                onClick={() => onModifyOrder(order)}
+                                className="p-1 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                                title="Add Items / Modify Bill"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => setSelectedReceiptOrder(order)}
                               className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
@@ -427,6 +440,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
         <ReceiptModal
           order={selectedReceiptOrder}
           onClose={() => setSelectedReceiptOrder(null)}
+          onModifyOrder={onModifyOrder}
         />
       )}
 

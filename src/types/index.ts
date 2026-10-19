@@ -27,6 +27,7 @@ export interface Product {
   mrp?: number;
   taxRate?: number; // e.g. 5 for 5% GST
   isActive?: boolean;
+  priceTiers?: { minQuantity: number; price: number }[]; // Quantity-based pricing tiers
 }
 
 export interface CartItem {
@@ -61,6 +62,15 @@ export interface OrderBill {
   cashierName: string;
   createdAt: string;
   timestamp?: number;
+  // Bill Modification & Revision Audit Trail
+  isRevised?: boolean;
+  originalGrandTotal?: number;
+  additionalAmountPaid?: number;
+  originalPaymentMethod?: PaymentMethod;
+  additionalPaymentMethod?: PaymentMethod;
+  revisedAt?: string;
+  revisedTimestamp?: number;
+  revisionCount?: number;
 }
 
 export interface CompleteSaleResult {

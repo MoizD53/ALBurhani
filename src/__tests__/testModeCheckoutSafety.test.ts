@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Product, OrderBill, PaymentMethod, TransactionType, CompleteSaleResult } from '../types';
 import { IMPORTED_PRODUCTS } from '../data/importedProducts';
-import { buildCartItem, deductStock } from '../lib/pricing';
+import { buildCartItem, deductStock, calculateOrderTotals } from '../lib/pricing';
 import { isOrderInDateRange } from '../lib/utils';
 
 describe('Real Sales Persistence & Checkout Verification', () => {
@@ -47,11 +47,13 @@ describe('Real Sales Persistence & Checkout Verification', () => {
     receivedAmount?: number;
     onCompleteSale: (order: OrderBill) => Promise<CompleteSaleResult> | CompleteSaleResult;
   }) {
-    const subtotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
-    const discountAmount = 0;
-    const taxableAmount = subtotal;
-    const gstAmount = transactionType === 'CUSTOMER_BILL' ? Math.round(taxableAmount * 0.05 * 100) / 100 : 0;
-    const grandTotal = Math.round(taxableAmount + gstAmount);
+    const {
+      subtotal,
+      discountAmount,
+      taxableAmount,
+      gstAmount,
+      grandTotal,
+    } = calculateOrderTotals(cart, 0, transactionType);
 
     const prefix = transactionType === 'CUSTOMER_BILL' ? 'INV' : 'NB';
     const randomNum = 4821;
@@ -119,7 +121,7 @@ describe('Real Sales Persistence & Checkout Verification', () => {
 
     const cart = [buildCartItem(sampleProduct, 2)];
 
-    // Formal Customer Bill (With Bill)
+    // Formal Customer Bill (With GST)
     const invResult = await performCheckout({
       transactionType: 'CUSTOMER_BILL',
       paymentMethod: 'CASH',
@@ -130,7 +132,9 @@ describe('Real Sales Persistence & Checkout Verification', () => {
     expect(invResult.newOrder.billNumber).toMatch(/^ALB-INV-\d+$/);
     expect(invResult.newOrder.id).toMatch(/^sale-\d+-\d+$/);
     expect(invResult.newOrder.cashierName).toBe('Owner');
-    expect(invResult.newOrder.gstAmount).toBe(Math.round(550 * 0.05 * 100) / 100);
+    // GST-inclusive: 550 / 1.05 = 523.81 taxable, 26.19 included GST, 550 total
+    expect(invResult.newOrder.gstAmount).toBe(26.19);
+    expect(invResult.newOrder.grandTotal).toBe(550);
     expect(invResult.isCartCleared).toBe(true);
     expect(invResult.completedOrderModal).toEqual(invResult.newOrder);
     expect(persistedOrders.length).toBe(1);

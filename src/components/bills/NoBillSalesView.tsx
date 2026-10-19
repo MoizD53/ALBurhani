@@ -11,15 +11,17 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Trash2
+  Trash2,
+  Edit2
 } from 'lucide-react';
 
 interface NoBillSalesViewProps {
   orders: OrderBill[];
   onDeleteOrder?: (orderId: string) => void;
+  onModifyOrder?: (order: OrderBill) => void;
 }
 
-export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders, onDeleteOrder }) => {
+export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders, onDeleteOrder, onModifyOrder }) => {
   const [search, setSearch] = useState('');
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
 
@@ -180,6 +182,17 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders, onDele
                             >
                               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                             </button>
+                            {onModifyOrder && (
+                              <button
+                                type="button"
+                                onClick={() => onModifyOrder(s)}
+                                className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-amber-500/15 text-zinc-400 hover:text-amber-400 border border-white/[0.08] transition-colors"
+                                title="Add Items / Modify Sale"
+                                aria-label={`Modify sale ${s.billNumber}`}
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                             {onDeleteOrder && (
                               <button
                                 type="button"

@@ -55,6 +55,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [mrp, setMrp] = useState<number>(100);
   const [taxRate, setTaxRate] = useState<number>(0);
   const [shelfLifeDays, setShelfLifeDays] = useState<number>(30);
+  const [priceTiers, setPriceTiers] = useState<{ minQuantity: number; price: number }[]>([]);
 
   const categories: string[] = [
     'All', 
@@ -82,6 +83,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setMrp(100);
     setTaxRate(0);
     setShelfLifeDays(30);
+    setPriceTiers([]);
     setIsModalOpen(true);
   };
 
@@ -100,6 +102,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setMrp(p.mrp || p.sellingPrice);
     setTaxRate(p.taxRate || 5);
     setShelfLifeDays(p.shelfLifeDays || 14);
+    setPriceTiers(p.priceTiers ? p.priceTiers.map((t) => ({ minQuantity: t.minQuantity, price: t.price })) : []);
     setIsModalOpen(true);
   };
 
@@ -108,6 +111,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     if (!name.trim() || !barcode.trim()) return;
 
     const isWeight = unit === 'KG';
+    const validTiers = priceTiers
+      .filter((t) => t.minQuantity > 0 && t.price > 0)
+      .sort((a, b) => a.minQuantity - b.minQuantity);
 
     if (editingProduct) {
       // Update existing
@@ -126,6 +132,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         mrp: Number(mrp),
         taxRate: Number(taxRate),
         shelfLifeDays: Number(shelfLifeDays),
+        priceTiers: validTiers.length > 0 ? validTiers : undefined,
       };
       onUpdateProduct(updated);
     } else {
@@ -151,6 +158,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         batchNo: `B-${category.slice(0, 2).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
         mfgDate: mfg,
         expiryDate: exp,
+        priceTiers: validTiers.length > 0 ? validTiers : undefined,
         isActive: true,
       };
       onAddProduct(newProd);
@@ -348,8 +356,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     </td>
 
                     {/* Selling Price */}
-                    <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm whitespace-nowrap">
-                      {formatPriceWithBasis(p.sellingPrice, p.unit)}
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <div className="font-mono font-bold text-white text-sm">
+                        {formatPriceWithBasis(p.sellingPrice, p.unit)}
+                      </div>
+                      {p.priceTiers && p.priceTiers.length > 0 && (
+                        <div className="text-[10px] text-[#E7C75A] font-semibold tracking-tight mt-0.5">
+                          ⚡ {p.priceTiers.length} Bulk {p.priceTiers.length === 1 ? 'Tier' : 'Tiers'}
+                        </div>
+                      )}
                     </td>
 
                     {/* Stock Units (with quick inline edit) */}
@@ -609,6 +624,97 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-mono focus:border-[#D4AF37]/60 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Quantity-Based Bulk Pricing Tiers */}
+              <div className="p-3.5 bg-white/[0.02] border border-[#D4AF37]/25 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-[#E7C75A] block">
+                      Quantity-Based Pricing Tiers (Bulk Discounts)
+                    </span>
+                    <span className="text-[10px] text-zinc-400">
+                      Configure dynamic unit prices when customers buy in larger quantities ({unit === 'KG' ? 'e.g. 2 kg or more' : 'e.g. 5 pcs or more'}).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPriceTiers((prev) => [
+                        ...prev,
+                        {
+                          minQuantity: unit === 'KG' ? 2 : 5,
+                          price: sellingPrice > 10 ? Math.round(sellingPrice * 0.9) : sellingPrice,
+                        },
+                      ])
+                    }
+                    className="text-[11px] px-2.5 py-1 bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 text-[#E7C75A] border border-[#D4AF37]/40 rounded-lg flex items-center gap-1 font-semibold transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Tier</span>
+                  </button>
+                </div>
+
+                {priceTiers.length === 0 ? (
+                  <p className="text-[11px] text-zinc-500 italic py-1">
+                    No quantity tiers configured. Standard price (₹{sellingPrice} {unit === 'KG' ? '/kg' : '/pc'}) applies for all quantities.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                    {priceTiers.map((tier, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-white/[0.08]"
+                      >
+                        <span className="text-[11px] text-zinc-400 font-semibold shrink-0">
+                          Qty ≥
+                        </span>
+                        <input
+                          type="number"
+                          step={unit === 'KG' ? '0.25' : '1'}
+                          min="0.1"
+                          placeholder={unit === 'KG' ? 'Min kg' : 'Min pcs'}
+                          value={tier.minQuantity || ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setPriceTiers((prev) =>
+                              prev.map((t, i) => (i === idx ? { ...t, minQuantity: val } : t))
+                            );
+                          }}
+                          className="w-20 text-xs py-1 px-2 bg-black/60 border border-white/[0.12] rounded text-white font-mono focus:border-[#D4AF37] focus:outline-none"
+                        />
+                        <span className="text-[11px] text-zinc-400 shrink-0">
+                          {unit === 'KG' ? 'kg' : 'pcs'} → Price: ₹
+                        </span>
+                        <input
+                          type="number"
+                          step={unit === 'KG' ? '10' : '1'}
+                          min="0"
+                          placeholder="Special Price"
+                          value={tier.price || ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setPriceTiers((prev) =>
+                              prev.map((t, i) => (i === idx ? { ...t, price: val } : t))
+                            );
+                          }}
+                          className="w-24 text-xs py-1 px-2 bg-black/60 border border-[#D4AF37]/40 rounded text-[#E7C75A] font-mono font-bold focus:border-[#D4AF37] focus:outline-none"
+                        />
+                        <span className="text-[10px] text-zinc-500 shrink-0">
+                          {unit === 'KG' ? '/kg' : '/pc'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPriceTiers((prev) => prev.filter((_, i) => i !== idx))}
+                          className="p-1 text-zinc-500 hover:text-red-400 ml-auto transition-colors cursor-pointer"
+                          title="Remove Tier"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Actions */}

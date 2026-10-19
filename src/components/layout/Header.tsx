@@ -59,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
     'customer-bills': { title: 'Customer Bills', subtitle: 'Tax Invoices & Receipts History' },
     'no-bill-sales': { title: 'No-Bill Sales', subtitle: 'Internal Counter Sales Records' },
     'inventory': { title: 'Inventory Management', subtitle: 'Product Catalog, Pricing & Stock' },
+    'label-studio': { title: 'Label Studio', subtitle: 'Barcode Label Designer & Multi-Label Sheet Printing' },
     'expenses': { title: 'Expenses Tracker', subtitle: 'Daily Shop Operating Costs' },
     'reports': { title: 'Reports & Analytics', subtitle: 'Financial Audit & Excel Exports' },
     'settings': { title: 'Settings', subtitle: 'Hardware Diagnostics & Store Preferences' },
@@ -121,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right Controls: Install Button, Notifications, Date Pill & Owner Dropdown */}
       <div className="flex items-center gap-2.5 shrink-0">
         
-        {/* PWA Install Button */}
+        {/* Install App Button */}
         <InstallPwaButton variant="header" />
 
         {/* Notification Bell with Gold Dot */}

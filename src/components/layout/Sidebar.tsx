@@ -12,7 +12,8 @@ import {
   ChevronRight, 
   X, 
   ShieldCheck, 
-  AlertTriangle
+  AlertTriangle,
+  Tag
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { InstallPwaButton } from '../common/InstallPwaButton';
@@ -23,6 +24,7 @@ export type ActiveTab =
   | 'customer-bills' 
   | 'no-bill-sales' 
   | 'inventory' 
+  | 'label-studio'
   | 'expenses' 
   | 'reports' 
   | 'settings';
@@ -75,6 +77,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Package,
       alertCount: lowStockCount,
     },
+    ...(currentUser.role === 'Owner'
+      ? [
+          {
+            id: 'label-studio' as ActiveTab,
+            label: 'Label Studio',
+            icon: Tag,
+          },
+        ]
+      : []),
     {
       id: 'expenses' as ActiveTab,
       label: 'Expenses',
@@ -212,7 +223,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer: Install App, User Profile & Collapse */}
       <div className="pt-3 border-t border-white/[0.06] shrink-0 space-y-2">
         
-        {/* PWA Install Button when expanded */}
+        {/* Install App Button when expanded */}
         {showLabels && (
           <InstallPwaButton variant="sidebar" />
         )}

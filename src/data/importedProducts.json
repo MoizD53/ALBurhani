@@ -981,13 +981,14 @@
     "hasOriginalBarcode": true,
     "name": "BHEL MIX BM",
     "category": "BHEL",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.24,
+    "sellingPrice": 240,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0067",
@@ -1386,13 +1387,14 @@
     "hasOriginalBarcode": true,
     "name": "JINI SEV J / FIKI SEV F",
     "category": "FARSAAN MIX",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.32,
+    "sellingPrice": 320,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0094",
@@ -1551,13 +1553,14 @@
     "hasOriginalBarcode": true,
     "name": "MASALA PAPDI MP",
     "category": "FARSAAN MIX",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.32,
+    "sellingPrice": 320,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0105",
@@ -1686,13 +1689,14 @@
     "hasOriginalBarcode": true,
     "name": "PALAK PAPDI PP",
     "category": "FARSAAN MIX",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.32,
+    "sellingPrice": 320,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0114",
@@ -1836,13 +1840,14 @@
     "hasOriginalBarcode": true,
     "name": "STAR GATHIYA SG",
     "category": "FARSAAN MIX",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.32,
+    "sellingPrice": 320,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0124",
@@ -2106,13 +2111,14 @@
     "hasOriginalBarcode": true,
     "name": "DALWADA BATTER DB",
     "category": "KHARAS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.3,
+    "sellingPrice": 300,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0142",
@@ -2121,13 +2127,14 @@
     "hasOriginalBarcode": true,
     "name": "DALWADA D",
     "category": "KHARAS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.3,
+    "sellingPrice": 300,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0143",
@@ -2136,13 +2143,14 @@
     "hasOriginalBarcode": true,
     "name": "KEBABS K",
     "category": "KHARAS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.4,
+    "sellingPrice": 400,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0144",
@@ -2361,13 +2369,14 @@
     "hasOriginalBarcode": true,
     "name": "SAKKARPARA S",
     "category": "PARA",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.28,
+    "sellingPrice": 280,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0159",
@@ -2496,13 +2505,14 @@
     "hasOriginalBarcode": true,
     "name": "METHI CHASKA PURI MCP",
     "category": "PURI",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.35,
+    "sellingPrice": 350,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0168",
@@ -3186,13 +3196,14 @@
     "hasOriginalBarcode": true,
     "name": "GHAV CHEVDO GC",
     "category": "SNACKS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.28,
+    "sellingPrice": 280,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0214",
@@ -3966,13 +3977,14 @@
     "hasOriginalBarcode": true,
     "name": "AJMERI HALWA AH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.44,
+    "sellingPrice": 440,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0266",
@@ -3981,13 +3993,14 @@
     "hasOriginalBarcode": true,
     "name": "Akhrot ( walnut ) halwa AH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.7,
+    "sellingPrice": 700,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0267",
@@ -3996,13 +4009,14 @@
     "hasOriginalBarcode": true,
     "name": "BADAM HALWA BH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.6,
+    "sellingPrice": 600,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0268",
@@ -4026,13 +4040,14 @@
     "hasOriginalBarcode": true,
     "name": "BALUSAHI B",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.18,
+    "sellingPrice": 180,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0270",
@@ -4056,13 +4071,14 @@
     "hasOriginalBarcode": true,
     "name": "BATRISO B",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.7,
+    "sellingPrice": 700,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0272",
@@ -4071,13 +4087,14 @@
     "hasOriginalBarcode": true,
     "name": "BESAN LADDU. (Dal na ladva) DL",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.3,
+    "sellingPrice": 300,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0273",
@@ -4086,13 +4103,14 @@
     "hasOriginalBarcode": true,
     "name": "BLUE BERRY HALWA BBH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.6,
+    "sellingPrice": 600,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0274",
@@ -4101,13 +4119,14 @@
     "hasOriginalBarcode": true,
     "name": "DAHIWADA D",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.2,
+    "sellingPrice": 200,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0275",
@@ -4116,13 +4135,14 @@
     "hasOriginalBarcode": true,
     "name": "DUDH HALWA DH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.4,
+    "sellingPrice": 400,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0276",
@@ -4131,13 +4151,14 @@
     "hasOriginalBarcode": true,
     "name": "DUDHI HALWA DH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.3,
+    "sellingPrice": 300,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0277",
@@ -4146,13 +4167,14 @@
     "hasOriginalBarcode": true,
     "name": "EGG MEHSUB   ( BEDA NA MEHSUB ) EM BM",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.7,
+    "sellingPrice": 700,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0278",
@@ -4191,13 +4213,14 @@
     "hasOriginalBarcode": true,
     "name": "GOL - PAPDI (GOLPAPDI) SPECIAL 900 GP 900",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.9,
+    "sellingPrice": 900,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0281",
@@ -4206,13 +4229,14 @@
     "hasOriginalBarcode": true,
     "name": "GULAB JAMUN GJ",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.28,
+    "sellingPrice": 280,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0282",
@@ -4221,13 +4245,14 @@
     "hasOriginalBarcode": true,
     "name": "KALI K",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.18,
+    "sellingPrice": 180,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0283",
@@ -4236,13 +4261,14 @@
     "hasOriginalBarcode": true,
     "name": "KALI LADDU DRY FRUIT KLD",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.24,
+    "sellingPrice": 240,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0284",
@@ -4251,13 +4277,14 @@
     "hasOriginalBarcode": true,
     "name": "KALI LADDU KL",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.18,
+    "sellingPrice": 180,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0285",
@@ -4266,13 +4293,14 @@
     "hasOriginalBarcode": true,
     "name": "KESAR COCONUT PENDA KCP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0286",
@@ -4281,13 +4309,14 @@
     "hasOriginalBarcode": true,
     "name": "KESAR PENDA KP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.5,
+    "sellingPrice": 500,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0287",
@@ -4296,13 +4325,14 @@
     "hasOriginalBarcode": true,
     "name": "KHOPRA PAAK KP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.4,
+    "sellingPrice": 400,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0288",
@@ -4311,13 +4341,14 @@
     "hasOriginalBarcode": true,
     "name": "MALAI COCONUT PENDA MCP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0289",
@@ -4326,13 +4357,14 @@
     "hasOriginalBarcode": true,
     "name": "MALAI HALWA MH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.7,
+    "sellingPrice": 700,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0290",
@@ -4341,13 +4373,14 @@
     "hasOriginalBarcode": true,
     "name": "MALAI PENDA MP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0291",
@@ -4356,13 +4389,14 @@
     "hasOriginalBarcode": true,
     "name": "MATHURA PENDA MP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0292",
@@ -4416,13 +4450,14 @@
     "hasOriginalBarcode": true,
     "name": "MEHSUB M",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.3,
+    "sellingPrice": 300,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0296",
@@ -4431,13 +4466,14 @@
     "hasOriginalBarcode": true,
     "name": "MOHAN - THAAL MT",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.5,
+    "sellingPrice": 500,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0297",
@@ -4446,13 +4482,14 @@
     "hasOriginalBarcode": true,
     "name": "NARIYAL PAAK NP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0298",
@@ -4461,13 +4498,14 @@
     "hasOriginalBarcode": true,
     "name": "PAPDI HALWA PH",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.6,
+    "sellingPrice": 600,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0299",
@@ -4476,13 +4514,14 @@
     "hasOriginalBarcode": true,
     "name": "PENDA MIX PM",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0300",
@@ -4491,13 +4530,14 @@
     "hasOriginalBarcode": true,
     "name": "ROSE COCONUT PENDA RCP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0301",
@@ -4506,13 +4546,14 @@
     "hasOriginalBarcode": true,
     "name": "ROSE PENDA RP",
     "category": "SWEETS",
-    "unit": "PCS",
-    "priceBasis": "₹/pc",
+    "unit": "KG",
+    "priceBasis": "₹/kg",
     "costPrice": 0,
-    "sellingPrice": 0.48,
+    "sellingPrice": 480,
     "stock": 0,
     "minStock": 0,
-    "isActive": true
+    "isActive": true,
+    "netWeight": "Per KG"
   },
   {
     "id": "alb-0302",

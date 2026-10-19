@@ -6,6 +6,7 @@ import {
   getTursoClient, 
   fetchOrdersFromTurso, 
   saveOrderToTurso, 
+  saveProductToTurso,
   updateStockOnTurso,
   clearOrdersFromTurso,
   clearExpensesFromTurso,
@@ -22,8 +23,10 @@ import {
   getDeletedOrderIds,
   recordDeletedOrder,
   isOrderDeleted,
-  isDemoOrTestOrder
+  isDemoOrTestOrder,
+  computeStockAdjustments
 } from './lib/orders';
+import { migrateCatalogPrices, MIGRATION_STORAGE_KEY } from './lib/catalogMigration';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { PosBillingView } from './components/pos/PosBillingView';
@@ -34,6 +37,7 @@ import { InventoryView } from './components/inventory/InventoryView';
 import { ExpensesView } from './components/expenses/ExpensesView';
 import { ReportsView } from './components/reports/ReportsView';
 import { SettingsView } from './components/settings/SettingsView';
+import { LabelStudioView } from './components/labels/LabelStudioView';
 import { BarcodeStickerModal } from './components/barcode/BarcodeStickerModal';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
 import { getCurrentSession, terminateSession } from './lib/auth';
@@ -100,17 +104,23 @@ export function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length >= 250) {
           const p0001 = parsed.find((p: Product) => p.barcode === '0001' || p.sku === '0001');
-          const isStale =
-            parsed.length !== IMPORTED_PRODUCTS.length ||
-            !p0001 ||
-            !p0001.name.includes('KAJU KATLI');
+          const isStale = !p0001 || !p0001.name.includes('KAJU KATLI');
 
           if (isStale) {
             const zeroStockProducts = IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
             localStorage.setItem('albhurani_products', JSON.stringify(zeroStockProducts));
             return zeroStockProducts;
           }
-          return parsed;
+
+          // Apply approved 41-item KG price conversion if stored with old per-gram rates
+          const { products: migrated, migratedCount } = migrateCatalogPrices(parsed);
+          if (migratedCount > 0 && typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_products', JSON.stringify(migrated));
+              localStorage.setItem(MIGRATION_STORAGE_KEY, 'true');
+            } catch {}
+          }
+          return migrated;
         }
       }
       return IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
@@ -246,6 +256,7 @@ export function App() {
   });
 
   const [stickerModalProduct, setStickerModalProduct] = useState<Product | null>(null);
+  const [editingOrder, setEditingOrder] = useState<OrderBill | null>(null);
 
   // Clean up obsolete test mode key from localStorage and sync remote data if configured
   useEffect(() => {
@@ -526,19 +537,113 @@ export function App() {
     }
   };
 
-  const handleAddProduct = (newProduct: Product) => {
-    setProducts((prev) => [newProduct, ...prev]);
+  const handleStartModifyOrder = (order: OrderBill) => {
+    setEditingOrder(order);
+    setActiveTab('pos');
   };
 
-  const handleUpdateProduct = (updated: Product) => {
-    setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  const handleCancelModifyOrder = () => {
+    setEditingOrder(null);
+  };
+
+  const handleSaveModifiedOrder = async (
+    updatedOrder: OrderBill,
+    originalOrder: OrderBill
+  ): Promise<CompleteSaleResult> => {
+    try {
+      // 1. Calculate net stock difference between original and updated order
+      const adjustments = computeStockAdjustments(originalOrder.items, updatedOrder.items);
+
+      const updatedProducts = products.map((p) => {
+        const adj = adjustments.find((a) => a.productId === p.id);
+        if (!adj) return p;
+        const newStock = Math.max(0, p.stock - adj.deltaQuantity);
+        return {
+          ...p,
+          stock: adj.isWeight ? Math.round(newStock * 1000) / 1000 : Math.round(newStock),
+        };
+      });
+
+      // 2. Update orders array atomically replacing the original order
+      const updatedOrders = orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
+
+      // 3. Persist to localStorage immediately
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
+        localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
+      }
+
+      setOrders(updatedOrders);
+      setProducts(updatedProducts);
+      setEditingOrder(null);
+
+      // 4. Update customer spend if additional payment was made
+      if (
+        (updatedOrder.customerName || updatedOrder.customerPhone) &&
+        updatedOrder.additionalAmountPaid &&
+        updatedOrder.additionalAmountPaid > 0
+      ) {
+        upsertCustomerFromSale(
+          updatedOrder.customerName,
+          updatedOrder.customerPhone,
+          updatedOrder.additionalAmountPaid
+        );
+        setCustomers(getSavedCustomers());
+      }
+
+      // 5. Remote backup if configured
+      try {
+        saveOrderToTurso(updatedOrder).catch((err) =>
+          console.warn('Turso saveOrder background error:', err)
+        );
+        for (const adj of adjustments) {
+          const p = updatedProducts.find((x) => x.id === adj.productId);
+          if (p) {
+            updateStockOnTurso(p.id, p.stock).catch((err) =>
+              console.warn('Turso updateStock background error:', err)
+            );
+          }
+        }
+      } catch (tursoErr) {
+        console.warn('Turso dispatch error:', tursoErr);
+      }
+
+      return { success: true, order: updatedOrder };
+    } catch (err: any) {
+      console.error('Failed to save modified order:', err);
+      return {
+        success: false,
+        error: err?.message || 'Failed to update order',
+      };
+    }
+  };
+
+  const handleAddProduct = (newProduct: Product) => {
+    const updated = [newProduct, ...products];
+    setProducts(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('albhurani_products', JSON.stringify(updated));
+    }
+    saveProductToTurso(newProduct).catch(() => {});
+  };
+
+  const handleUpdateProduct = (updatedProd: Product) => {
+    const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
+    setProducts(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('albhurani_products', JSON.stringify(updated));
+    }
+    saveProductToTurso(updatedProd).catch(() => {});
   };
 
   const handleUpdateStock = (productId: string, newStock: number) => {
     const validStock = Math.max(0, newStock);
-    setProducts((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, stock: validStock } : p))
-    );
+    const updated = products.map((p) => (p.id === productId ? { ...p, stock: validStock } : p));
+    setProducts(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('albhurani_products', JSON.stringify(updated));
+    }
+    updateStockOnTurso(productId, validStock).catch(() => {});
   };
 
   const handleAddExpense = (newExpense: ExpenseItem) => {
@@ -612,6 +717,7 @@ export function App() {
               expenses={expenses}
               onNavigateToTab={setActiveTab}
               onDeleteOrder={handleDeleteOrder}
+              onModifyOrder={handleStartModifyOrder}
             />
           )}
 
@@ -621,6 +727,9 @@ export function App() {
               onCompleteSale={handleCompleteSale}
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
               initialTransactionType="CUSTOMER_BILL"
+              editingOrder={editingOrder}
+              onCancelEditOrder={handleCancelModifyOrder}
+              onSaveModifiedOrder={handleSaveModifiedOrder}
             />
           )}
 
@@ -628,6 +737,7 @@ export function App() {
             <CustomerBillsView 
               orders={orders} 
               onDeleteOrder={handleDeleteOrder}
+              onModifyOrder={handleStartModifyOrder}
             />
           )}
 
@@ -635,6 +745,7 @@ export function App() {
             <NoBillSalesView 
               orders={orders} 
               onDeleteOrder={handleDeleteOrder}
+              onModifyOrder={handleStartModifyOrder}
             />
           )}
 
@@ -645,6 +756,12 @@ export function App() {
               onUpdateProduct={handleUpdateProduct}
               onUpdateStock={handleUpdateStock}
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
+            />
+          )}
+
+          {activeTab === 'label-studio' && currentUser.role === 'Owner' && (
+            <LabelStudioView
+              products={products}
             />
           )}
 

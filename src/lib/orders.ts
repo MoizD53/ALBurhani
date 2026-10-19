@@ -1,4 +1,5 @@
-import { OrderBill } from '../types';
+import { OrderBill, CartItem } from '../types';
+import { isWeightBasedProduct } from './pricing';
 
 export const DELETED_ORDERS_STORAGE_KEY = 'albhurani_deleted_order_ids';
 
@@ -70,4 +71,59 @@ export function isDemoOrTestOrder(order: Partial<OrderBill>): boolean {
   }
 
   return false;
+}
+
+export interface StockAdjustment {
+  productId: string;
+  deltaQuantity: number;
+  isWeight: boolean;
+}
+
+/**
+ * Computes net stock adjustments between original bill items and modified bill items.
+ * If delta > 0: additional stock was sold and must be deducted from inventory.
+ * If delta < 0: items were returned/reduced and stock must be restored to inventory.
+ * If delta === 0: no stock changes.
+ */
+export function computeStockAdjustments(
+  originalItems: CartItem[],
+  updatedItems: CartItem[]
+): StockAdjustment[] {
+  const origMap = new Map<string, { qty: number; isWeight: boolean }>();
+  for (const it of originalItems) {
+    origMap.set(it.product.id, {
+      qty: it.quantity,
+      isWeight: isWeightBasedProduct(it.product),
+    });
+  }
+
+  const updatedMap = new Map<string, { qty: number; isWeight: boolean }>();
+  for (const it of updatedItems) {
+    updatedMap.set(it.product.id, {
+      qty: it.quantity,
+      isWeight: isWeightBasedProduct(it.product),
+    });
+  }
+
+  const allProductIds = new Set([...origMap.keys(), ...updatedMap.keys()]);
+  const adjustments: StockAdjustment[] = [];
+
+  for (const id of allProductIds) {
+    const orig = origMap.get(id);
+    const updated = updatedMap.get(id);
+    const origQty = orig ? orig.qty : 0;
+    const updatedQty = updated ? updated.qty : 0;
+    const delta = updatedQty - origQty;
+    const isWeight = (updated?.isWeight ?? orig?.isWeight) || false;
+
+    if (Math.abs(delta) > 0.0001) {
+      adjustments.push({
+        productId: id,
+        deltaQuantity: isWeight ? Math.round(delta * 1000) / 1000 : Math.round(delta),
+        isWeight,
+      });
+    }
+  }
+
+  return adjustments;
 }

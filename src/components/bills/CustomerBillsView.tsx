@@ -8,16 +8,18 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  X
+  X,
+  Edit2
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
 
 interface CustomerBillsViewProps {
   orders: OrderBill[];
   onDeleteOrder?: (orderId: string) => Promise<boolean> | boolean | void;
+  onModifyOrder?: (order: OrderBill) => void;
 }
 
-export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({ orders, onDeleteOrder }) => {
+export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({ orders, onDeleteOrder, onModifyOrder }) => {
   const [search, setSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<OrderBill | null>(null);
@@ -206,6 +208,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({ orders, on
                 <th className="py-3 px-4 text-right">GST (5%)</th>
                 <th className="py-3 px-4 text-right">Grand Total</th>
                 <th className="py-3 px-4 text-center">Mode</th>
+                {onModifyOrder && <th className="py-3 px-3 text-center">Modify</th>}
                 <th className="py-3 px-4 text-center">Receipt</th>
                 <th className="py-3 px-4 text-center">Delete</th>
               </tr>
@@ -259,6 +262,20 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({ orders, on
                         {b.paymentMethod}
                       </span>
                     </td>
+                    {/* Modify / Add Items Column */}
+                    {onModifyOrder && (
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => onModifyOrder(b)}
+                          className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          title="Add Items / Modify Bill"
+                          aria-label={`Add Items or Modify Invoice ${b.billNumber}`}
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    )}
                     {/* Receipt Column */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <button
@@ -380,6 +397,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({ orders, on
       <ReceiptModal
         order={selectedOrderForReceipt}
         onClose={() => setSelectedOrderForReceipt(null)}
+        onModifyOrder={onModifyOrder}
       />
 
     </div>

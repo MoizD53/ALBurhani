@@ -25,7 +25,8 @@ import {
   formatStock, 
   lookupProduct, 
   buildCartItem, 
-  isWeightBasedProduct 
+  isWeightBasedProduct,
+  calculateOrderTotals
 } from '../../lib/pricing';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 import { QuantitySelectorModal } from './QuantitySelectorModal';
@@ -39,6 +40,9 @@ interface PosBillingViewProps {
   onCompleteSale: (order: OrderBill) => Promise<CompleteSaleResult | void> | CompleteSaleResult | void;
   onOpenStickerModal: (product: Product) => void;
   initialTransactionType?: TransactionType;
+  editingOrder?: OrderBill | null;
+  onCancelEditOrder?: () => void;
+  onSaveModifiedOrder?: (updatedOrder: OrderBill, originalOrder: OrderBill) => Promise<CompleteSaleResult | void> | CompleteSaleResult | void;
 }
 
 export const PosBillingView: React.FC<PosBillingViewProps> = ({
@@ -46,9 +50,14 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   onCompleteSale,
   onOpenStickerModal,
   initialTransactionType = 'CUSTOMER_BILL',
+  editingOrder = null,
+  onCancelEditOrder,
+  onSaveModifiedOrder,
 }) => {
   // Billing Mode: Formal Customer Bill vs Internal No-Bill Sale
-  const [transactionType, setTransactionType] = useState<TransactionType>(initialTransactionType);
+  const [transactionType, setTransactionType] = useState<TransactionType>(
+    editingOrder?.transactionType || initialTransactionType
+  );
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -117,6 +126,22 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     window.addEventListener('focus', handleWindowFocus);
     return () => window.removeEventListener('focus', handleWindowFocus);
   }, [selectedProductForQuantity, multipleMatchedProducts.length, completedOrder, isCameraOpen]);
+
+  // Synchronize cart and customer inputs whenever an order is reopened for modification
+  useEffect(() => {
+    if (editingOrder) {
+      setCart([...editingOrder.items]);
+      setTransactionType(editingOrder.transactionType || 'CUSTOMER_BILL');
+      setCustomerName(editingOrder.customerName || '');
+      setCustomerPhone(editingOrder.customerPhone || '');
+      const calcDiscount = editingOrder.subtotal > 0 && editingOrder.discountAmount > 0
+        ? Math.round((editingOrder.discountAmount / editingOrder.subtotal) * 100)
+        : 0;
+      setDiscountPercent(calcDiscount);
+      setPaymentMethod(editingOrder.additionalPaymentMethod || editingOrder.paymentMethod || 'CASH');
+      setAmountReceived('');
+    }
+  }, [editingOrder]);
 
   // Refocus on background click if not clicking on interactive elements or modals
   const handleBackgroundClick = (e: React.MouseEvent) => {
@@ -269,13 +294,14 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     refocusBarcode();
   };
 
-  // Financial Calculations
-  const subtotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
-  const discountAmount = Math.round(((subtotal * discountPercent) / 100) * 100) / 100;
-  const taxableAmount = Math.max(0, subtotal - discountAmount);
-  // GST applied only for formal CUSTOMER_BILL, zero tax for internal NO_BILL sales
-  const gstAmount = transactionType === 'CUSTOMER_BILL' ? Math.round(taxableAmount * 0.05 * 100) / 100 : 0;
-  const grandTotal = Math.round(taxableAmount + gstAmount);
+  // Financial Calculations using shared GST-inclusive pricing logic
+  const {
+    subtotal,
+    discountAmount,
+    taxableAmount,
+    gstAmount,
+    grandTotal,
+  } = calculateOrderTotals(cart, discountPercent, transactionType);
 
   const receivedNum = parseFloat(amountReceived) || grandTotal;
   const changeGiven = Math.max(0, receivedNum - grandTotal);
@@ -289,6 +315,63 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     setIsCheckingOut(true);
 
     try {
+      if (editingOrder) {
+        const originalPaid = editingOrder.originalGrandTotal ?? editingOrder.grandTotal;
+        const additionalDue = Math.max(0, grandTotal - originalPaid);
+
+        const revisedOrder: OrderBill = {
+          ...editingOrder,
+          transactionType,
+          items: [...cart],
+          subtotal,
+          discountAmount,
+          gstAmount,
+          grandTotal,
+          isRevised: true,
+          originalGrandTotal: originalPaid,
+          additionalAmountPaid: additionalDue,
+          originalPaymentMethod: editingOrder.originalPaymentMethod || editingOrder.paymentMethod,
+          additionalPaymentMethod: additionalDue > 0 ? paymentMethod : undefined,
+          amountReceived: originalPaid + (paymentMethod === 'CASH' ? (parseFloat(amountReceived) || additionalDue) : additionalDue),
+          changeGiven: paymentMethod === 'CASH' && parseFloat(amountReceived) > additionalDue ? parseFloat(amountReceived) - additionalDue : 0,
+          customerName: customerName.trim() || undefined,
+          customerPhone: customerPhone.trim() || undefined,
+          revisedAt: new Date().toLocaleString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          revisedTimestamp: Date.now(),
+          revisionCount: (editingOrder.revisionCount || 0) + 1,
+        };
+
+        if (onSaveModifiedOrder) {
+          const result = await onSaveModifiedOrder(revisedOrder, editingOrder);
+          if (result && result.success === false) {
+            playBeep('error');
+            triggerScanFeedback(`❌ Could not save revised bill: ${result.error || 'Persistence failed'}`);
+            return;
+          }
+        }
+
+        playBeep('success');
+        setCompletedOrder(revisedOrder);
+
+        setCart([]);
+        setCustomerName('');
+        setCustomerPhone('');
+        setDiscountPercent(0);
+        setAmountReceived('');
+        if (onCancelEditOrder) {
+          onCancelEditOrder();
+        }
+        refocusBarcode();
+        return;
+      }
+
       const prefix = transactionType === 'CUSTOMER_BILL' ? 'INV' : 'NB';
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const billNumber = `ALB-${prefix}-${randomNum}`;
@@ -329,12 +412,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
       playBeep('success');
 
-      // Only open thermal receipt popup for customer bills
-      if (transactionType === 'CUSTOMER_BILL') {
-        setCompletedOrder(newOrder);
-      } else {
-        triggerScanFeedback(`✓ No-Bill Sale #${billNumber} recorded successfully!`);
-      }
+      // Present the optional receipt choice modal (Print, WhatsApp PDF, or No Receipt)
+      setCompletedOrder(newOrder);
 
       // Reset local billing state ONLY after successful save
       setCart([]);
@@ -368,6 +447,30 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   return (
     <div onClick={handleBackgroundClick} className="flex flex-col h-full w-full overflow-hidden bg-[#080808] text-[#F5F5F5] select-none">
       
+      {/* ─── Bill Modification Active Banner ─── */}
+      {editingOrder && (
+        <div className="shrink-0 bg-amber-500/15 border-b border-amber-500/30 px-3 py-2 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold font-mono shrink-0">
+              EDITING BILL {editingOrder.billNumber}
+            </span>
+            <span className="text-zinc-300 truncate text-[11px]">
+              Customer: <strong>{editingOrder.customerName || 'Walk-in'}</strong> · Original: <strong>₹{(editingOrder.originalGrandTotal ?? editingOrder.grandTotal).toFixed(2)}</strong>
+            </span>
+          </div>
+          {onCancelEditOrder && (
+            <button
+              type="button"
+              onClick={onCancelEditOrder}
+              className="px-2 py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] text-zinc-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Cancel / Discard</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ─── Mobile Segmented Toggle (< 1024px) ─── */}
       <div className="lg:hidden shrink-0 flex items-center p-2 bg-[#121214] border-b border-white/[0.08] gap-2">
         <button
@@ -646,7 +749,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
           ${mobileTab === 'catalog' ? 'hidden lg:flex' : 'flex'}
         `}>
           
-          {/* Bill Mode Tabs: "With Bill" vs "No Bill" (2 clean headings) */}
+          {/* Bill Mode Tabs: "With GST" vs "Without GST" (2 clean headings) */}
           <div className="p-2 sm:p-2.5 border-b border-white/[0.08] bg-[#161619] shrink-0">
             <div className="flex items-center gap-2">
               <div className="grid grid-cols-2 flex-1 p-0.5 bg-black/60 rounded-xl border border-white/[0.08]">
@@ -660,7 +763,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>With Bill</span>
+                  <span>With GST</span>
                 </button>
 
                 <button
@@ -673,7 +776,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                   }`}
                 >
                   <ReceiptText className="w-3.5 h-3.5" />
-                  <span>No Bill</span>
+                  <span>Without GST</span>
                 </button>
               </div>
 
@@ -831,9 +934,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               )}
 
               {transactionType === 'CUSTOMER_BILL' && (
-                <div className="flex justify-between text-zinc-500 text-[11px]">
-                  <span>GST (CGST 2.5% + SGST 2.5%)</span>
-                  <span className="font-mono">₹{gstAmount.toFixed(2)}</span>
+                <div className="flex justify-between text-zinc-400 text-[11px]">
+                  <span>Included GST (5%):</span>
+                  <span className="font-mono text-zinc-200">₹{gstAmount.toFixed(2)}</span>
                 </div>
               )}
             </div>
@@ -845,7 +948,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                   Total Payable
                 </span>
                 <span className="text-[10px] text-zinc-500">
-                  {transactionType === 'CUSTOMER_BILL' ? 'incl. taxes & rounding' : 'no-bill cash transaction'}
+                  {transactionType === 'CUSTOMER_BILL' ? 'catalog price incl. 5% GST' : 'no tax (0% GST)'}
                 </span>
               </div>
               <span className="text-2xl font-black text-white font-mono tracking-tight">
@@ -916,6 +1019,24 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               </div>
             )}
 
+            {/* Bill Modification Reconciliation Card */}
+            {editingOrder && (
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1 font-mono">
+                <div className="flex justify-between text-zinc-400 text-[11px]">
+                  <span>Original Paid:</span>
+                  <span>₹{(editingOrder.originalGrandTotal ?? editingOrder.grandTotal).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-zinc-300 text-[11px]">
+                  <span>Updated Total:</span>
+                  <span className="font-bold text-white">₹{grandTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-amber-400 border-t border-amber-500/20 pt-1 text-xs">
+                  <span>Additional Due:</span>
+                  <span className="text-sm">₹{Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)).toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
             {/* Checkout Action Button */}
             <button
               onClick={handleCheckout}
@@ -925,10 +1046,12 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               <Receipt className="w-4 h-4" />
               <span>
                 {isCheckingOut 
-                  ? 'Processing Sale...' 
-                  : transactionType === 'CUSTOMER_BILL' 
-                    ? `Complete Sale (With Bill — ₹${grandTotal})` 
-                    : `Complete Sale (No Bill — ₹${grandTotal})`}
+                  ? 'Saving Changes...' 
+                  : editingOrder
+                    ? `Save Bill Changes (${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)) > 0 ? `Collect ₹${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)).toFixed(2)}` : 'No Extra Due'})`
+                    : transactionType === 'CUSTOMER_BILL' 
+                      ? `Complete Sale (With GST — ₹${grandTotal})` 
+                      : `Complete Sale (Without GST — ₹${grandTotal})`}
               </span>
             </button>
 

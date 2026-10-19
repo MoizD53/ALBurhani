@@ -1,14 +1,29 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { OrderBill } from '../../types';
-import { X, Printer, CheckCircle } from 'lucide-react';
+import { 
+  X, 
+  Printer, 
+  CheckCircle, 
+  Share2, 
+  Download, 
+  ArrowRight,
+  Info,
+  Check,
+  Edit2
+} from 'lucide-react';
+import { shareReceiptPdfWhatsApp, downloadReceiptPdf } from '../../lib/pdfReceipt';
 
 interface ReceiptModalProps {
   order: OrderBill | null;
   onClose: () => void;
+  onModifyOrder?: (order: OrderBill) => void;
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) => {
-  // Global Escape keydown listener (runs unconditionally before early return)
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onModifyOrder }) => {
+  const [feedback, setFeedback] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+
+  // Global Escape keydown listener (closes modal without altering saved sale)
   useEffect(() => {
     if (!order) return;
 
@@ -24,57 +39,140 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [order, onClose]);
 
+  // Reset feedback whenever order changes
+  useEffect(() => {
+    setFeedback(null);
+    setIsSharing(false);
+  }, [order?.id]);
+
   if (!order) return null;
 
   const handlePrint = () => {
     window.print();
   };
 
+  const handleShareWhatsApp = async () => {
+    setIsSharing(true);
+    setFeedback(null);
+    try {
+      await shareReceiptPdfWhatsApp(order, (msg, type) => {
+        setFeedback({ message: msg, type: type === 'warning' ? 'info' : type });
+      });
+    } catch (err: any) {
+      setFeedback({
+        message: `Share error: ${err?.message || 'Could not complete WhatsApp share'}`,
+        type: 'error',
+      });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleDownload = () => {
+    downloadReceiptPdf(order);
+    setFeedback({
+      message: `Receipt PDF downloaded (${order.billNumber}.pdf)`,
+      type: 'success',
+    });
+  };
+
+  const hasGst = order.gstAmount > 0;
+  const taxableValue = Math.max(0, order.subtotal - order.discountAmount - order.gstAmount);
+  const cgstAmount = Math.round((order.gstAmount / 2) * 100) / 100;
+  const sgstAmount = Math.round((order.gstAmount - cgstAmount) * 100) / 100;
+
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-md animate-fade-in select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-md animate-fade-in select-none print:p-0 print:bg-white print:static print:block"
       onClick={onClose}
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-sm rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-sm rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] flex flex-col print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static"
       >
         
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] shrink-0">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-400" />
-            <h3 className="font-semibold text-white text-sm">Bill Generated Successfully</h3>
+        {/* Header (Hidden when printing) */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-[#161619] shrink-0 print:hidden">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle className={`w-4 h-4 shrink-0 ${order.isRevised ? 'text-amber-400' : 'text-emerald-400'}`} />
+            <div className="min-w-0">
+              <h3 className="font-semibold text-white text-xs truncate">
+                {order.isRevised ? 'Bill Revised Successfully' : 'Sale Saved Successfully'}
+              </h3>
+              <p className="text-[10px] text-zinc-400 font-mono truncate">
+                {order.billNumber}{order.isRevised ? ` · Revised ${order.revisedAt || ''}` : ''}
+              </p>
+            </div>
           </div>
           <button 
             onClick={onClose}
             className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
+            title="Close / Next Customer (Esc)"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
+        {/* WhatsApp / Download Feedback Notice (Hidden when printing) */}
+        {feedback && (
+          <div className={`px-4 py-2 border-b text-xs flex items-start gap-2 shrink-0 print:hidden animate-fade-in ${
+            feedback.type === 'success' 
+              ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-200'
+              : feedback.type === 'error'
+              ? 'bg-red-950/60 border-red-500/30 text-red-200'
+              : 'bg-amber-950/60 border-amber-500/30 text-amber-200'
+          }`}>
+            {feedback.type === 'success' ? (
+              <Check className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+            ) : (
+              <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+            )}
+            <p className="text-[11px] leading-tight flex-1">{feedback.message}</p>
+          </div>
+        )}
+
         {/* Receipt Content Body */}
-        <div className="p-4 overflow-y-auto flex-1 flex flex-col items-center custom-scrollbar">
+        <div className="p-3 sm:p-4 overflow-y-auto flex-1 flex flex-col items-center custom-scrollbar print:p-0 print:overflow-visible">
           
           <div 
             id="thermal-receipt"
-            className="w-[280px] bg-white text-black p-3.5 rounded shadow border border-gray-300 font-mono text-[11px] leading-snug select-none"
+            className="w-[72mm] max-w-[72mm] bg-white text-black p-3.5 rounded shadow border border-gray-300 font-mono text-[10px] leading-snug select-none print:w-[72mm] print:max-w-[72mm] print:border-none print:shadow-none print:p-2 print:m-0"
           >
 
-
-            {/* Store Header */}
+            {/* Store Header Branding */}
             <div className="text-center pb-2 border-b border-black">
               <h2 className="font-bold text-sm tracking-widest uppercase">AL-BHURANI</h2>
-              <p className="text-[9px] uppercase font-semibold">Sweets & Dry Items Franchise</p>
-              <p className="text-[9px] text-gray-700">Godi Road, Near Clock Tower</p>
-              <p className="text-[8px] text-gray-600">GSTIN: 24AABCA1234F1Z5 | Ph: +91 98765 43210</p>
+              <p className="text-[8.5px] uppercase font-semibold">Sweets & Dry Items Franchise</p>
+              <p className="text-[8px] text-gray-700">Godi Road, Near Clock Tower</p>
+              <p className="text-[8px] text-gray-600">Ph: +91 98765 43210</p>
+              {hasGst ? (
+                <div className="mt-1 pt-1 border-t border-gray-300">
+                  <p className="text-[8px] font-bold text-gray-800">GSTIN: 24AABCA1234F1Z5</p>
+                  <span className={`inline-block px-1.5 py-0.2 text-[7.5px] font-bold rounded mt-0.5 ${
+                    order.isRevised
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : 'bg-gray-100 border border-gray-300'
+                  }`}>
+                    {order.isRevised ? 'REVISED TAX INVOICE (GST INCL)' : 'TAX INVOICE (GST INCLUSIVE)'}
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-1 pt-1 border-t border-gray-300">
+                  <span className={`inline-block px-1.5 py-0.2 text-[7.5px] font-semibold rounded mt-0.5 ${
+                    order.isRevised
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                      : 'bg-gray-100 border border-gray-300'
+                  }`}>
+                    {order.isRevised ? 'REVISED RETAIL SALE MEMO (0% GST)' : 'RETAIL SALE MEMO (0% GST)'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Bill Meta */}
-            <div className="py-2 border-b border-dashed border-black text-[9px] space-y-0.5">
+            <div className="py-2 border-b border-dashed border-black text-[8.5px] space-y-0.5">
               <div className="flex justify-between">
-                <span>Bill No: {order.billNumber}</span>
+                <span>Bill: {order.billNumber}</span>
                 <span>Date: {order.createdAt}</span>
               </div>
               <div className="flex justify-between">
@@ -82,80 +180,127 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
                 <span>Mode: {order.paymentMethod}</span>
               </div>
               {order.customerPhone && (
-                <div>Customer: {order.customerName || 'Walk-in'} ({order.customerPhone})</div>
+                <div className="truncate">
+                  Customer: {order.customerName || 'Walk-in'} ({order.customerPhone})
+                </div>
               )}
             </div>
 
-            {/* Items Table */}
-            <div className="py-2 border-b border-black">
-              <div className="grid grid-cols-12 font-bold text-[9px] pb-1 border-b border-gray-400">
-                <span className="col-span-5">ITEM</span>
-                <span className="col-span-2 text-center">QTY</span>
-                <span className="col-span-2 text-right">RATE</span>
-                <span className="col-span-3 text-right">AMT</span>
-              </div>
-
-              <div className="space-y-1.5 pt-1 text-[9px]">
-                {order.items.map((it, idx) => (
-                  <div key={idx} className="grid grid-cols-12 leading-tight">
-                    <div className="col-span-5 truncate">
-                      <div className="font-semibold truncate">{it.product.name}</div>
-                      <div className="text-[8px] text-gray-600">[{it.product.sku}]</div>
-                    </div>
-                    <div className="col-span-2 text-center font-medium">
-                      {it.formattedQuantity || it.quantity}
-                    </div>
-                    <div className="col-span-2 text-right">
-                      {it.product.sellingPrice}
-                    </div>
-                    <div className="col-span-3 text-right font-medium">
-                      ₹{it.lineTotal.toFixed(2)}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {/* Line Items Table with Aligned Columns */}
+            <div className="py-1.5 border-b border-black">
+              <table className="w-full text-[9px] border-collapse">
+                <thead>
+                  <tr className="border-b border-black font-bold">
+                    <th className="text-left pb-1 font-bold">ITEM</th>
+                    <th className="text-center pb-1 w-12 font-bold">QTY</th>
+                    <th className="text-right pb-1 w-12 font-bold">RATE</th>
+                    <th className="text-right pb-1 w-14 font-bold">AMT</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {order.items.map((it, idx) => (
+                    <tr key={idx} className="align-top">
+                      <td className="py-1 pr-1 text-left">
+                        <div className="font-semibold break-words leading-tight">{it.product.name}</div>
+                        <div className="text-[7.5px] text-gray-500">[{it.product.sku}]</div>
+                      </td>
+                      <td className="py-1 px-1 text-center font-medium whitespace-nowrap">
+                        {it.formattedQuantity || it.quantity}
+                      </td>
+                      <td className="py-1 px-1 text-right whitespace-nowrap tabular-nums">
+                        ₹{it.unitPrice}
+                      </td>
+                      <td className="py-1 pl-1 text-right font-medium whitespace-nowrap tabular-nums">
+                        ₹{it.lineTotal.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* Totals */}
-            <div className="py-2 space-y-0.5 text-[10px] border-b border-dashed border-black">
-              <div className="flex justify-between">
-                <span>Sub Total:</span>
-                <span>₹{order.subtotal.toFixed(2)}</span>
+            {/* Totals & Inclusive GST Breakdown */}
+            <div className="py-2 space-y-1 text-[9.5px] border-b border-dashed border-black">
+              <div className="flex justify-between items-center">
+                <span>Subtotal {hasGst ? '(Incl. GST)' : ''}:</span>
+                <span className="tabular-nums font-medium">₹{order.subtotal.toFixed(2)}</span>
               </div>
+
               {order.discountAmount > 0 && (
-                <div className="flex justify-between text-green-700">
-                  <span>Discount:</span>
-                  <span>-₹{order.discountAmount.toFixed(2)}</span>
+                <div className="flex justify-between items-center text-green-700">
+                  <span>Discount Savings:</span>
+                  <span className="tabular-nums font-medium">−₹{order.discountAmount.toFixed(2)}</span>
                 </div>
               )}
-              {order.gstAmount > 0 && (
-                <div className="flex justify-between text-[9px] text-gray-600">
-                  <span>CGST (2.5%) + SGST (2.5%):</span>
-                  <span>₹{order.gstAmount.toFixed(2)}</span>
+
+              {/* Explicit Inclusive GST Breakdown without adding on top */}
+              {hasGst && (
+                <div className="pt-1 border-t border-dotted border-gray-400 space-y-0.5 text-[8.5px] text-gray-700">
+                  <div className="flex justify-between font-semibold">
+                    <span>Included 5% GST:</span>
+                    <span className="tabular-nums">₹{order.gstAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between pl-2 text-gray-600">
+                    <span>• CGST (2.5%):</span>
+                    <span className="tabular-nums">₹{cgstAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between pl-2 text-gray-600">
+                    <span>• SGST (2.5%):</span>
+                    <span className="tabular-nums">₹{sgstAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between pl-2 text-gray-600">
+                    <span>• Taxable Value:</span>
+                    <span className="tabular-nums">₹{taxableValue.toFixed(2)}</span>
+                  </div>
                 </div>
               )}
-              <div className="flex justify-between text-xs font-bold border-t border-black pt-1 mt-1">
+
+              {/* Grand Total */}
+              <div className="flex justify-between items-center text-xs font-bold border-t border-black pt-1 mt-1">
                 <span>GRAND TOTAL:</span>
-                <span>₹{order.grandTotal.toFixed(2)}</span>
+                <span className="tabular-nums">₹{order.grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
             {/* Payment Details */}
-            <div className="py-1.5 text-[9px] space-y-0.5 border-b border-dashed border-black">
-              <div className="flex justify-between">
-                <span>Paid via {order.paymentMethod}:</span>
-                <span>₹{order.amountReceived.toFixed(2)}</span>
-              </div>
-              {order.changeGiven > 0 && (
-                <div className="flex justify-between font-semibold">
-                  <span>Change Returned:</span>
-                  <span>₹{order.changeGiven.toFixed(2)}</span>
+            {order.isRevised && order.originalGrandTotal !== undefined ? (
+              <div className="py-1.5 text-[8.5px] space-y-0.5 border-b border-dashed border-black">
+                <div className="flex justify-between">
+                  <span>Original Total:</span>
+                  <span className="tabular-nums">₹{order.originalGrandTotal.toFixed(2)}</span>
                 </div>
-              )}
-            </div>
+                <div className="flex justify-between">
+                  <span>Previously Paid ({order.originalPaymentMethod || order.paymentMethod}):</span>
+                  <span className="tabular-nums">₹{order.originalGrandTotal.toFixed(2)}</span>
+                </div>
+                {order.additionalAmountPaid !== undefined && (
+                  <div className="flex justify-between font-bold text-gray-900">
+                    <span>Additional Paid ({order.additionalPaymentMethod || order.paymentMethod}):</span>
+                    <span className="tabular-nums">₹{order.additionalAmountPaid.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold border-t border-dotted border-gray-400 pt-0.5">
+                  <span>Total Settled:</span>
+                  <span className="tabular-nums">₹{order.grandTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="py-1.5 text-[8.5px] space-y-0.5 border-b border-dashed border-black">
+                <div className="flex justify-between">
+                  <span>Paid via {order.paymentMethod}:</span>
+                  <span className="font-semibold tabular-nums">₹{order.amountReceived.toFixed(2)}</span>
+                </div>
+                {order.changeGiven > 0 && (
+                  <div className="flex justify-between font-semibold">
+                    <span>Change Returned:</span>
+                    <span className="tabular-nums">₹{order.changeGiven.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Footer Greeting */}
-            <div className="text-center pt-2 text-[8px] text-gray-700">
+            <div className="text-center pt-2 text-[7.5px] text-gray-700">
               <p className="font-semibold">Pure Desi Ghee & Fresh Guarantee</p>
               <p>*** Thank You For Visiting AL-BHURANI! ***</p>
             </div>
@@ -163,24 +308,71 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
 
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.08] bg-[#161619] shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] transition-all cursor-pointer shadow-sm active:scale-95"
-            title="Start new order (or press Escape)"
-          >
-            New Order (Esc)
-          </button>
+        {/* Action Controls: 3 Clear Choices & Modify Bill (Hidden when printing) */}
+        <div className="p-3 border-t border-white/[0.08] bg-[#161619] shrink-0 space-y-2 print:hidden">
+          
+          {/* Modify Bill Action (Reopen in POS for customer adding more items) */}
+          {onModifyOrder && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onModifyOrder(order);
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95"
+              title="Customer wants to buy more items or change quantities on this bill"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>Add Items / Modify This Bill</span>
+            </button>
+          )}
 
-          <button
-            onClick={handlePrint}
-            className="btn-gold text-xs py-1.5 px-4 flex items-center gap-1.5 font-bold"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Print Receipt</span>
-          </button>
+          {/* Primary Action Buttons: Print & WhatsApp Share */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="py-2.5 px-3 rounded-xl btn-gold text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+              title="Print thermal receipt (80mm)"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Receipt</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleShareWhatsApp}
+              disabled={isSharing}
+              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+              title="Share PDF receipt on WhatsApp"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>{isSharing ? 'Sharing...' : 'Share PDF on WhatsApp'}</span>
+            </button>
+          </div>
+
+          {/* Secondary Options: No Receipt — Next Customer & Direct Download */}
+          <div className="flex items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] hover:border-[#D4AF37]/50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+              title="Sale is already saved safely. Start next order immediately."
+            >
+              <span>No Receipt — Next Customer</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#D4AF37]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-400 hover:text-white transition-colors"
+              title="Download Receipt PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
         </div>
 
       </div>

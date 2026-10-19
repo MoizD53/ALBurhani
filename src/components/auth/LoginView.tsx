@@ -318,7 +318,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               SECURE STORE ACCESS
             </p>
 
-            {/* Install PWA Button */}
+            {/* Install App Button */}
             <div className="pt-2">
               <InstallPwaButton variant="login" />
             </div>

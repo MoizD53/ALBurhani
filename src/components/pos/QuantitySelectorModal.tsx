@@ -68,7 +68,7 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
         quantity: isWeight ? (unitMode === 'kg' ? numericVal : numericVal / 1000) : numericVal,
         grams: isWeight ? (unitMode === 'g' ? numericVal : Math.round(numericVal * 1000)) : undefined,
       })
-    : { quantity: 0, lineTotal: 0, lineTotalPaise: 0 };
+    : { quantity: 0, grams: undefined, unitPrice: 0, lineTotal: 0, lineTotalPaise: 0 };
 
   const handlePresetClick = (presetValue: number) => {
     if (isWeight) {
@@ -332,8 +332,8 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
               </span>
               <span className="text-xs text-zinc-300 font-mono mt-0.5 block">
                 {isWeight
-                  ? `${formatQuantity(lineCalc.quantity, 'KG', lineCalc.grams)} × ${formatPriceWithBasis(product.sellingPrice, 'KG')}`
-                  : `${lineCalc.quantity} pcs × ${formatPriceWithBasis(product.sellingPrice, 'PCS')}`}
+                  ? `${formatQuantity(lineCalc.quantity, 'KG', lineCalc.grams)} × ${formatPriceWithBasis(lineCalc.unitPrice, 'KG')}`
+                  : `${lineCalc.quantity} pcs × ${formatPriceWithBasis(lineCalc.unitPrice, 'PCS')}`}
               </span>
             </div>
             <div className="text-right">
