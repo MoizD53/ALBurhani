@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { authenticate } from '../../lib/auth';
 import { playBeep } from '../../lib/utils';
+import { InstallPwaButton } from '../common/InstallPwaButton';
 
 interface LoginViewProps {
   onLoginSuccess: () => void;
@@ -316,6 +317,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             <p className="text-[10px] tracking-[0.28em] text-zinc-400 uppercase text-center pt-2 font-bold">
               SECURE STORE ACCESS
             </p>
+
+            {/* Install PWA Button */}
+            <div className="pt-2">
+              <InstallPwaButton variant="login" />
+            </div>
 
           </form>
 

@@ -74,7 +74,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
     if (!title.trim() || Number(amount) <= 0) return;
 
     const newExpense: ExpenseItem = {
-      id: `exp-${Date.now()}`,
+      id: `expense-${Date.now()}`,
       title: title.trim(),
       category,
       amount: Number(amount),

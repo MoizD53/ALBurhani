@@ -37,6 +37,20 @@ window.addEventListener('error', (e) => {
   console.error('Global window error:', e.error || e.message);
 });
 
+// Register Service Worker for PWA
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        console.log('[PWA] Service Worker registered with scope:', registration.scope);
+      })
+      .catch((err) => {
+        console.warn('[PWA] Service Worker registration failed:', err);
+      });
+  });
+}
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
   createRoot(rootElement).render(
@@ -45,3 +59,4 @@ if (rootElement) {
     </ErrorBoundary>
   );
 }
+

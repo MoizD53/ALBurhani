@@ -14,7 +14,7 @@ interface UseBarcodeScannerProps {
 export function useBarcodeScanner({
   onScan,
   minChars = 2,
-  maxIntervalMs = 60,
+  maxIntervalMs = 70,
   enabled = true
 }: UseBarcodeScannerProps) {
   const buffer = useRef<string>('');

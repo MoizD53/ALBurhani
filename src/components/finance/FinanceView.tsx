@@ -29,32 +29,7 @@ interface ExpenseItem {
 
 export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<OrderBill | null>(null);
-  const [expenses, setExpenses] = useState<ExpenseItem[]>([
-    {
-      id: 'exp-1',
-      title: 'Amul Pure Ghee 15kg Tin (x2)',
-      category: 'Raw Materials (Ghee/Mawa/Nuts)',
-      amount: 14500,
-      date: 'Today, 11:30 AM',
-      paymentMode: 'UPI',
-    },
-    {
-      id: 'exp-2',
-      title: 'Printed Mithai & Namkeen Boxes (500 units)',
-      category: 'Packaging & Boxes',
-      amount: 6200,
-      date: 'Yesterday',
-      paymentMode: 'Bank Transfer',
-    },
-    {
-      id: 'exp-3',
-      title: 'Store Commercial Electricity Bill',
-      category: 'Store Utilities',
-      amount: 4800,
-      date: '14 Oct 2026',
-      paymentMode: 'UPI',
-    },
-  ]);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
 
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expTitle, setExpTitle] = useState('');

@@ -15,6 +15,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { UserProfile } from '../../types';
+import { InstallPwaButton } from '../common/InstallPwaButton';
 
 export type ActiveTab = 
   | 'overview' 
@@ -208,9 +209,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Footer: User Profile & Collapse (TEN11 style) */}
+      {/* Footer: Install App, User Profile & Collapse */}
       <div className="pt-3 border-t border-white/[0.06] shrink-0 space-y-2">
         
+        {/* PWA Install Button when expanded */}
+        {showLabels && (
+          <InstallPwaButton variant="sidebar" />
+        )}
+
         {/* User Profile Card */}
         {showLabels ? (
           <div className="p-2.5 rounded-xl bg-[#121214] border border-white/[0.08] flex items-center gap-2.5 min-w-0 shadow-sm">

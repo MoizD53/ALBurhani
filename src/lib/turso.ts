@@ -432,3 +432,20 @@ export async function saveExpenseToTurso(expense: ExpenseItem): Promise<boolean>
     return false;
   }
 }
+
+/**
+ * Reset all product stock to zero on Turso database for fresh opening stock entry
+ */
+export async function resetAllStockOnTursoToZero(): Promise<{ success: boolean; count?: number; error?: string }> {
+  const client = getTursoClient();
+  if (!client) return { success: false, error: 'Turso client not connected' };
+
+  try {
+    const res = await client.execute('UPDATE products SET stock = 0, updated_at = CURRENT_TIMESTAMP;');
+    return { success: true, count: res.rowsAffected };
+  } catch (err: any) {
+    console.error('Error resetting stock on Turso:', err);
+    return { success: false, error: err?.message || 'Turso query failed' };
+  }
+}
+

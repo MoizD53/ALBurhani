@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Product, OrderBill, ExpenseItem } from '../../types';
 import { 
-  TrendingUp, 
   IndianRupee, 
   Users, 
   Receipt, 
@@ -57,16 +56,10 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   const todayRevenue = todayOrders.reduce((sum, o) => sum + o.grandTotal, 0);
   const lifetimeRevenue = orders.reduce((sum, o) => sum + o.grandTotal, 0);
 
-  // Profit estimation based on recorded product cost
-  const todayCost = todayOrders.reduce((sum, o) => {
-    return sum + o.items.reduce((itemSum, it) => itemSum + ((it.product.costPrice || 0) * it.quantity), 0);
-  }, 0);
-  const todayProfit = todayRevenue > 0 && todayCost > 0 ? Math.max(0, todayRevenue - todayCost) : (todayRevenue > 0 ? todayRevenue * 0.25 : 0);
-
-  const lifetimeCost = orders.reduce((sum, o) => {
-    return sum + o.items.reduce((itemSum, it) => itemSum + ((it.product.costPrice || 0) * it.quantity), 0);
-  }, 0);
-  const lifetimeProfit = lifetimeRevenue > 0 && lifetimeCost > 0 ? Math.max(0, lifetimeRevenue - lifetimeCost) : (lifetimeRevenue > 0 ? lifetimeRevenue * 0.25 : 0);
+  // Note: Purchase costs are not tracked yet.
+  // Profit tracking is preserved below for when product purchase costs become available.
+  // const todayCost = todayOrders.reduce((sum, o) => sum + o.items.reduce((itemSum, it) => itemSum + ((it.product.costPrice || 0) * it.quantity), 0), 0);
+  // const todayProfit = todayRevenue > 0 && todayCost > 0 ? Math.max(0, todayRevenue - todayCost) : 0;
 
   // Customer transactions count
   const todayCustomersCount = todayOrders.length;
@@ -149,8 +142,8 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Top 4 Primary KPI Cards (Direct TEN11 Layout) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 2. Top Primary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         
         {/* Card 1: TODAY'S REVENUE */}
         <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/35 transition-all group">
@@ -184,39 +177,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Card 2: TODAY'S PROFIT */}
-        <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/35 transition-all group">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-full bg-[#1C1A14] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] group-hover:border-[#D4AF37]/60 transition-colors">
-                <TrendingUp className="w-4 h-4" />
-              </div>
-              <button 
-                onClick={() => setIsMasked((prev) => !prev)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
-                title={isMasked ? "Show figures" : "Hide figures"}
-              >
-                {isMasked ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-
-            <div className="mt-4">
-              <span className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase block">
-                Today's Profit
-              </span>
-              <div className="text-2xl sm:text-3xl font-normal text-white mt-1 font-mono tracking-tight">
-                {formatAmount(todayProfit)}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 pt-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
-            <span className="uppercase tracking-wider font-sans text-zinc-500 text-[10px]">Lifetime</span>
-            <span className="text-zinc-400 font-semibold">{formatAmount(lifetimeProfit)}</span>
-          </div>
-        </div>
-
-        {/* Card 3: CUSTOMERS (TODAY) */}
+        {/* Card 2: CUSTOMERS (TODAY) */}
         <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/35 transition-all group">
           <div>
             <div className="flex items-center justify-between">
@@ -241,7 +202,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Card 4: TODAY'S EXPENSES */}
+        {/* Card 3: TODAY'S EXPENSES */}
         <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/35 transition-all group">
           <div>
             <div className="flex items-center justify-between">
@@ -377,49 +338,61 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-white/[0.06] pb-2">
-                    <th className="pb-2 font-normal">Bill No.</th>
-                    <th className="pb-2 font-normal">Type</th>
-                    <th className="pb-2 font-normal">Items</th>
+                    <th className="pb-2 font-normal">Sale Description</th>
+                    <th className="pb-2 font-normal">Date & Time</th>
                     <th className="pb-2 font-normal">Tender</th>
                     <th className="pb-2 text-right font-normal">Amount</th>
-                    <th className="pb-2 text-right font-normal">Action</th>
+                    <th className="pb-2 text-right font-normal">Receipt</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {orders.slice(0, 5).map((order) => (
-                    <tr key={order.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-2.5 font-mono font-bold text-white">
-                        {order.billNumber}
-                      </td>
-                      <td className="py-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          order.transactionType === 'NO_BILL'
-                            ? 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
-                            : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
-                        }`}>
-                          {order.transactionType === 'NO_BILL' ? 'No-Bill' : 'Tax Invoice'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-zinc-400">
-                        {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
-                      </td>
-                      <td className="py-2.5 font-mono text-zinc-300">
-                        {order.paymentMethod}
-                      </td>
-                      <td className="py-2.5 text-right font-mono font-bold text-[#E7C75A]">
-                        ₹{order.grandTotal.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 text-right">
-                        <button
-                          onClick={() => setSelectedReceiptOrder(order)}
-                          className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
-                          title="Reprint / View Receipt"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {orders.slice(0, 5).map((order) => {
+                    const primaryItem = order.items[0]?.product.name || 'Counter Sale';
+                    const moreCount = order.items.length - 1;
+                    const itemsSummary = moreCount > 0 ? `${primaryItem} +${moreCount} more` : primaryItem;
+
+                    return (
+                      <tr key={order.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="py-2.5">
+                          <div className="font-semibold text-white truncate max-w-[220px]" title={itemsSummary}>
+                            {itemsSummary}
+                          </div>
+                          <div className="text-[10px] text-zinc-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${
+                              order.transactionType === 'NO_BILL'
+                                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                            }`}>
+                              {order.transactionType === 'NO_BILL' ? 'No-Bill' : 'Tax Invoice'}
+                            </span>
+                            {order.customerName && (
+                              <span className="text-zinc-500 truncate max-w-[130px]">
+                                • {order.customerName}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-zinc-400 font-mono text-[11px] whitespace-nowrap">
+                          {order.createdAt}
+                        </td>
+                        <td className="py-2.5 font-mono text-zinc-300">
+                          {order.paymentMethod}
+                        </td>
+                        <td className="py-2.5 text-right font-mono font-bold text-[#E7C75A]">
+                          ₹{order.grandTotal.toFixed(2)}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <button
+                            onClick={() => setSelectedReceiptOrder(order)}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                            title="Reprint / View Receipt"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

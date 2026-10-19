@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { ActiveTab } from './Sidebar';
+import { InstallPwaButton } from '../common/InstallPwaButton';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -117,9 +118,12 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right Controls: Notifications, Date Pill & Owner Dropdown */}
+      {/* Right Controls: Install Button, Notifications, Date Pill & Owner Dropdown */}
       <div className="flex items-center gap-2.5 shrink-0">
         
+        {/* PWA Install Button */}
+        <InstallPwaButton variant="header" />
+
         {/* Notification Bell with Gold Dot */}
         <div className="relative" ref={notifMenuRef}>
           <button

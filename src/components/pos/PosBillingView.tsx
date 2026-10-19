@@ -74,6 +74,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef<boolean>(false);
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
 
   const categories: string[] = [
     'All', 
@@ -87,13 +88,33 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   // Auto-focus barcode input
   const refocusBarcode = () => {
     setTimeout(() => {
-      barcodeInputRef.current?.focus();
+      if (!selectedProductForQuantity && multipleMatchedProducts.length === 0 && !completedOrder && !isCameraOpen) {
+        barcodeInputRef.current?.focus();
+      }
     }, 50);
   };
 
   useEffect(() => {
     refocusBarcode();
   }, []);
+
+  // Restore focus when window regains focus
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      refocusBarcode();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [selectedProductForQuantity, multipleMatchedProducts.length, completedOrder, isCameraOpen]);
+
+  // Refocus on background click if not clicking on interactive elements or modals
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest('button, input, select, textarea, a, [role="dialog"], [role="menu"]');
+    if (!isInteractive && !selectedProductForQuantity && multipleMatchedProducts.length === 0 && !completedOrder && !isCameraOpen) {
+      barcodeInputRef.current?.focus();
+    }
+  };
 
   const triggerScanFeedback = (text: string, isError = false) => {
     setScannerNotification({ text, isError });
@@ -107,18 +128,32 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
   // Unified Barcode/SKU lookup function used by:
   // 1. Manual typing in barcode input + Enter
-  // 2. Physical USB/Bluetooth HID Barcode Scanner
+  // 2. Physical USB/Bluetooth HID Barcode Scanner (keyboard-wedge)
   // 3. Mobile Camera Barcode Scanner
-  // 4. Quick Simulation Test Bench
   const processBarcode = (rawCode: string) => {
     const code = rawCode.trim();
     if (!code) return;
 
+    // Prevent duplicate scan within 350ms window for identical barcode
+    const now = Date.now();
+    if (lastScanRef.current.code === code && (now - lastScanRef.current.time) < 350) {
+      return;
+    }
+    lastScanRef.current = { code, time: now };
+
     const matches = lookupProduct(products, code);
 
     if (matches.length === 1) {
-      handleInitiateQuantitySelection(matches[0]);
+      const matched = matches[0];
+      const isWeight = isWeightBasedProduct(matched);
       setBarcodeInput('');
+      if (isWeight) {
+        // Prompt weight confirmation for KG items
+        handleInitiateQuantitySelection(matched);
+      } else {
+        // Auto-add unique count/PCS products directly to cart (1 unit / increment)
+        handleConfirmQuantity(matched, 1);
+      }
     } else if (matches.length > 1) {
       setMultipleMatchedProducts(matches);
       setBarcodeInput('');
@@ -133,13 +168,13 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   useBarcodeScanner({
     onScan: (scannedCode) => {
       // Only process when no modal is currently taking user focus
-      if (!selectedProductForQuantity && multipleMatchedProducts.length === 0 && !completedOrder) {
+      if (!selectedProductForQuantity && multipleMatchedProducts.length === 0 && !completedOrder && !isCameraOpen) {
         processBarcode(scannedCode);
       }
     },
     enabled: true,
     minChars: 2,
-    maxIntervalMs: 60,
+    maxIntervalMs: 70,
   });
 
   // Manual barcode / SKU input submission (pressing Enter)
@@ -320,7 +355,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   });
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden bg-[#080808] text-[#F5F5F5] select-none">
+    <div onClick={handleBackgroundClick} className="flex flex-col h-full w-full overflow-hidden bg-[#080808] text-[#F5F5F5] select-none">
       
       {/* ─── Mobile Segmented Toggle (< 1024px) ─── */}
       <div className="lg:hidden shrink-0 flex items-center p-2 bg-[#121214] border-b border-white/[0.08] gap-2">
@@ -894,7 +929,12 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         }}
         onSelectProduct={(p) => {
           setMultipleMatchedProducts([]);
-          handleInitiateQuantitySelection(p);
+          const isWeight = isWeightBasedProduct(p);
+          if (isWeight) {
+            handleInitiateQuantitySelection(p);
+          } else {
+            handleConfirmQuantity(p, 1);
+          }
         }}
       />
 

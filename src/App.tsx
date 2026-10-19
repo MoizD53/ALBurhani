@@ -61,9 +61,19 @@ export function App() {
   });
 
 
-  // Products State (Initialized with 304 products from al burhani stock - Copy.xlsx)
+  // Products State (Reset all 305 products to stock: 0 for clean opening stock entry)
   const [products, setProducts] = useState<Product[]>(() => {
     try {
+      const isZeroStockMigrated = typeof window !== 'undefined' ? localStorage.getItem('albhurani_opening_stock_zero_v1') : null;
+      if (!isZeroStockMigrated) {
+        const zeroStockProducts = IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('albhurani_products', JSON.stringify(zeroStockProducts));
+          localStorage.setItem('albhurani_opening_stock_zero_v1', 'true');
+        }
+        return zeroStockProducts;
+      }
+
       const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_products') : null;
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -72,19 +82,19 @@ export function App() {
           const isStale =
             parsed.length !== IMPORTED_PRODUCTS.length ||
             !p0001 ||
-            !p0001.name.includes('KAJU KATLI') ||
-            (parsed[0] && (parsed[0].costPrice > 0 || parsed[0].stock === 25 || parsed[0].mrp !== undefined));
+            !p0001.name.includes('KAJU KATLI');
 
           if (isStale) {
-            localStorage.setItem('albhurani_products', JSON.stringify(IMPORTED_PRODUCTS));
-            return IMPORTED_PRODUCTS;
+            const zeroStockProducts = IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
+            localStorage.setItem('albhurani_products', JSON.stringify(zeroStockProducts));
+            return zeroStockProducts;
           }
           return parsed;
         }
       }
-      return IMPORTED_PRODUCTS;
+      return IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
     } catch {
-      return IMPORTED_PRODUCTS;
+      return IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
     }
   });
 
@@ -95,7 +105,15 @@ export function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleanOrders = parsed.filter((o: OrderBill) => !o.id.startsWith('bill-init-'));
+          const cleanOrders = parsed.filter(
+            (o: OrderBill) =>
+              o &&
+              o.id &&
+              !o.id.startsWith('bill-init-') &&
+              !o.id.startsWith('sim-') &&
+              !o.id.startsWith('mock-') &&
+              !o.billNumber?.startsWith('ALB-SIM')
+          );
           return cleanOrders;
         }
       }
@@ -112,7 +130,15 @@ export function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleanExpenses = parsed.filter((e: ExpenseItem) => !e.id.startsWith('exp-'));
+          const cleanExpenses = parsed.filter(
+            (e: ExpenseItem) =>
+              e &&
+              e.id &&
+              !e.id.startsWith('exp-1') &&
+              !e.id.startsWith('exp-2') &&
+              !e.id.startsWith('exp-3') &&
+              !e.id.startsWith('mock-')
+          );
           return cleanExpenses;
         }
       }
