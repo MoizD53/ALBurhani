@@ -22,6 +22,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
+import { isOrderInDateRange } from '../../lib/utils';
 
 interface OverviewDashboardViewProps {
   products: Product[];
@@ -48,18 +49,10 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   }).toUpperCase();
 
   // Filter orders by date range
-  const filteredOrders = orders.filter((o) => {
-    if (dateFilter === 'all') return true;
-    if (dateFilter === 'today') {
-      return o.createdAt.toLowerCase().includes('today') || !o.createdAt.includes('Oct');
-    }
-    return true;
-  });
+  const filteredOrders = orders.filter((o) => isOrderInDateRange(o, dateFilter));
 
   // Today-specific orders for top KPI cards
-  const todayOrders = orders.filter((o) => 
-    o.createdAt.toLowerCase().includes('today') || !o.createdAt.includes('Oct')
-  );
+  const todayOrders = orders.filter((o) => isOrderInDateRange(o, 'today'));
 
   const todayRevenue = todayOrders.reduce((sum, o) => sum + o.grandTotal, 0);
   const lifetimeRevenue = orders.reduce((sum, o) => sum + o.grandTotal, 0);

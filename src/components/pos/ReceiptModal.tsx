@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react';
 import { OrderBill } from '../../types';
-import { X, Printer, CheckCircle, FlaskConical } from 'lucide-react';
+import { X, Printer, CheckCircle } from 'lucide-react';
 
 interface ReceiptModalProps {
   order: OrderBill | null;
   onClose: () => void;
-  isTestMode?: boolean;
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, isTestMode }) => {
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) => {
   // Global Escape keydown listener (runs unconditionally before early return)
   useEffect(() => {
     if (!order) return;
@@ -27,8 +26,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, isTe
 
   if (!order) return null;
 
-  const isTest = Boolean(isTestMode || order.billNumber.startsWith('ALB-SIM'));
-
   const handlePrint = () => {
     window.print();
   };
@@ -40,30 +37,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, isTe
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full max-w-sm rounded-2xl bg-[#121214] border shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] flex flex-col ${
-          isTest ? 'border-amber-500/50 ring-1 ring-amber-500/20' : 'border-[#D4AF37]/35'
-        }`}
+        className="relative w-full max-w-sm rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] flex flex-col"
       >
         
         {/* Header */}
-        <div className={`flex items-center justify-between px-5 py-3.5 border-b shrink-0 ${
-          isTest ? 'border-amber-500/20 bg-amber-950/20' : 'border-white/[0.08] bg-[#161619]'
-        }`}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] shrink-0">
           <div className="flex items-center gap-2">
-            {isTest ? (
-              <>
-                <FlaskConical className="w-4 h-4 text-amber-400" />
-                <div>
-                  <h3 className="font-semibold text-amber-300 text-sm">Simulated Receipt (Dry Run)</h3>
-                  <p className="text-[10px] text-amber-400/80">No real stock or sales recorded</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-semibold text-white text-sm">Bill Generated Successfully</h3>
-              </>
-            )}
+            <CheckCircle className="w-4 h-4 text-emerald-400" />
+            <h3 className="font-semibold text-white text-sm">Bill Generated Successfully</h3>
           </div>
           <button 
             onClick={onClose}
@@ -80,13 +61,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, isTe
             id="thermal-receipt"
             className="w-[280px] bg-white text-black p-3.5 rounded shadow border border-gray-300 font-mono text-[11px] leading-snug select-none"
           >
-            {isTest && (
-              <div className="bg-amber-100 border border-amber-400 text-amber-950 p-1.5 rounded mb-2 text-center text-[8px] font-bold leading-tight">
-                ⚠️ TEST MODE — DRY RUN SIMULATION<br />
-                NOT A VALID TAX INVOICE<br />
-                REAL STOCK & LEDGER UNTOUCHED
-              </div>
-            )}
+
 
             {/* Store Header */}
             <div className="text-center pb-2 border-b border-black">

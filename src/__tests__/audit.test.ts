@@ -173,40 +173,45 @@ describe('AL-BHURANI Comprehensive Product & POS Audit', () => {
     });
   });
 
-  // ─── 4. Test Mode Safeguards ───
-  describe('4. Dry Run / Test Mode Safeguards', () => {
-    it('verifies test mode does NOT mutate real product stock or real orders', () => {
+  // ─── 4. Real Checkout Persistence & Stock Deduction ───
+  describe('4. Real Checkout Persistence & Stock Deduction', () => {
+    it('verifies real checkout successfully deducts product stock and persists orders', () => {
       const initialProducts = JSON.parse(JSON.stringify(IMPORTED_PRODUCTS)) as Product[];
       const realOrders: OrderBill[] = [];
 
-      const isTestMode = true;
-      const testItem = buildCartItem(initialProducts[0], 2);
+      const targetProduct = initialProducts[0];
+      targetProduct.stock = 50;
+      const initialStock = targetProduct.stock;
+      const testItem = buildCartItem(targetProduct, 2);
 
-      let simOrder: OrderBill | null = null;
-      if (isTestMode) {
-        simOrder = {
-          id: `sim-${Date.now()}`,
-          billNumber: 'ALB-SIM-1234',
-          transactionType: 'CUSTOMER_BILL',
-          items: [testItem],
-          subtotal: testItem.lineTotal,
-          discountAmount: 0,
-          gstAmount: 0,
-          grandTotal: testItem.lineTotal,
-          paymentMethod: 'CASH',
-          amountReceived: testItem.lineTotal,
-          changeGiven: 0,
-          cashierName: 'Simulator',
-          createdAt: '12:00 PM',
-        };
-        // Safeguard: Real orders array is NOT mutated
-        // Safeguard: initialProducts stock is NOT deducted
-      }
+      const billNumber = 'ALB-INV-1234';
+      const realOrder: OrderBill = {
+        id: `sale-${Date.now()}`,
+        billNumber,
+        transactionType: 'CUSTOMER_BILL',
+        items: [testItem],
+        subtotal: testItem.lineTotal,
+        discountAmount: 0,
+        gstAmount: Math.round(testItem.lineTotal * 0.05 * 100) / 100,
+        grandTotal: testItem.lineTotal + Math.round(testItem.lineTotal * 0.05 * 100) / 100,
+        paymentMethod: 'CASH',
+        amountReceived: testItem.lineTotal * 2,
+        changeGiven: testItem.lineTotal,
+        cashierName: 'Owner',
+        createdAt: '19 Oct 2026, 12:00 PM',
+        timestamp: Date.now(),
+      };
 
-      expect(simOrder).not.toBeNull();
-      expect(simOrder?.billNumber).toContain('ALB-SIM');
-      expect(realOrders.length).toBe(0);
-      expect(initialProducts[0].stock).toBe(IMPORTED_PRODUCTS[0].stock);
+      // Real checkout records to orders array
+      realOrders.push(realOrder);
+
+      // Real checkout deducts stock
+      targetProduct.stock = deductStock(targetProduct.stock, testItem.quantity, false);
+
+      expect(realOrders.length).toBe(1);
+      expect(realOrders[0].billNumber).toBe('ALB-INV-1234');
+      expect(realOrders[0].cashierName).toBe('Owner');
+      expect(targetProduct.stock).toBe(initialStock - 2);
     });
   });
 

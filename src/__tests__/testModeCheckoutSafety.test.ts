@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Product, OrderBill, PaymentMethod, TransactionType } from '../types';
+import { Product, OrderBill, PaymentMethod, TransactionType, CompleteSaleResult } from '../types';
 import { IMPORTED_PRODUCTS } from '../data/importedProducts';
 import { buildCartItem, deductStock } from '../lib/pricing';
+import { isOrderInDateRange } from '../lib/utils';
 
-describe('Test Mode Checkout Safety Verification', () => {
+describe('Real Sales Persistence & Checkout Verification', () => {
   const sampleProduct: Product = {
     id: 'test-kaju-katli',
     sku: '0001',
@@ -18,37 +19,50 @@ describe('Test Mode Checkout Safety Verification', () => {
     minStock: 5,
   };
 
-  // Helper simulating the exact checkout logic from PosBillingView.tsx:handleCheckout
-  function simulateCheckout({
-    isTestMode,
+  const sampleWeightProduct: Product = {
+    id: 'test-ratlami-sev',
+    sku: '67225776696',
+    barcode: '67225776696',
+    name: 'RATLAMI SEV',
+    category: 'Namkeen & Farsan',
+    unit: 'KG',
+    priceBasis: '₹/kg',
+    costPrice: 0,
+    sellingPrice: 320,
+    stock: 25.5,
+    minStock: 3,
+  };
+
+  // Helper simulating the exact PosBillingView:handleCheckout logic
+  async function performCheckout({
     transactionType,
     paymentMethod,
     cart,
     receivedAmount,
     onCompleteSale,
   }: {
-    isTestMode: boolean;
     transactionType: TransactionType;
     paymentMethod: PaymentMethod;
     cart: ReturnType<typeof buildCartItem>[];
     receivedAmount?: number;
-    onCompleteSale: (order: OrderBill) => void;
+    onCompleteSale: (order: OrderBill) => Promise<CompleteSaleResult> | CompleteSaleResult;
   }) {
     const subtotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
     const discountAmount = 0;
     const taxableAmount = subtotal;
     const gstAmount = transactionType === 'CUSTOMER_BILL' ? Math.round(taxableAmount * 0.05 * 100) / 100 : 0;
-    const grandTotal = taxableAmount + gstAmount;
+    const grandTotal = Math.round(taxableAmount + gstAmount);
 
-    const prefix = isTestMode ? 'SIM' : transactionType === 'CUSTOMER_BILL' ? 'INV' : 'NB';
+    const prefix = transactionType === 'CUSTOMER_BILL' ? 'INV' : 'NB';
     const randomNum = 4821;
     const billNumber = `ALB-${prefix}-${randomNum}`;
+    const timestamp = Date.now();
 
     const receivedNum = receivedAmount ?? grandTotal;
     const changeGiven = paymentMethod === 'CASH' ? Math.max(0, receivedNum - grandTotal) : 0;
 
     const newOrder: OrderBill = {
-      id: isTestMode ? `sim-${Date.now()}` : `sale-${Date.now()}`,
+      id: `sale-${timestamp}-${randomNum}`,
       billNumber,
       transactionType,
       items: [...cart],
@@ -59,153 +73,186 @@ describe('Test Mode Checkout Safety Verification', () => {
       paymentMethod,
       amountReceived: paymentMethod === 'CASH' ? receivedNum : grandTotal,
       changeGiven: paymentMethod === 'CASH' ? changeGiven : 0,
-      cashierName: isTestMode ? 'Simulator (Dry Run)' : 'Owner',
-      createdAt: '12:00 PM',
+      cashierName: 'Owner',
+      createdAt: new Date(timestamp).toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }),
+      timestamp,
     };
 
-    let completedOrderState: OrderBill | null = null;
-    let toastMessage = '';
+    const result = await onCompleteSale(newOrder);
 
-    if (isTestMode) {
-      // In TEST MODE: Do NOT call onCompleteSale!
-      completedOrderState = newOrder;
-      toastMessage = `🧪 Dry-Run #${billNumber} simulated! Real stock untouched.`;
+    let completedOrderModal: OrderBill | null = null;
+    let toastMessage = '';
+    let isCartCleared = false;
+
+    if (!result || result.success === false) {
+      toastMessage = `❌ Could not save sale: ${result?.error || 'Persistence failed'}`;
+      // Cart is NOT cleared and modal is NOT opened on failure
+      isCartCleared = false;
+      completedOrderModal = null;
     } else {
-      onCompleteSale(newOrder);
       if (transactionType === 'CUSTOMER_BILL') {
-        completedOrderState = newOrder;
+        completedOrderModal = newOrder;
       } else {
-        toastMessage = `No-Bill Sale #${billNumber} recorded successfully!`;
+        toastMessage = `✓ No-Bill Sale #${billNumber} recorded successfully!`;
       }
+      isCartCleared = true;
     }
 
-    return { newOrder, completedOrderState, toastMessage };
+    return { newOrder, completedOrderModal, toastMessage, isCartCleared, result };
   }
 
-  // ─── 1. Test Mode ON: Isolation & ALB-SIM- Prefix ───
-  it('1. Test Mode ON: creates only simulated order with ALB-SIM- prefix and does NOT call onCompleteSale', () => {
-    const onCompleteSaleMock = vi.fn();
-    const cart = [buildCartItem(sampleProduct, 2)];
+  // ─── 1. Real Persistent Checkout: Bill Number Prefixes & Persistence ───
+  it('1. Generates real ALB-INV and ALB-NB bills with Owner cashier and persists to orders', async () => {
+    let persistedOrders: OrderBill[] = [];
 
-    const { newOrder, completedOrderState, toastMessage } = simulateCheckout({
-      isTestMode: true,
-      transactionType: 'CUSTOMER_BILL',
-      paymentMethod: 'CASH',
-      cart,
-      onCompleteSale: onCompleteSaleMock,
-    });
-
-    // 1. Prefix and ID checks
-    expect(newOrder.billNumber).toMatch(/^ALB-SIM-\d+$/);
-    expect(newOrder.id).toMatch(/^sim-\d+$/);
-    expect(newOrder.cashierName).toBe('Simulator (Dry Run)');
-
-    // 2. onCompleteSale is NOT called
-    expect(onCompleteSaleMock).not.toHaveBeenCalled();
-
-    // 3. UI receives dry-run simulation order
-    expect(completedOrderState).toEqual(newOrder);
-    expect(toastMessage).toContain('Dry-Run');
-    expect(toastMessage).toContain('Real stock untouched');
-  });
-
-  // ─── 2. Payment Methods Simulated Safely in Test Mode ───
-  it('2. Safely simulates CASH, UPI QR, and CARD payments in Test Mode without external network or gateways', () => {
-    const onCompleteSaleMock = vi.fn();
-    const cart = [buildCartItem(sampleProduct, 1)];
-
-    // Cash with change
-    const cashResult = simulateCheckout({
-      isTestMode: true,
-      transactionType: 'CUSTOMER_BILL',
-      paymentMethod: 'CASH',
-      cart,
-      receivedAmount: 500,
-      onCompleteSale: onCompleteSaleMock,
-    });
-    expect(cashResult.newOrder.paymentMethod).toBe('CASH');
-    expect(cashResult.newOrder.amountReceived).toBe(500);
-    expect(cashResult.newOrder.changeGiven).toBeGreaterThan(0);
-    expect(onCompleteSaleMock).not.toHaveBeenCalled();
-
-    // UPI QR
-    const upiResult = simulateCheckout({
-      isTestMode: true,
-      transactionType: 'CUSTOMER_BILL',
-      paymentMethod: 'UPI',
-      cart,
-      onCompleteSale: onCompleteSaleMock,
-    });
-    expect(upiResult.newOrder.paymentMethod).toBe('UPI');
-    expect(upiResult.newOrder.amountReceived).toBe(upiResult.newOrder.grandTotal);
-    expect(upiResult.newOrder.changeGiven).toBe(0);
-    expect(onCompleteSaleMock).not.toHaveBeenCalled();
-
-    // Card
-    const cardResult = simulateCheckout({
-      isTestMode: true,
-      transactionType: 'CUSTOMER_BILL',
-      paymentMethod: 'CARD',
-      cart,
-      onCompleteSale: onCompleteSaleMock,
-    });
-    expect(cardResult.newOrder.paymentMethod).toBe('CARD');
-    expect(cardResult.newOrder.amountReceived).toBe(cardResult.newOrder.grandTotal);
-    expect(cardResult.newOrder.changeGiven).toBe(0);
-    expect(onCompleteSaleMock).not.toHaveBeenCalled();
-  });
-
-  // ─── 3. Test Mode OFF: Real Sales Processing ───
-  it('3. Test Mode OFF: calls onCompleteSale and records real invoice or no-bill sale', () => {
-    const onCompleteSaleMock = vi.fn();
-    const cart = [buildCartItem(sampleProduct, 1)];
-
-    // Customer Bill (Formal Tax Invoice)
-    const invResult = simulateCheckout({
-      isTestMode: false,
-      transactionType: 'CUSTOMER_BILL',
-      paymentMethod: 'CASH',
-      cart,
-      onCompleteSale: onCompleteSaleMock,
-    });
-    expect(invResult.newOrder.billNumber).toMatch(/^ALB-INV-\d+$/);
-    expect(invResult.newOrder.id).toMatch(/^sale-\d+$/);
-    expect(invResult.newOrder.cashierName).toBe('Owner');
-    expect(onCompleteSaleMock).toHaveBeenCalledTimes(1);
-    expect(onCompleteSaleMock).toHaveBeenCalledWith(invResult.newOrder);
-
-    // No-Bill Sale (Internal Cash Record)
-    const nbResult = simulateCheckout({
-      isTestMode: false,
-      transactionType: 'NO_BILL',
-      paymentMethod: 'CASH',
-      cart,
-      onCompleteSale: onCompleteSaleMock,
-    });
-    expect(nbResult.newOrder.billNumber).toMatch(/^ALB-NB-\d+$/);
-    expect(nbResult.newOrder.gstAmount).toBe(0);
-    expect(onCompleteSaleMock).toHaveBeenCalledTimes(2);
-  });
-
-  // ─── 4. Defense-in-Depth Guard in App.tsx ───
-  it('4. Defense-in-depth: handleCompleteSale in App.tsx blocks simulated orders even if directly invoked', () => {
-    let ordersLedger: OrderBill[] = [];
-    let productStock = sampleProduct.stock; // 50
-
-    // Replicate App.tsx handleCompleteSale logic with defense-in-depth guard
-    const handleCompleteSaleWithGuard = (order: OrderBill) => {
-      if (order.id.startsWith('sim-') || order.billNumber.startsWith('ALB-SIM')) {
-        return; // Rejected!
-      }
-
-      ordersLedger = [order, ...ordersLedger];
-      const itemInBill = order.items.find((i) => i.product.id === sampleProduct.id);
-      if (itemInBill) {
-        productStock = deductStock(productStock, itemInBill.quantity, false);
-      }
+    const handleCompleteSale = (order: OrderBill): CompleteSaleResult => {
+      persistedOrders = [order, ...persistedOrders];
+      return { success: true, order };
     };
 
-    // Attempt to pass a simulated order directly to handleCompleteSale
+    const cart = [buildCartItem(sampleProduct, 2)];
+
+    // Formal Customer Bill (With Bill)
+    const invResult = await performCheckout({
+      transactionType: 'CUSTOMER_BILL',
+      paymentMethod: 'CASH',
+      cart,
+      onCompleteSale: handleCompleteSale,
+    });
+
+    expect(invResult.newOrder.billNumber).toMatch(/^ALB-INV-\d+$/);
+    expect(invResult.newOrder.id).toMatch(/^sale-\d+-\d+$/);
+    expect(invResult.newOrder.cashierName).toBe('Owner');
+    expect(invResult.newOrder.gstAmount).toBe(Math.round(550 * 0.05 * 100) / 100);
+    expect(invResult.isCartCleared).toBe(true);
+    expect(invResult.completedOrderModal).toEqual(invResult.newOrder);
+    expect(persistedOrders.length).toBe(1);
+
+    // No-Bill Sale
+    const nbResult = await performCheckout({
+      transactionType: 'NO_BILL',
+      paymentMethod: 'UPI',
+      cart,
+      onCompleteSale: handleCompleteSale,
+    });
+
+    expect(nbResult.newOrder.billNumber).toMatch(/^ALB-NB-\d+$/);
+    expect(nbResult.newOrder.gstAmount).toBe(0);
+    expect(nbResult.isCartCleared).toBe(true);
+    expect(persistedOrders.length).toBe(2);
+  });
+
+  // ─── 2. Inventory Decreases Correctly ───
+  it('2. Decreases inventory accurately for sold piece and weight products', async () => {
+    let stockPcs = sampleProduct.stock; // 50
+    let stockKg = sampleWeightProduct.stock; // 25.5
+
+    const handleCompleteSale = (order: OrderBill): CompleteSaleResult => {
+      for (const item of order.items) {
+        if (item.product.id === sampleProduct.id) {
+          stockPcs = deductStock(stockPcs, item.quantity, false);
+        }
+        if (item.product.id === sampleWeightProduct.id) {
+          stockKg = deductStock(stockKg, item.quantity, true);
+        }
+      }
+      return { success: true, order };
+    };
+
+    const cart = [
+      buildCartItem(sampleProduct, 3), // 3 pcs
+      buildCartItem(sampleWeightProduct, 0.375, 375), // 375g = 0.375 kg
+    ];
+
+    await performCheckout({
+      transactionType: 'CUSTOMER_BILL',
+      paymentMethod: 'CASH',
+      cart,
+      onCompleteSale: handleCompleteSale,
+    });
+
+    expect(stockPcs).toBe(47);
+    expect(stockKg).toBe(25.125); // 25.5 - 0.375
+  });
+
+  // ─── 3. Failed Save Handling (No False Receipt or Success) ───
+  it('3. Does NOT clear cart or display receipt if persistence fails', async () => {
+    const handleCompleteSaleFails = (_order: OrderBill): CompleteSaleResult => {
+      return { success: false, error: 'Database connection failed' };
+    };
+
+    const cart = [buildCartItem(sampleProduct, 1)];
+
+    const result = await performCheckout({
+      transactionType: 'CUSTOMER_BILL',
+      paymentMethod: 'CASH',
+      cart,
+      onCompleteSale: handleCompleteSaleFails,
+    });
+
+    expect(result.result.success).toBe(false);
+    expect(result.isCartCleared).toBe(false);
+    expect(result.completedOrderModal).toBeNull();
+    expect(result.toastMessage).toContain('Could not save sale');
+  });
+
+  // ─── 4. Duplicate Order Prevention ───
+  it('4. Rejects duplicate submissions with identical order ID or bill number', () => {
+    const existingOrders: OrderBill[] = [
+      {
+        id: 'sale-1729328400000-1111',
+        billNumber: 'ALB-INV-1111',
+        transactionType: 'CUSTOMER_BILL',
+        items: [buildCartItem(sampleProduct, 1)],
+        subtotal: 275,
+        discountAmount: 0,
+        gstAmount: 13.75,
+        grandTotal: 289,
+        paymentMethod: 'CASH',
+        amountReceived: 300,
+        changeGiven: 11,
+        cashierName: 'Owner',
+        createdAt: '19 Oct 2026, 12:00 PM',
+        timestamp: 1729328400000,
+      },
+    ];
+
+    const duplicateOrder: OrderBill = {
+      ...existingOrders[0],
+    };
+
+    // Replicate App.tsx validation logic
+    const validateAndSave = (order: OrderBill, orders: OrderBill[]): CompleteSaleResult => {
+      if (orders.some((o) => o.id === order.id || o.billNumber === order.billNumber)) {
+        return { success: false, error: `Duplicate order: ${order.billNumber} is already recorded` };
+      }
+      return { success: true, order };
+    };
+
+    const result = validateAndSave(duplicateOrder, existingOrders);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Duplicate order');
+  });
+
+  // ─── 5. Defense-in-Depth: Obsolete Simulated Orders Rejected ───
+  it('5. Defense-in-depth: Rejects obsolete simulated orders from ever polluting real records', () => {
+    const ordersLedger: OrderBill[] = [];
+
+    const handleCompleteSale = (order: OrderBill): CompleteSaleResult => {
+      if (order.id.startsWith('sim-') || order.billNumber.startsWith('ALB-SIM')) {
+        return { success: false, error: 'Simulated orders are rejected' };
+      }
+      ordersLedger.push(order);
+      return { success: true, order };
+    };
+
     const simOrder: OrderBill = {
       id: 'sim-1729328400000',
       billNumber: 'ALB-SIM-4821',
@@ -214,18 +261,71 @@ describe('Test Mode Checkout Safety Verification', () => {
       subtotal: 2750,
       discountAmount: 0,
       gstAmount: 137.5,
-      grandTotal: 2887.5,
+      grandTotal: 2888,
       paymentMethod: 'CASH',
       amountReceived: 3000,
-      changeGiven: 112.5,
+      changeGiven: 112,
       cashierName: 'Simulator',
       createdAt: '12:00 PM',
     };
 
-    handleCompleteSaleWithGuard(simOrder);
-
-    // Verify ZERO mutations occurred
+    const result = handleCompleteSale(simOrder);
+    expect(result.success).toBe(false);
     expect(ordersLedger.length).toBe(0);
-    expect(productStock).toBe(50); // Untouched!
+  });
+
+  // ─── 6. Date Range Filtering in Sales/Reports ───
+  it('6. Accurately filters orders by date range without hiding current sales', () => {
+    const now = Date.now();
+    const todayOrder: OrderBill = {
+      id: `sale-${now}-1`,
+      billNumber: 'ALB-INV-5001',
+      transactionType: 'CUSTOMER_BILL',
+      items: [buildCartItem(sampleProduct, 1)],
+      subtotal: 275,
+      discountAmount: 0,
+      gstAmount: 13.75,
+      grandTotal: 289,
+      paymentMethod: 'CASH',
+      amountReceived: 300,
+      changeGiven: 11,
+      cashierName: 'Owner',
+      createdAt: new Date(now).toLocaleString('en-IN'),
+      timestamp: now,
+    };
+
+    const threeDaysAgo = now - 3 * 24 * 60 * 60 * 1000;
+    const recentOrder: OrderBill = {
+      ...todayOrder,
+      id: `sale-${threeDaysAgo}-2`,
+      billNumber: 'ALB-INV-5002',
+      timestamp: threeDaysAgo,
+    };
+
+    const fortyDaysAgo = now - 40 * 24 * 60 * 60 * 1000;
+    const oldOrder: OrderBill = {
+      ...todayOrder,
+      id: `sale-${fortyDaysAgo}-3`,
+      billNumber: 'ALB-INV-5003',
+      timestamp: fortyDaysAgo,
+    };
+
+    const allOrders = [todayOrder, recentOrder, oldOrder];
+
+    // 'all' includes all 3
+    expect(allOrders.filter((o) => isOrderInDateRange(o, 'all')).length).toBe(3);
+
+    // 'today' includes today's order
+    const todayMatches = allOrders.filter((o) => isOrderInDateRange(o, 'today'));
+    expect(todayMatches.length).toBe(1);
+    expect(todayMatches[0].billNumber).toBe('ALB-INV-5001');
+
+    // '7days' includes today and 3 days ago
+    const weekMatches = allOrders.filter((o) => isOrderInDateRange(o, '7days'));
+    expect(weekMatches.length).toBe(2);
+
+    // 'month' includes today and 3 days ago, excludes 40 days ago
+    const monthMatches = allOrders.filter((o) => isOrderInDateRange(o, 'month'));
+    expect(monthMatches.length).toBe(2);
   });
 });

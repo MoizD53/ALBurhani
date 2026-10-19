@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Product, OrderBill, ExpenseItem, UserProfile } from './types';
+import { Product, OrderBill, ExpenseItem, UserProfile, CompleteSaleResult } from './types';
 import { IMPORTED_PRODUCTS } from './data/importedProducts';
 import { deductStock, isWeightBasedProduct } from './lib/pricing';
+import { getTursoClient, fetchOrdersFromTurso, saveOrderToTurso, updateStockOnTurso } from './lib/turso';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { PosBillingView } from './components/pos/PosBillingView';
@@ -123,25 +124,71 @@ export function App() {
 
   const [stickerModalProduct, setStickerModalProduct] = useState<Product | null>(null);
 
+  // Clean up obsolete test mode key from localStorage and sync remote data if configured
+  useEffect(() => {
+    try {
+      localStorage.removeItem('albhurani_pos_test_mode');
+    } catch {
+      // ignore
+    }
+
+    async function syncRemoteData() {
+      try {
+        const client = getTursoClient();
+        if (!client) return;
+
+        const remoteOrders = await fetchOrdersFromTurso();
+        if (remoteOrders && remoteOrders.length > 0) {
+          setOrders((localOrders) => {
+            const localIds = new Set(localOrders.map((o) => o.id));
+            const localBillNumbers = new Set(localOrders.map((o) => o.billNumber));
+            const toAdd = remoteOrders.filter(
+              (ro) => !localIds.has(ro.id) && !localBillNumbers.has(ro.billNumber)
+            );
+            if (toAdd.length === 0) return localOrders;
+            const merged = [...localOrders, ...toAdd];
+            try {
+              localStorage.setItem('albhurani_orders', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      } catch (err) {
+        console.warn('Could not sync remote data from Turso:', err);
+      }
+    }
+    syncRemoteData();
+  }, []);
+
   // Save states to localStorage
   useEffect(() => {
-    localStorage.setItem('albhurani_sidebar_collapsed', String(isSidebarCollapsed));
+    try {
+      localStorage.setItem('albhurani_sidebar_collapsed', String(isSidebarCollapsed));
+    } catch {}
   }, [isSidebarCollapsed]);
 
   useEffect(() => {
-    localStorage.setItem('albhurani_current_user', JSON.stringify(currentUser));
+    try {
+      localStorage.setItem('albhurani_current_user', JSON.stringify(currentUser));
+    } catch {}
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('albhurani_products', JSON.stringify(products));
+    try {
+      localStorage.setItem('albhurani_products', JSON.stringify(products));
+    } catch {}
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('albhurani_orders', JSON.stringify(orders));
+    try {
+      localStorage.setItem('albhurani_orders', JSON.stringify(orders));
+    } catch {}
   }, [orders]);
 
   useEffect(() => {
-    localStorage.setItem('albhurani_expenses', JSON.stringify(expenses));
+    try {
+      localStorage.setItem('albhurani_expenses', JSON.stringify(expenses));
+    } catch {}
   }, [expenses]);
 
   // Global Barcode Scanner Listener
@@ -155,29 +202,79 @@ export function App() {
   });
 
   // Handlers
-  const handleCompleteSale = (newOrder: OrderBill) => {
-    // Defense-in-Depth Guard: Reject any simulated or dry-run orders from touching real stock or ledger
+  const handleCompleteSale = async (newOrder: OrderBill): Promise<CompleteSaleResult> => {
+    // 1. Validation guards
+    if (!newOrder || !newOrder.id || !newOrder.billNumber) {
+      return { success: false, error: 'Invalid order data: Missing identifier' };
+    }
     if (newOrder.id.startsWith('sim-') || newOrder.billNumber.startsWith('ALB-SIM')) {
-      return;
+      return { success: false, error: 'Simulated orders are rejected' };
+    }
+    if (!Array.isArray(newOrder.items) || newOrder.items.length === 0) {
+      return { success: false, error: 'Cannot checkout an empty bill' };
+    }
+    if (typeof newOrder.grandTotal !== 'number' || newOrder.grandTotal < 0) {
+      return { success: false, error: 'Invalid bill grand total' };
     }
 
-    setOrders((prev) => [newOrder, ...prev]);
+    // 2. Duplicate prevention guard
+    if (orders.some((o) => o.id === newOrder.id || o.billNumber === newOrder.billNumber)) {
+      return { success: false, error: `Duplicate order: ${newOrder.billNumber} is already recorded` };
+    }
 
-    // Deduct stock safely with accurate unit support
-    setProducts((prev) =>
-      prev.map((prod) => {
-        const itemInBill = newOrder.items.find((i) => i.product.id === prod.id);
-        if (itemInBill) {
-          const isWeight = isWeightBasedProduct(prod);
-          const updatedStock = deductStock(prod.stock, itemInBill.quantity, isWeight);
-          return {
-            ...prod,
-            stock: updatedStock,
-          };
+    // 3. Deduct stock safely with unit support
+    const updatedProducts = products.map((prod) => {
+      const itemInBill = newOrder.items.find((i) => i.product.id === prod.id);
+      if (itemInBill) {
+        const isWeight = isWeightBasedProduct(prod);
+        const updatedStock = deductStock(prod.stock, itemInBill.quantity, isWeight);
+        return {
+          ...prod,
+          stock: updatedStock,
+        };
+      }
+      return prod;
+    });
+
+    const updatedOrders = [newOrder, ...orders];
+
+    // 4. Synchronous persistent write before confirming checkout success
+    try {
+      localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
+      localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
+    } catch (storageErr: any) {
+      console.error('Failed to save to localStorage:', storageErr);
+      return { 
+        success: false, 
+        error: `Storage failure: ${storageErr?.message || 'Storage quota exceeded'}` 
+      };
+    }
+
+    // 5. Update component state
+    setOrders(updatedOrders);
+    setProducts(updatedProducts);
+
+    // 6. Asynchronous remote backup to Turso if configured
+    try {
+      const client = getTursoClient();
+      if (client) {
+        saveOrderToTurso(newOrder).catch((err) => 
+          console.warn('Turso saveOrder background error:', err)
+        );
+        for (const it of newOrder.items) {
+          const p = updatedProducts.find((x) => x.id === it.product.id);
+          if (p) {
+            updateStockOnTurso(p.id, p.stock).catch((err) => 
+              console.warn('Turso updateStock background error:', err)
+            );
+          }
         }
-        return prod;
-      })
-    );
+      }
+    } catch (tursoErr) {
+      console.warn('Turso dispatch error:', tursoErr);
+    }
+
+    return { success: true, order: newOrder };
   };
 
   const handleAddProduct = (newProduct: Product) => {

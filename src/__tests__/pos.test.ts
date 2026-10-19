@@ -315,45 +315,42 @@ describe('AL-BHURANI POS Pricing & Quantity Calculations', () => {
     });
   });
 
-  // Test Requirement: Dry-Run Test Mode Isolation (Zero stock deduction & Zero financial record mutation)
-  it('guarantees Dry-Run simulation does not deduct real stock or pollute real orders', () => {
+  // Test Requirement: Real Persistent Checkout (Stock deduction & financial record persistence)
+  it('records real persistent sale and deducts inventory accurately upon checkout', () => {
     const originalStock = kajuKatli.stock;
     const initialOrders: OrderBill[] = [];
 
-    // Simulate dry-run cart creation
-    const simItem = buildCartItem(kajuKatli, 0.5, 500); // 500g of Kaju Katli (₹400)
-    expect(simItem.lineTotal).toBe(400);
+    // Real cart item creation
+    const saleItem = buildCartItem(kajuKatli, 0.5, 500); // 500g of Kaju Katli (₹400)
+    expect(saleItem.lineTotal).toBe(400);
 
-    const isTestMode = true;
-    let completedSimOrder: OrderBill | null = null;
+    const timestamp = Date.now();
+    const completedOrder: OrderBill = {
+      id: `sale-${timestamp}-9821`,
+      billNumber: `ALB-INV-9821`,
+      transactionType: 'CUSTOMER_BILL',
+      items: [saleItem],
+      subtotal: 400,
+      discountAmount: 0,
+      gstAmount: 20,
+      grandTotal: 420,
+      paymentMethod: 'CASH',
+      amountReceived: 500,
+      changeGiven: 80,
+      cashierName: 'Owner',
+      createdAt: '19 Oct 2026, 12:00 PM',
+      timestamp,
+    };
 
-    if (isTestMode) {
-      completedSimOrder = {
-        id: `sim-${Date.now()}`,
-        billNumber: `ALB-SIM-9821`,
-        transactionType: 'CUSTOMER_BILL',
-        items: [simItem],
-        subtotal: 400,
-        discountAmount: 0,
-        gstAmount: 20,
-        grandTotal: 420,
-        paymentMethod: 'CASH',
-        amountReceived: 500,
-        changeGiven: 80,
-        cashierName: 'Simulator (Dry Run)',
-        createdAt: '12:00 PM',
-      };
-      // In dry run, onCompleteSale is intentionally NOT invoked:
-      // Real stock is not deducted and initialOrders is not pushed to.
-    }
+    // Complete sale pushes to real orders and deducts real stock
+    initialOrders.push(completedOrder);
+    const updatedStock = deductStock(originalStock, saleItem.quantity, true);
 
-    expect(completedSimOrder).toBeDefined();
-    expect(completedSimOrder?.billNumber).toContain('ALB-SIM');
-    expect(completedSimOrder?.grandTotal).toBe(420);
-
-    // Verify stock remains pristine
-    expect(kajuKatli.stock).toBe(originalStock);
-    // Verify orders ledger remains pristine
-    expect(initialOrders.length).toBe(0);
+    expect(completedOrder).toBeDefined();
+    expect(completedOrder.billNumber).toBe('ALB-INV-9821');
+    expect(completedOrder.grandTotal).toBe(420);
+    expect(initialOrders.length).toBe(1);
+    expect(initialOrders[0].items[0].product.name).toBe('Kaju Katli Special');
+    expect(updatedStock).toBe(originalStock - 0.5);
   });
 });

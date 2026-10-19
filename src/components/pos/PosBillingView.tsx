@@ -16,10 +16,9 @@ import {
   Receipt,
   FileText,
   ReceiptText,
-  FlaskConical,
   Sparkles
 } from 'lucide-react';
-import { Product, CartItem, OrderBill, PaymentMethod, TransactionType } from '../../types';
+import { Product, CartItem, OrderBill, PaymentMethod, TransactionType, CompleteSaleResult } from '../../types';
 import { playBeep } from '../../lib/utils';
 import { 
   formatPriceWithBasis, 
@@ -36,7 +35,7 @@ import { ReceiptModal } from './ReceiptModal';
 
 interface PosBillingViewProps {
   products: Product[];
-  onCompleteSale: (order: OrderBill) => void;
+  onCompleteSale: (order: OrderBill) => Promise<CompleteSaleResult | void> | CompleteSaleResult | void;
   onOpenStickerModal: (product: Product) => void;
   initialTransactionType?: TransactionType;
 }
@@ -49,16 +48,6 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 }) => {
   // Billing Mode: Formal Customer Bill vs Internal No-Bill Sale
   const [transactionType, setTransactionType] = useState<TransactionType>(initialTransactionType);
-
-  // Safe Scanner Simulation / Test Mode (Dry Run)
-  const [isTestMode, setIsTestMode] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('albhurani_pos_test_mode') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [isTestBenchOpen, setIsTestBenchOpen] = useState<boolean>(false);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -84,15 +73,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   const [mobileTab, setMobileTab] = useState<'catalog' | 'cart'>('catalog');
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
-
-  // Persist test mode state
-  useEffect(() => {
-    try {
-      localStorage.setItem('albhurani_pos_test_mode', String(isTestMode));
-    } catch {
-      // ignore
-    }
-  }, [isTestMode]);
+  const isSubmittingRef = useRef<boolean>(false);
 
   const categories: string[] = [
     'All', 
@@ -256,56 +237,73 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
   // Checkout Handler
   const handleCheckout = async () => {
-    if (cart.length === 0 || isCheckingOut) return;
+    if (cart.length === 0 || isCheckingOut || isSubmittingRef.current) return;
 
+    isSubmittingRef.current = true;
     setIsCheckingOut(true);
-    playBeep('success');
 
-    const prefix = isTestMode ? 'SIM' : transactionType === 'CUSTOMER_BILL' ? 'INV' : 'NB';
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const billNumber = `ALB-${prefix}-${randomNum}`;
+    try {
+      const prefix = transactionType === 'CUSTOMER_BILL' ? 'INV' : 'NB';
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      const billNumber = `ALB-${prefix}-${randomNum}`;
+      const timestamp = Date.now();
 
-    const newOrder: OrderBill = {
-      id: isTestMode ? `sim-${Date.now()}` : `sale-${Date.now()}`,
-      billNumber,
-      transactionType,
-      items: [...cart],
-      subtotal,
-      discountAmount,
-      gstAmount,
-      grandTotal,
-      paymentMethod,
-      amountReceived: paymentMethod === 'CASH' ? receivedNum : grandTotal,
-      changeGiven: paymentMethod === 'CASH' ? changeGiven : 0,
-      customerName: customerName.trim() || undefined,
-      customerPhone: customerPhone.trim() || undefined,
-      cashierName: isTestMode ? 'Simulator (Dry Run)' : 'Owner',
-      createdAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
-    };
+      const newOrder: OrderBill = {
+        id: `sale-${timestamp}-${randomNum}`,
+        billNumber,
+        transactionType,
+        items: [...cart],
+        subtotal,
+        discountAmount,
+        gstAmount,
+        grandTotal,
+        paymentMethod,
+        amountReceived: paymentMethod === 'CASH' ? receivedNum : grandTotal,
+        changeGiven: paymentMethod === 'CASH' ? changeGiven : 0,
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        cashierName: 'Owner',
+        createdAt: new Date(timestamp).toLocaleString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }),
+        timestamp,
+      };
 
-    if (isTestMode) {
-      // In TEST MODE: Do NOT call onCompleteSale! Real inventory & financial ledger remain completely untouched.
-      setCompletedOrder(newOrder);
-      triggerScanFeedback(`🧪 Dry-Run #${billNumber} simulated! Real stock untouched.`);
-    } else {
-      onCompleteSale(newOrder);
+      const result = await onCompleteSale(newOrder);
+      if (result && result.success === false) {
+        playBeep('error');
+        triggerScanFeedback(`❌ Could not save sale: ${result.error || 'Persistence failed'}`);
+        return;
+      }
+
+      playBeep('success');
 
       // Only open thermal receipt popup for customer bills
       if (transactionType === 'CUSTOMER_BILL') {
         setCompletedOrder(newOrder);
       } else {
-        triggerScanFeedback(`No-Bill Sale #${billNumber} recorded successfully!`);
+        triggerScanFeedback(`✓ No-Bill Sale #${billNumber} recorded successfully!`);
       }
-    }
 
-    // Reset local billing state
-    setCart([]);
-    setCustomerName('');
-    setCustomerPhone('');
-    setDiscountPercent(0);
-    setAmountReceived('');
-    setIsCheckingOut(false);
-    refocusBarcode();
+      // Reset local billing state ONLY after successful save
+      setCart([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setDiscountPercent(0);
+      setAmountReceived('');
+      refocusBarcode();
+    } catch (err: any) {
+      playBeep('error');
+      triggerScanFeedback(`❌ Checkout error: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsCheckingOut(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   // Filter products by search query and category
@@ -355,37 +353,6 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         </button>
       </div>
 
-      {/* ─── Prominent Test Mode Active Banner ─── */}
-      {isTestMode && (
-        <div className="shrink-0 px-3.5 py-2 bg-gradient-to-r from-amber-950/70 via-amber-900/40 to-amber-950/70 border-b border-amber-500/40 flex items-center justify-between text-xs animate-fade-in">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="font-bold text-amber-300 tracking-wide flex items-center gap-1.5 uppercase text-[11px]">
-              <FlaskConical className="w-3.5 h-3.5" />
-              Scanner Simulation & Dry-Run Test Active
-            </span>
-            <span className="hidden md:inline text-amber-200/80 text-[11px]">
-              — Scans, KG/PCS quantity prompts, and cart calculations are live. Real stock and accounting ledgers will NOT be modified.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-mono font-bold">
-              SAFE DRY RUN
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setIsTestMode(false);
-                refocusBarcode();
-              }}
-              className="text-[11px] font-semibold text-amber-300 hover:text-white underline underline-offset-2 ml-1"
-            >
-              Exit Test Mode
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ─── Main Two-Panel Workspace ─── */}
       <div className="flex-1 min-h-0 flex gap-3 sm:gap-3.5 p-2 sm:p-3 lg:p-3.5 overflow-hidden">
         
@@ -396,7 +363,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
           mobileTab === 'cart' ? 'hidden lg:flex' : 'flex'
         }`}>
           
-          {/* 1. Elegant Barcode Input & Scanner Status */}
+          {/* 1. Barcode Input & Scanner Status */}
           <div className="shrink-0 p-2 sm:p-2.5 rounded-xl bg-[#121214] border border-white/[0.08] shadow-sm">
             <div className="flex items-center gap-2">
               
@@ -411,6 +378,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                     onChange={(e) => setBarcodeInput(e.target.value)}
                     style={{ paddingLeft: '38px' }}
                     className="w-full pr-8 py-2 text-xs sm:text-sm font-mono bg-black/60 border border-white/[0.1] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/70 focus:bg-black focus:outline-none transition-colors"
+                    placeholder="Scan barcode or enter SKU..."
                     autoFocus
                   />
                   {barcodeInput && (
@@ -436,24 +404,6 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 >
                   <Camera className="w-4 h-4" />
                 </button>
-
-                {/* Test Mode / Simulation Toggle */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsTestMode((prev) => !prev);
-                    refocusBarcode();
-                  }}
-                  className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
-                    isTestMode
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                      : 'bg-white/[0.04] text-zinc-400 hover:text-white border-white/[0.08]'
-                  }`}
-                  title="Toggle Safe Scanner Simulation & Dry-Run Mode"
-                >
-                  <FlaskConical className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">{isTestMode ? 'Dry Run' : 'Test Mode'}</span>
-                </button>
               </form>
 
               {/* Discreet Scanner Status & Scan Feedback */}
@@ -473,56 +423,6 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               </div>
 
             </div>
-          </div>
-
-          {/* 1.1 Hardware Scanner Simulation Tray (Quick Barcode Test Bench) */}
-          <div className="shrink-0 p-2 sm:p-2.5 rounded-xl bg-[#121214] border border-white/[0.07] space-y-1.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <div className="flex items-center gap-1.5 text-zinc-400">
-                <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span className="font-semibold text-zinc-200">Hardware Scanner Simulation Bench:</span>
-                <span className="text-zinc-500 hidden md:inline">Click sample barcode to simulate HID scanner scan + Enter</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">HID Emulation</span>
-                <button
-                  type="button"
-                  onClick={() => setIsTestBenchOpen(!isTestBenchOpen)}
-                  className="text-[11px] text-[#D4AF37] hover:underline"
-                >
-                  {isTestBenchOpen ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-
-            {isTestBenchOpen && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar pt-0.5">
-                {[
-                  { label: 'KG Weight 1', code: '80548406576', name: 'BHUKHO B', rate: '₹100/kg', type: 'Weight' },
-                  { label: 'KG Weight 2', code: '67225776696', name: 'RATLAMI SEV', rate: '₹320/kg', type: 'Weight' },
-                  { label: 'PCS Item', code: '8908012355526', name: 'DCUBE MAKAI', rate: '₹10/pc', type: 'Count' },
-                  { label: 'Leading Zero', code: '0001', name: 'KAJU KATLI 250G', rate: '₹275/pc', type: 'Leading 0' },
-                  { label: 'Generated Label', code: '890100801001', name: 'KHAJOOR ROLL', rate: '₹1200/kg', type: 'Sticker' },
-                ].map((sample) => (
-                  <button
-                    key={sample.code}
-                    type="button"
-                    onClick={() => processBarcode(sample.code)}
-                    className="px-2.5 py-1.5 rounded-lg bg-black/60 hover:bg-[#D4AF37]/15 border border-white/[0.08] hover:border-[#D4AF37]/50 text-left shrink-0 transition-all group shadow-sm"
-                    title={`Click to simulate hardware scan of ${sample.name} (${sample.code})`}
-                  >
-                    <div className="flex items-center gap-1 text-[11px] text-zinc-300 group-hover:text-[#D4AF37]">
-                      <span className="font-semibold">{sample.name}</span>
-                      <span className="font-mono text-[10px] text-zinc-500 group-hover:text-zinc-400">[{sample.code}]</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[9px] text-zinc-500 font-mono mt-0.5">
-                      <span>{sample.rate}</span>
-                      <span className="text-[#D4AF37]/80 font-sans ml-2">{sample.type}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* 2. Search & Category Filters Hub */}
@@ -948,33 +848,16 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
             <button
               onClick={handleCheckout}
               disabled={cart.length === 0 || isCheckingOut}
-              className={`w-full py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all ${
-                isTestMode
-                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black shadow-[0_4px_16px_rgba(245,158,11,0.25)] hover:brightness-110'
-                  : 'btn-gold shadow-[0_4px_16px_rgba(212,175,55,0.2)]'
-              }`}
+              className="w-full py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all btn-gold shadow-[0_4px_16px_rgba(212,175,55,0.2)]"
             >
-              {isTestMode ? (
-                <>
-                  <FlaskConical className="w-4 h-4" />
-                  <span>
-                    {isCheckingOut 
-                      ? 'Simulating...' 
-                      : `Simulate Checkout (Dry Run — ₹${grandTotal})`}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Receipt className="w-4 h-4" />
-                  <span>
-                    {isCheckingOut 
-                      ? 'Processing Sale...' 
-                      : transactionType === 'CUSTOMER_BILL' 
-                        ? `Complete Sale (With Bill — ₹${grandTotal})` 
-                        : `Complete Sale (No Bill — ₹${grandTotal})`}
-                  </span>
-                </>
-              )}
+              <Receipt className="w-4 h-4" />
+              <span>
+                {isCheckingOut 
+                  ? 'Processing Sale...' 
+                  : transactionType === 'CUSTOMER_BILL' 
+                    ? `Complete Sale (With Bill — ₹${grandTotal})` 
+                    : `Complete Sale (No Bill — ₹${grandTotal})`}
+              </span>
             </button>
 
           </div>
@@ -1031,7 +914,6 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       {/* ─── Thermal Receipt Modal ─── */}
       <ReceiptModal
         order={completedOrder}
-        isTestMode={isTestMode}
         onClose={() => {
           setCompletedOrder(null);
           refocusBarcode();

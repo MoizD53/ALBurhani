@@ -5,6 +5,7 @@ import {
   Download 
 } from 'lucide-react';
 import { formatStock } from '../../lib/pricing';
+import { isOrderInDateRange } from '../../lib/utils';
 
 interface ReportsViewProps {
   products: Product[];
@@ -30,12 +31,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [reportType, setReportType] = useState<ReportType>('combined-sales');
   const [dateRange, setDateRange] = useState<'today' | '7days' | 'month' | 'all'>('all');
 
-  // Filter orders by date range
-  const filteredOrders = orders.filter((o) => {
-    if (dateRange === 'all') return true;
-    if (dateRange === 'today') return o.createdAt.toLowerCase().includes('today') || !o.createdAt.includes('Oct');
-    return true;
-  });
+  // Filter orders by date range using reliable date/timestamp parsing
+  const filteredOrders = orders.filter((o) => isOrderInDateRange(o, dateRange));
 
   // Calculate Product-Wise Aggregates
   const productAggregates = new Map<string, { product: Product; totalQty: number; totalRevenue: number; ordersCount: number }>();

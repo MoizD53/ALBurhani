@@ -60,6 +60,13 @@ export interface OrderBill {
   customerPhone?: string;
   cashierName: string;
   createdAt: string;
+  timestamp?: number;
+}
+
+export interface CompleteSaleResult {
+  success: boolean;
+  error?: string;
+  order?: OrderBill;
 }
 
 export interface ExpenseItem {
