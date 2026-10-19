@@ -491,7 +491,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.preventDefault();
                 }}
-                style={{ paddingLeft: '32px' }}
+                style={{ paddingLeft: '34px' }}
                 className="w-full pr-7 py-1.5 text-xs bg-[#111115] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/50 focus:outline-none transition-colors"
               />
               {searchQuery && (

@@ -65,12 +65,12 @@
     background: rgba(212, 175, 55, 0.4);
   }
 
-  input[type="text"],
+  :where(input[type="text"],
   input[type="number"],
   input[type="email"],
   input[type="search"],
   select,
-  textarea {
+  textarea) {
     @apply w-full rounded-xl transition-all duration-200 py-2 px-3.5;
     background: #121212;
     border: 1px solid rgba(212, 175, 55, 0.18);
