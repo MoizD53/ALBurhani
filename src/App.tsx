@@ -40,7 +40,7 @@ import { SettingsView } from './components/settings/SettingsView';
 import { LabelStudioView } from './components/labels/LabelStudioView';
 import { BarcodeStickerModal } from './components/barcode/BarcodeStickerModal';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
-import { getCurrentSession, terminateSession } from './lib/auth';
+import { getCurrentSession, terminateSession, isSessionValid } from './lib/auth';
 import { LoginView } from './components/auth/LoginView';
 
 const DEFAULT_USER: UserProfile = {
@@ -50,12 +50,36 @@ const DEFAULT_USER: UserProfile = {
   counter: 'Godi Road Store',
 };
 
+const VALID_TABS: ActiveTab[] = [
+  'overview',
+  'pos',
+  'customer-bills',
+  'no-bill-sales',
+  'inventory',
+  'label-studio',
+  'expenses',
+  'reports',
+  'settings',
+];
+
+function getTabFromHash(): ActiveTab {
+  if (typeof window === 'undefined') return 'overview';
+  const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+  return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'overview';
+}
+
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const session = getCurrentSession();
-    return Boolean(session && session.token);
+    return Boolean(session && isSessionValid(session));
   });
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    const session = getCurrentSession();
+    if (session && isSessionValid(session)) {
+      return getTabFromHash();
+    }
+    return 'overview';
+  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
@@ -65,24 +89,18 @@ export function App() {
     }
   });
 
-  // User Profile (Single User Mode: Owner)
+  // User Profile (Synchronized with authenticated session)
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_current_user') : null;
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed) {
-          return {
-            ...parsed,
-            name: 'Owner',
-            counter: parsed.counter === 'Station Road Store' ? 'Godi Road Store' : (parsed.counter || 'Godi Road Store'),
-          };
-        }
-      }
-      return DEFAULT_USER;
-    } catch {
-      return DEFAULT_USER;
+    const session = getCurrentSession();
+    if (session && session.user) {
+      return {
+        id: session.user.id,
+        name: session.user.name,
+        role: session.user.role,
+        counter: session.user.counter,
+      };
     }
+    return DEFAULT_USER;
   });
 
 
@@ -333,10 +351,40 @@ export function App() {
   }, [isSidebarCollapsed]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     try {
       localStorage.setItem('albhurani_current_user', JSON.stringify(currentUser));
     } catch {}
-  }, [currentUser]);
+  }, [currentUser, isAuthenticated]);
+
+  // Synchronize URL hash when activeTab changes while authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (typeof window !== 'undefined') {
+      const currentHash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
+      if (currentHash !== activeTab) {
+        window.location.hash = activeTab === 'overview' ? '' : `#${activeTab}`;
+      }
+    }
+  }, [activeTab, isAuthenticated]);
+
+  // Route guard listener for hash changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleHashChange = () => {
+      const session = getCurrentSession();
+      if (!session || !isSessionValid(session)) {
+        setIsAuthenticated(false);
+        return;
+      }
+      const targetTab = getTabFromHash();
+      setActiveTab(targetTab);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   useEffect(() => {
     try {
@@ -653,8 +701,12 @@ export function App() {
   const handleSignOut = () => {
     terminateSession();
     setIsAuthenticated(false);
+    setCurrentUser(DEFAULT_USER);
     setActiveTab('overview');
     setIsMobileMenuOpen(false);
+    if (typeof window !== 'undefined' && window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   };
 
   const handleLoginSuccess = () => {
@@ -668,7 +720,8 @@ export function App() {
       });
     }
     setIsAuthenticated(true);
-    setActiveTab('overview');
+    const targetTab = getTabFromHash();
+    setActiveTab(targetTab);
   };
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
