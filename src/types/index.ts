@@ -1,9 +1,4 @@
-export type ProductCategory = 
-  | 'Sweets' 
-  | 'Namkeen & Farsan' 
-  | 'Dry Fruits' 
-  | 'Snacks & Khakhra' 
-  | 'Festive Gift Hampers';
+export type ProductCategory = string;
 
 export type SellingUnit = 'KG' | 'PCS' | 'Box' | 'Pouch' | 'Jar' | 'Tin' | 'Pack';
 

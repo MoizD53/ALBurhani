@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Barcode, 
   Search, 
@@ -86,14 +86,36 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   const isSubmittingRef = useRef<boolean>(false);
   const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
 
-  const categories: string[] = [
-    'All', 
-    'Sweets', 
-    'Namkeen & Farsan', 
-    'Dry Fruits', 
-    'Snacks & Khakhra', 
-    'Festive Gift Hampers'
-  ];
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.category && p.category.trim()) {
+        set.add(p.category.trim());
+      }
+    });
+    const primaryOrder = [
+      'SNACKS',
+      'FARSAAN MIX',
+      'SWEETS',
+      'BAKERY',
+      'PURI',
+      'ROASTED',
+      'CHIPS',
+      'KHARAS',
+      'ACHAR',
+      'CHATNI',
+      'PAPAD',
+      'MUKHWAS',
+      'MAWA',
+      'PAAK',
+      'PARA',
+      'TOAST',
+      'PANIPURI PANI FLAVOUR',
+    ];
+    const ordered = primaryOrder.filter((c) => set.has(c));
+    const others = Array.from(set).filter((c) => !primaryOrder.includes(c)).sort();
+    return ['All', ...ordered, ...others];
+  }, [products]);
 
   // Auto-focus barcode input without stealing focus from active cashier form editing
   const refocusBarcode = () => {
@@ -609,13 +631,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
             {/* Category Filter Pills */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar flex-nowrap">
-              {categories.map((cat) => {
+              {categories.map((cat: string) => {
                 const isSelected = selectedCategory === cat;
-                const shortLabel = 
-                  cat === 'Namkeen & Farsan' ? 'Namkeen' : 
-                  cat === 'Snacks & Khakhra' ? 'Snacks' : 
-                  cat === 'Festive Gift Hampers' ? 'Hampers' : cat;
-
                 return (
                   <button
                     key={cat}
@@ -626,7 +643,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                         : 'bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06]'
                     }`}
                   >
-                    {shortLabel}
+                    {cat}
                   </button>
                 );
               })}

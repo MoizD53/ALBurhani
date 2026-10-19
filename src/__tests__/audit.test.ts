@@ -91,7 +91,7 @@ describe('AL-BHURANI Comprehensive Product & POS Audit', () => {
       expect(kaju.name).toContain('KAJU KATLI');
       expect(kaju.sellingPrice).toBe(275);
       expect(kaju.unit).toBe('PCS');
-      expect(kaju.category).toBe('Sweets');
+      expect(kaju.category.toUpperCase()).toBe('SWEETS');
       expect(kaju.name).not.toContain('DRY PATRA');
     });
 

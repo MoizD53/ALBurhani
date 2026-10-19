@@ -88,7 +88,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
     >
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-sm rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] flex flex-col print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static"
+        className="relative w-full max-w-sm rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] flex flex-col print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:overflow-visible print:bg-white"
       >
         
         {/* Header (Hidden when printing) */}

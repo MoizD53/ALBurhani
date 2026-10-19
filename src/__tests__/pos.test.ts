@@ -245,7 +245,7 @@ describe('AL-BHURANI POS Pricing & Quantity Calculations', () => {
     expect(itemWithZeroes?.sku).toBe('0001');
     expect(itemWithZeroes?.name).toBe('KAJU KATLI 250G');
     expect(itemWithZeroes?.sellingPrice).toBe(275);
-    expect(itemWithZeroes?.category).toBe('Sweets');
+    expect(itemWithZeroes?.category.toUpperCase()).toBe('SWEETS');
   });
 
   // Test Requirement: Barcode testing without physical scanner
@@ -279,7 +279,7 @@ describe('AL-BHURANI POS Pricing & Quantity Calculations', () => {
       expect(product.sellingPrice).toBe(275);
       expect(product.unit).toBe('PCS');
       expect(product.priceBasis).toBe('₹/pc');
-      expect(product.category).toBe('Sweets');
+      expect(product.category.toUpperCase()).toBe('SWEETS');
       expect(product.barcode).toBe('0001');
       expect(product.sku).toBe('0001');
       expect(product.name).not.toContain('DRY PATRA');

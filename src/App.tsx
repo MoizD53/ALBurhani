@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, OrderBill, ExpenseItem, UserProfile, CompleteSaleResult } from './types';
 import { IMPORTED_PRODUCTS } from './data/importedProducts';
-import { deductStock, isWeightBasedProduct } from './lib/pricing';
+import { deductStock, restoreStock, isWeightBasedProduct } from './lib/pricing';
 import { 
   getTursoClient, 
   fetchOrdersFromTurso, 
@@ -138,7 +138,13 @@ export function App() {
               localStorage.setItem(MIGRATION_STORAGE_KEY, 'true');
             } catch {}
           }
-          return migrated;
+          // Normalize any legacy categories to uppercase Excel categories
+          const normalized = migrated.map((p) => {
+            if (p.category === 'Sweets') return { ...p, category: 'SWEETS' };
+            if (p.category === 'Namkeen & Farsan') return { ...p, category: p.name.includes('MUKHWAS') ? 'MUKHWAS' : 'FARSAAN MIX' };
+            return p;
+          });
+          return normalized;
         }
       }
       return IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
@@ -560,7 +566,39 @@ export function App() {
     // 1. Immediately record in persistent tombstone storage to prevent resurrection on sync/refresh
     recordDeletedOrder(orderId, billNumber);
 
-    // 2. Immediately update state and localStorage consistently
+    // 2. Immediately restore inventory stock for all products in this deleted order
+    let updatedProducts = products;
+    if (orderToDelete && Array.isArray(orderToDelete.items) && orderToDelete.items.length > 0) {
+      const quantityByProductId = new Map<string, number>();
+      for (const it of orderToDelete.items) {
+        if (it?.product?.id) {
+          const prev = quantityByProductId.get(it.product.id) || 0;
+          quantityByProductId.set(it.product.id, prev + (Number(it.quantity) || 0));
+        }
+      }
+
+      updatedProducts = products.map((prod) => {
+        const qtyToRestore = quantityByProductId.get(prod.id);
+        if (qtyToRestore && qtyToRestore > 0) {
+          const isWeight = isWeightBasedProduct(prod);
+          const restored = restoreStock(prod.stock, qtyToRestore, isWeight);
+          return {
+            ...prod,
+            stock: restored,
+          };
+        }
+        return prod;
+      });
+
+      setProducts(updatedProducts);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
+        } catch {}
+      }
+    }
+
+    // 3. Immediately update state and localStorage consistently
     let updatedOrders: OrderBill[] = [];
     setOrders((prev) => {
       updatedOrders = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
@@ -572,11 +610,21 @@ export function App() {
       return updatedOrders;
     });
 
-    // 3. Delete from Turso database (both by id and bill_number)
+    // 4. Delete from Turso database and sync restored stock remotely
     try {
       const ok = await deleteOrderFromTurso(orderId, billNumber);
       if (!ok) {
         console.warn(`Turso deletion for order ${orderId} (${billNumber || ''}) failed or offline. Tombstone will clean it up on sync.`);
+      }
+      if (orderToDelete && Array.isArray(orderToDelete.items)) {
+        for (const it of orderToDelete.items) {
+          const p = updatedProducts.find((x) => x.id === it.product.id);
+          if (p) {
+            updateStockOnTurso(p.id, p.stock).catch((err) =>
+              console.warn('Turso updateStock after delete error:', err)
+            );
+          }
+        }
       }
       return true;
     } catch (tursoErr) {

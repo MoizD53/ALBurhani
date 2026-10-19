@@ -245,6 +245,18 @@ export function deductStock(currentStock: number, soldQuantity: number, isWeight
 }
 
 /**
+ * Restores stock safely when a bill is deleted or cancelled:
+ * - for weight products: rounds to 3 decimal places (e.g. 4.25 kg + 0.25 kg = 4.5 kg)
+ * - for piece products: integer addition
+ */
+export function restoreStock(currentStock: number, restoredQuantity: number, isWeight: boolean): number {
+  if (isWeight) {
+    return Math.round((currentStock + restoredQuantity) * 1000) / 1000;
+  }
+  return Math.round(currentStock + restoredQuantity);
+}
+
+/**
  * Searches product catalogue for exact match on:
  * 1. Barcode (preserves leading zeroes)
  * 2. SKU / Product Code (preserves leading zeroes)

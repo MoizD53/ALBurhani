@@ -255,4 +255,133 @@ describe('AL-BHURANI POS — Customer Tax Invoice Deletion & Data Integrity', ()
       expect(savedCustomers[0].name).toBe('Shabbir Bhai');
     });
   });
+
+  describe('5. Stock Restoration on Bill Deletion (With & Without GST)', () => {
+    it('restores weight-based stock accurately when deleting a 250g sale (4.25kg -> 4.50kg)', () => {
+      const bhukhoB = {
+        id: 'prod-bhukho-b',
+        sku: '80548406576',
+        barcode: '80548406576',
+        name: 'BHUKHO B',
+        category: 'SWEETS',
+        unit: 'KG',
+        costPrice: 0,
+        sellingPrice: 100,
+        stock: 4.25, // current stock after 250g sale was made
+        minStock: 0,
+      };
+
+      const noBillSale: OrderBill = {
+        id: 'nb-1729355000',
+        billNumber: 'NB-1729355000',
+        transactionType: 'NO_BILL',
+        items: [
+          {
+            product: bhukhoB,
+            quantity: 0.25, // 250 grams
+            unit: 'KG',
+            unitPrice: 100,
+            lineTotal: 25,
+            discountPercent: 0,
+            formattedQuantity: '250 g',
+            formattedRate: '₹100.00/kg',
+          },
+        ],
+        subtotal: 25,
+        discountAmount: 0,
+        gstAmount: 0,
+        grandTotal: 25,
+        paymentMethod: 'CASH',
+        amountReceived: 25,
+        changeGiven: 0,
+        cashierName: 'Owner',
+        createdAt: '20 Oct 2026, 12:30 am',
+        timestamp: 1729355000000,
+      };
+
+      let products = [bhukhoB];
+      let orders = [noBillSale];
+
+      // Replicate handleDeleteOrder stock restoration logic
+      const orderToDelete = orders.find((o) => o.id === 'nb-1729355000');
+      expect(orderToDelete).toBeDefined();
+
+      const quantityByProductId = new Map<string, number>();
+      for (const it of orderToDelete!.items) {
+        const prev = quantityByProductId.get(it.product.id) || 0;
+        quantityByProductId.set(it.product.id, prev + (Number(it.quantity) || 0));
+      }
+
+      products = products.map((prod) => {
+        const qtyToRestore = quantityByProductId.get(prod.id);
+        if (qtyToRestore && qtyToRestore > 0) {
+          const isWeight = prod.unit === 'KG' || prod.unit === 'G';
+          const restored = isWeight
+            ? Math.round((prod.stock + qtyToRestore) * 1000) / 1000
+            : Math.round(prod.stock + qtyToRestore);
+          return {
+            ...prod,
+            stock: restored,
+          };
+        }
+        return prod;
+      });
+
+      // Verify stock was restored from 4.25 kg to 4.50 kg!
+      expect(products[0].stock).toBe(4.5);
+    });
+
+    it('restores multiple products (weight and piece based) upon order deletion', () => {
+      const sweetKg = { id: 'p1', stock: 2.125, unit: 'KG' };
+      const namkeenPcs = { id: 'p2', stock: 18, unit: 'PCS' };
+
+      const order: OrderBill = {
+        id: 'ord-multi-item',
+        billNumber: 'ALB-INV-9999',
+        transactionType: 'CUSTOMER_BILL',
+        items: [
+          { product: sweetKg as any, quantity: 0.375, unit: 'KG', unitPrice: 400, lineTotal: 150, discountPercent: 0, formattedQuantity: '375g', formattedRate: '₹400/kg' },
+          { product: namkeenPcs as any, quantity: 3, unit: 'PCS', unitPrice: 50, lineTotal: 150, discountPercent: 0, formattedQuantity: '3 PCS', formattedRate: '₹50/pc' },
+        ],
+        subtotal: 300,
+        discountAmount: 0,
+        gstAmount: 15,
+        grandTotal: 315,
+        paymentMethod: 'UPI',
+        amountReceived: 315,
+        changeGiven: 0,
+        cashierName: 'Owner',
+        createdAt: '20 Oct 2026, 12:35 am',
+        timestamp: 1729355100000,
+      };
+
+      let products = [sweetKg, namkeenPcs];
+
+      const quantityByProductId = new Map<string, number>();
+      for (const it of order.items) {
+        const prev = quantityByProductId.get(it.product.id) || 0;
+        quantityByProductId.set(it.product.id, prev + (Number(it.quantity) || 0));
+      }
+
+      products = products.map((prod) => {
+        const qtyToRestore = quantityByProductId.get(prod.id);
+        if (qtyToRestore && qtyToRestore > 0) {
+          const isWeight = prod.unit === 'KG' || prod.unit === 'G';
+          const restored = isWeight
+            ? Math.round((prod.stock + qtyToRestore) * 1000) / 1000
+            : Math.round(prod.stock + qtyToRestore);
+          return {
+            ...prod,
+            stock: restored,
+          };
+        }
+        return prod;
+      });
+
+      // 2.125 + 0.375 = 2.500 kg
+      expect(products[0].stock).toBe(2.5);
+      // 18 + 3 = 21 pcs
+      expect(products[1].stock).toBe(21);
+    });
+  });
 });

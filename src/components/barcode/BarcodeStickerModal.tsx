@@ -39,11 +39,11 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
-      <div className="relative w-full max-w-md rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none print:p-0 print:bg-white print:static print:block">
+      <div className="relative w-full max-w-md rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:bg-white print:overflow-visible">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] shrink-0 print:hidden">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 shrink-0">
               <Tag className="w-4 h-4" />
@@ -112,13 +112,13 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
             </div>
           </div>
 
-          <p className="mt-3 text-[11px] text-zinc-400 text-center max-w-xs">
+          <p className="mt-3 text-[11px] text-zinc-400 text-center max-w-xs print:hidden">
             Print ready for TVS, TSC, Zebra, Citizen, or Xprinter 2-inch thermal sticker rolls.
           </p>
         </div>
 
         {/* Modal Actions */}
-        <div className="flex items-center justify-end gap-2.5 px-5 py-3 border-t border-white/[0.08] bg-[#161619] shrink-0">
+        <div className="flex items-center justify-end gap-2.5 px-5 py-3 border-t border-white/[0.08] bg-[#161619] shrink-0 print:hidden">
           <button
             onClick={onClose}
             className="px-3.5 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"

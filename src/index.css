@@ -200,32 +200,50 @@
       size: auto;
     }
 
-    html, body {
+    html, body, #root, #root > div, main {
       margin: 0 !important;
       padding: 0 !important;
       background: #ffffff !important;
       color: #000000 !important;
       width: 100% !important;
       height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      overflow: visible !important;
+      position: static !important;
+      display: block !important;
+    }
+
+    /* Modal overlays must be static and transparent when printing */
+    .fixed.inset-0,
+    [role="dialog"] {
+      position: static !important;
+      background: transparent !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+      display: block !important;
     }
 
     /* Hide all dashboard/navigation/button elements */
     body * {
-      visibility: hidden !important;
+      visibility: hidden;
     }
 
-    header, nav, aside, button, input, select, textarea {
+    header, nav, aside, button, input, select, textarea, .print\:hidden {
       display: none !important;
     }
 
-    /* Print Thermal Receipt cleanly without page breaks, clipping or black backgrounds */
+    /* 1. Print Thermal Receipt cleanly without page breaks, clipping or black backgrounds */
     #thermal-receipt, 
     #thermal-receipt * {
       visibility: visible !important;
     }
 
     #thermal-receipt {
-      position: absolute !important;
+      position: fixed !important;
       left: 0 !important;
       top: 0 !important;
       width: 72mm !important;
@@ -236,18 +254,20 @@
       color: #000000 !important;
       border: none !important;
       box-shadow: none !important;
+      z-index: 999999 !important;
+      display: block !important;
       page-break-inside: avoid !important;
       font-family: 'Courier New', Courier, monospace !important;
     }
 
-    /* Print Barcode Stickers cleanly */
+    /* 2. Print Barcode Thermal Stickers cleanly */
     #barcode-sticker-print, 
     #barcode-sticker-print * {
       visibility: visible !important;
     }
 
     #barcode-sticker-print {
-      position: absolute !important;
+      position: fixed !important;
       left: 0 !important;
       top: 0 !important;
       width: 50mm !important;
@@ -257,10 +277,12 @@
       color: #000000 !important;
       border: none !important;
       box-shadow: none !important;
+      z-index: 999999 !important;
+      display: block !important;
       page-break-inside: avoid !important;
     }
 
-    /* Print Label Studio Multi-Sticker Sheet */
+    /* 3. Print Label Studio Multi-Sticker Sheet */
     #label-studio-print-sheet, 
     #label-studio-print-sheet * {
       visibility: visible !important;
@@ -276,7 +298,8 @@
       color: #000000 !important;
       border: none !important;
       box-shadow: none !important;
-      page-break-inside: auto;
+      z-index: 999999 !important;
+      page-break-inside: auto !important;
     }
   }
 

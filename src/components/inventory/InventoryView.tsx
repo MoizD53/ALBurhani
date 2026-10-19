@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Package, 
   Plus, 
@@ -57,14 +57,36 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [shelfLifeDays, setShelfLifeDays] = useState<number>(30);
   const [priceTiers, setPriceTiers] = useState<{ minQuantity: number; price: number }[]>([]);
 
-  const categories: string[] = [
-    'All', 
-    'Sweets', 
-    'Namkeen & Farsan', 
-    'Dry Fruits', 
-    'Snacks & Khakhra', 
-    'Festive Gift Hampers'
-  ];
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.category && p.category.trim()) {
+        set.add(p.category.trim());
+      }
+    });
+    const primaryOrder = [
+      'SNACKS',
+      'FARSAAN MIX',
+      'SWEETS',
+      'BAKERY',
+      'PURI',
+      'ROASTED',
+      'CHIPS',
+      'KHARAS',
+      'ACHAR',
+      'CHATNI',
+      'PAPAD',
+      'MUKHWAS',
+      'MAWA',
+      'PAAK',
+      'PARA',
+      'TOAST',
+      'PANIPURI PANI FLAVOUR',
+    ];
+    const ordered = primaryOrder.filter((c) => set.has(c));
+    const others = Array.from(set).filter((c) => !primaryOrder.includes(c)).sort();
+    return ['All', ...ordered, ...others];
+  }, [products]);
 
   // Open modal for Adding
   const handleOpenAdd = () => {
@@ -74,7 +96,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setSku(`00${randomSkuNum}`);
     const randomBarcode = Math.floor(100000 + Math.random() * 900000);
     setBarcode(`890100${randomBarcode}`);
-    setCategory('Sweets');
+    setCategory('SNACKS');
     setUnit('KG');
     setCostPrice(0);
     setSellingPrice(100);
@@ -528,14 +550,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as ProductCategory)}
+                    onChange={(e) => setCategory(e.target.value)}
                     className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
                   >
-                    <option value="Sweets">Sweets</option>
-                    <option value="Namkeen & Farsan">Namkeen & Farsan</option>
-                    <option value="Dry Fruits">Dry Fruits</option>
-                    <option value="Snacks & Khakhra">Snacks & Khakhra</option>
-                    <option value="Festive Gift Hampers">Festive Gift Hampers</option>
+                    {categories.filter((c) => c !== 'All').map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
                   </select>
                 </div>
 
