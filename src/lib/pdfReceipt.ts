@@ -235,8 +235,6 @@ export function generateReceiptPdfBytes(order: OrderBill): Uint8Array {
   curY -= 11;
 
   // 6. Footer Greeting
-  writeCentered('Pure Desi Ghee & Fresh Guarantee', curY, 'F2', 7);
-  curY -= 9;
   writeCentered('*** Thank You For Visiting AL-BHURANI! ***', curY, 'F1', 6.5);
 
   // Assemble Complete Standard PDF 1.4 Binary Structure

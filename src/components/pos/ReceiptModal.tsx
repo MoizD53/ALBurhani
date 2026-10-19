@@ -306,7 +306,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
 
             {/* Footer Greeting */}
             <div className="text-center pt-2 text-[7.5px] text-gray-700">
-              <p className="font-semibold">Pure Desi Ghee & Fresh Guarantee</p>
               <p>*** Thank You For Visiting AL-BHURANI! ***</p>
             </div>
           </div>
