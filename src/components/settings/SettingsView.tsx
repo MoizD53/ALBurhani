@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Settings, 
   Store, 
   Barcode, 
-  ShieldCheck, 
   Volume2, 
   CheckCircle2, 
-  Layers, 
-  Terminal,
-  Zap,
-  Printer
+  RotateCcw,
+  AlertTriangle,
+  X
 } from 'lucide-react';
-import { UserProfile, Product } from '../../types';
+import { UserProfile } from '../../types';
 import { playBeep } from '../../lib/utils';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 
@@ -19,13 +17,76 @@ interface SettingsViewProps {
   currentUser: UserProfile;
   onChangeUser: (user: UserProfile) => void;
   productsCount: number;
+  ordersCount?: number;
+  totalRevenue?: number;
+  expensesCount?: number;
+  totalExpenses?: number;
+  savedCustomersCount?: number;
+  onResetStoreData?: () => Promise<{ success: boolean; message: string }>;
+  onResetAllStockToZero?: () => Promise<{ success: boolean; message: string }>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   currentUser,
   onChangeUser,
   productsCount,
+  ordersCount = 0,
+  totalRevenue = 0,
+  expensesCount = 0,
+  totalExpenses = 0,
+  savedCustomersCount = 0,
+  onResetStoreData,
+  onResetAllStockToZero,
 }) => {
+  const [isResetConfirmModalOpen, setIsResetConfirmModalOpen] = useState(false);
+  const [isStockConfirmModalOpen, setIsStockConfirmModalOpen] = useState(false);
+  const [resetStatus, setResetStatus] = useState<{ message: string; isError: boolean } | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleExecuteReset = async () => {
+    if (!onResetStoreData) return;
+    setIsResetting(true);
+    try {
+      const res = await onResetStoreData();
+      if (res.success) {
+        playBeep('success');
+        setResetStatus({ message: res.message, isError: false });
+      } else {
+        playBeep('error');
+        setResetStatus({ message: res.message, isError: true });
+      }
+    } catch (err: any) {
+      playBeep('error');
+      setResetStatus({ message: err?.message || 'Reset failed', isError: true });
+    } finally {
+      setIsResetting(false);
+      setIsResetConfirmModalOpen(false);
+      setTimeout(() => setResetStatus(null), 6000);
+    }
+  };
+
+  const handleExecuteStockReset = async () => {
+    if (!onResetAllStockToZero) return;
+    setIsResetting(true);
+    try {
+      const res = await onResetAllStockToZero();
+      if (res.success) {
+        playBeep('success');
+        setResetStatus({ message: res.message, isError: false });
+      } else {
+        playBeep('error');
+        setResetStatus({ message: res.message, isError: true });
+      }
+    } catch (err: any) {
+      playBeep('error');
+      setResetStatus({ message: err?.message || 'Stock reset failed', isError: true });
+    } finally {
+      setIsResetting(false);
+      setIsStockConfirmModalOpen(false);
+      setTimeout(() => setResetStatus(null), 6000);
+    }
+  };
+
   // Hardware scanner live test state (Bench testing only, never creates orders or touches stock)
   const [lastScannedResult, setLastScannedResult] = useState<{
     code: string;
@@ -270,7 +331,200 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
+        {/* 3. Fresh Shop Opening & Data Reset Administration */}
+        <div className="lg:col-span-2 p-4 sm:p-5 rounded-2xl bg-[#121214] border border-white/[0.08] shadow-md space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-[#D4AF37]" />
+              <span>Fresh Shop Opening & Data Administration</span>
+            </h3>
+            <span className="text-[10px] text-zinc-400 font-mono">
+              Safe Store Commissioning
+            </span>
+          </div>
+
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Prepare the POS terminal for official grand opening. Zero-out demo and testing sales transactions, customer visit counts, expense logs, and payment tender drawer balances. Real customer contact records and imported inventory catalogue master items are strictly preserved.
+          </p>
+
+          {/* Live Data Summary Pills */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+            <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+              <span className="text-[10px] uppercase text-zinc-500 font-semibold block">Active Sales Bills</span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-base font-bold font-mono text-white">{ordersCount}</span>
+                <span className="text-[10px] text-zinc-400 font-mono">(₹{totalRevenue.toLocaleString('en-IN')})</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+              <span className="text-[10px] uppercase text-zinc-500 font-semibold block">Expense Records</span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-base font-bold font-mono text-white">{expensesCount}</span>
+                <span className="text-[10px] text-zinc-400 font-mono">(₹{totalExpenses.toLocaleString('en-IN')})</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+              <span className="text-[10px] uppercase text-zinc-500 font-semibold block">Preserved Customers</span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-base font-bold font-mono text-emerald-400">{savedCustomersCount}</span>
+                <span className="text-[10px] text-zinc-400">directory</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+              <span className="text-[10px] uppercase text-zinc-500 font-semibold block">Catalog Master</span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-base font-bold font-mono text-white">{productsCount}</span>
+                <span className="text-[10px] text-zinc-400">SKUs</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Status Message */}
+          {resetStatus && (
+            <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+              resetStatus.isError 
+                ? 'bg-red-500/15 border border-red-500/30 text-red-300' 
+                : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+            }`}>
+              {resetStatus.isError ? <AlertTriangle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+              <span>{resetStatus.message}</span>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-white/[0.06]">
+            <span className="text-[11px] text-zinc-500">
+              Zeroes out Today's & Lifetime Revenue, Customer Counts, and Drawer Tenders.
+            </span>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsStockConfirmModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 border border-white/[0.08] transition-colors"
+              >
+                Zero-Out Opening Stock
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmModalOpen(true)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center gap-2 transition-all shadow-sm"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset All Demo/Test Data to ₹0</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {isResetConfirmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#121214] border border-white/[0.12] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Reset for Fresh Shop Opening</h3>
+                  <p className="text-xs text-zinc-400">Confirmation required</p>
+                </div>
+              </div>
+              <button
+                onClick={() => !isResetting && setIsResetConfirmModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-zinc-300 space-y-2 leading-relaxed bg-black/40 p-3.5 rounded-xl border border-white/[0.06]">
+              <p className="font-semibold text-white">This operation will execute the following:</p>
+              <ul className="space-y-1 list-disc pl-4 text-zinc-400 text-[11px]">
+                <li>Remove all test sales and bills (Today's & Lifetime Revenue will show ₹0).</li>
+                <li>Reset demo customer transaction counts to 0.</li>
+                <li>Clear test operating expenses (Today's & Total Expenses will show ₹0).</li>
+                <li>Clear payment tender drawers (Cash, UPI, and Card will show ₹0).</li>
+                <li><strong className="text-emerald-400">Preserved:</strong> Real customer contact directory ({savedCustomersCount} contacts) and full catalog ({productsCount} SKUs).</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setIsResetConfirmModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white bg-white/[0.04] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={handleExecuteReset}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#D4AF37] hover:bg-[#E5C158] text-black flex items-center gap-2 transition-all shadow-md"
+              >
+                {isResetting ? 'Resetting...' : 'Confirm & Reset to ₹0'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Reset Confirmation Modal */}
+      {isStockConfirmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#121214] border border-white/[0.12] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Zero-Out All Product Stock</h3>
+                  <p className="text-xs text-zinc-400">Physical inventory preparation</p>
+                </div>
+              </div>
+              <button
+                onClick={() => !isResetting && setIsStockConfirmModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed bg-black/40 p-3.5 rounded-xl border border-white/[0.06]">
+              This sets the stock level of all {productsCount} imported products to <strong className="text-white">0</strong>. Use this before opening to count and enter opening physical stock.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setIsStockConfirmModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white bg-white/[0.04] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={handleExecuteStockReset}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-2 transition-all shadow-md"
+              >
+                {isResetting ? 'Zeroing Stock...' : 'Set All Stock to 0'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

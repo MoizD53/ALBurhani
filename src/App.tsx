@@ -2,7 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Product, OrderBill, ExpenseItem, UserProfile, CompleteSaleResult } from './types';
 import { IMPORTED_PRODUCTS } from './data/importedProducts';
 import { deductStock, isWeightBasedProduct } from './lib/pricing';
-import { getTursoClient, fetchOrdersFromTurso, saveOrderToTurso, updateStockOnTurso } from './lib/turso';
+import { 
+  getTursoClient, 
+  fetchOrdersFromTurso, 
+  saveOrderToTurso, 
+  updateStockOnTurso,
+  clearOrdersFromTurso,
+  clearExpensesFromTurso,
+  resetAllStockOnTursoToZero
+} from './lib/turso';
+import {
+  preserveRealCustomersFromOrders,
+  getSavedCustomers,
+  upsertCustomerFromSale,
+  CustomerRecord
+} from './lib/customers';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { PosBillingView } from './components/pos/PosBillingView';
@@ -98,9 +112,43 @@ export function App() {
     }
   });
 
-  // Orders State (Clean real orders only, no mock data)
+  // Customer Records State (Preserved real customers)
+  const [customers, setCustomers] = useState<CustomerRecord[]>(() => {
+    return getSavedCustomers();
+  });
+
+  // Orders State (Clean real orders only, resets all demo/test orders for fresh opening)
   const [orders, setOrders] = useState<OrderBill[]>(() => {
     try {
+      const isFreshShopMigrated = typeof window !== 'undefined' 
+        ? localStorage.getItem('albhurani_fresh_shop_opening_v1') 
+        : null;
+
+      if (!isFreshShopMigrated && typeof window !== 'undefined') {
+        // 1. Preserve any real customer records if they exist in pre-opening orders
+        const saved = localStorage.getItem('albhurani_orders');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              preserveRealCustomersFromOrders(parsed);
+            }
+          } catch {}
+        }
+
+        // 2. Clear all demo/test orders and expenses from localStorage
+        localStorage.setItem('albhurani_orders', JSON.stringify([]));
+        localStorage.setItem('albhurani_expenses', JSON.stringify([]));
+        localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
+        localStorage.setItem('albhurani_fresh_opening_timestamp', String(Date.now()));
+
+        // 3. Clear Turso database orders & expenses asynchronously
+        clearOrdersFromTurso().catch(() => {});
+        clearExpensesFromTurso().catch(() => {});
+
+        return [];
+      }
+
       const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_orders') : null;
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -123,9 +171,17 @@ export function App() {
     return [];
   });
 
-  // Operating Expenses State (Clean real expenses only, no mock data)
+  // Operating Expenses State (Clean real expenses only, resets all demo/test expenses for fresh opening)
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
     try {
+      const isFreshShopMigrated = typeof window !== 'undefined' 
+        ? localStorage.getItem('albhurani_fresh_shop_opening_v1') 
+        : null;
+
+      if (!isFreshShopMigrated && typeof window !== 'undefined') {
+        return [];
+      }
+
       const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_expenses') : null;
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -163,21 +219,44 @@ export function App() {
         const client = getTursoClient();
         if (!client) return;
 
+        const isFreshShopMigrated = typeof window !== 'undefined' 
+          ? localStorage.getItem('albhurani_fresh_shop_opening_v1') 
+          : null;
+        const resetTimestamp = typeof window !== 'undefined'
+          ? Number(localStorage.getItem('albhurani_fresh_opening_timestamp') || '0')
+          : 0;
+
         const remoteOrders = await fetchOrdersFromTurso();
         if (remoteOrders && remoteOrders.length > 0) {
-          setOrders((localOrders) => {
-            const localIds = new Set(localOrders.map((o) => o.id));
-            const localBillNumbers = new Set(localOrders.map((o) => o.billNumber));
-            const toAdd = remoteOrders.filter(
-              (ro) => !localIds.has(ro.id) && !localBillNumbers.has(ro.billNumber)
-            );
-            if (toAdd.length === 0) return localOrders;
-            const merged = [...localOrders, ...toAdd];
-            try {
-              localStorage.setItem('albhurani_orders', JSON.stringify(merged));
-            } catch {}
-            return merged;
+          // Filter out orders that were created before fresh opening reset or match mock IDs
+          const validRemoteOrders = remoteOrders.filter((ro) => {
+            if (ro.id.startsWith('bill-init-') || ro.id.startsWith('sim-') || ro.id.startsWith('mock-')) return false;
+            if (ro.billNumber?.startsWith('ALB-SIM')) return false;
+            if (isFreshShopMigrated && resetTimestamp > 0 && ro.timestamp && ro.timestamp < resetTimestamp) {
+              return false;
+            }
+            return true;
           });
+
+          if (validRemoteOrders.length === 0 && remoteOrders.length > 0 && isFreshShopMigrated) {
+            clearOrdersFromTurso().catch(() => {});
+          }
+
+          if (validRemoteOrders.length > 0) {
+            setOrders((localOrders) => {
+              const localIds = new Set(localOrders.map((o) => o.id));
+              const localBillNumbers = new Set(localOrders.map((o) => o.billNumber));
+              const toAdd = validRemoteOrders.filter(
+                (ro) => !localIds.has(ro.id) && !localBillNumbers.has(ro.billNumber)
+              );
+              if (toAdd.length === 0) return localOrders;
+              const merged = [...localOrders, ...toAdd];
+              try {
+                localStorage.setItem('albhurani_orders', JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+          }
         }
       } catch (err) {
         console.warn('Could not sync remote data from Turso:', err);
@@ -280,6 +359,12 @@ export function App() {
     setOrders(updatedOrders);
     setProducts(updatedProducts);
 
+    // Save customer if real non-demo customer
+    if (newOrder.customerName || newOrder.customerPhone) {
+      upsertCustomerFromSale(newOrder.customerName, newOrder.customerPhone, newOrder.grandTotal);
+      setCustomers(getSavedCustomers());
+    }
+
     // 6. Asynchronous remote backup to Turso if configured
     try {
       const client = getTursoClient();
@@ -301,6 +386,62 @@ export function App() {
     }
 
     return { success: true, order: newOrder };
+  };
+
+  /**
+   * Reset all test sales, payment tenders, and expenses to zero for fresh shop opening.
+   * Real customer contacts are safely preserved.
+   */
+  const handleResetStoreData = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      // 1. Preserve real customers before clearing orders
+      const preserved = preserveRealCustomersFromOrders(orders);
+      setCustomers(preserved);
+
+      // 2. Reset in-memory orders & expenses
+      setOrders([]);
+      setExpenses([]);
+
+      // 3. Clear localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('albhurani_orders', JSON.stringify([]));
+        localStorage.setItem('albhurani_expenses', JSON.stringify([]));
+        localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
+        localStorage.setItem('albhurani_fresh_opening_timestamp', String(Date.now()));
+      }
+
+      // 4. Clear Turso database
+      await clearOrdersFromTurso();
+      await clearExpensesFromTurso();
+
+      return {
+        success: true,
+        message: 'All test sales, customer counts, payment tenders, and expenses successfully reset to ₹0 for fresh shop opening.',
+      };
+    } catch (err: any) {
+      console.error('Failed to reset store data:', err);
+      return {
+        success: false,
+        message: err?.message || 'Failed to complete reset.',
+      };
+    }
+  };
+
+  /**
+   * Reset all product stock to 0 for fresh manual physical inventory entry
+   */
+  const handleResetAllStockToZero = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      const zeroStockProducts = products.map((p) => ({ ...p, stock: 0 }));
+      setProducts(zeroStockProducts);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('albhurani_products', JSON.stringify(zeroStockProducts));
+      }
+      await resetAllStockOnTursoToZero();
+      return { success: true, message: 'All 305 product stock counts have been reset to 0.' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Stock reset failed.' };
+    }
   };
 
   const handleAddProduct = (newProduct: Product) => {
@@ -438,6 +579,13 @@ export function App() {
               currentUser={currentUser}
               onChangeUser={setCurrentUser}
               productsCount={products.length}
+              ordersCount={orders.length}
+              totalRevenue={orders.reduce((sum, o) => sum + o.grandTotal, 0)}
+              expensesCount={expenses.length}
+              totalExpenses={expenses.reduce((sum, e) => sum + e.amount, 0)}
+              savedCustomersCount={customers.length}
+              onResetStoreData={handleResetStoreData}
+              onResetAllStockToZero={handleResetAllStockToZero}
             />
           )}
         </main>

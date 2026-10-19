@@ -32,6 +32,7 @@ import { QuantitySelectorModal } from './QuantitySelectorModal';
 import { MultipleMatchModal } from './MultipleMatchModal';
 import { CameraBarcodeScannerModal } from '../barcode/CameraBarcodeScannerModal';
 import { ReceiptModal } from './ReceiptModal';
+import { getSavedCustomers } from '../../lib/customers';
 
 interface PosBillingViewProps {
   products: Product[];
@@ -706,7 +707,18 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 type="tel"
                 placeholder="Phone (optional)"
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomerPhone(val);
+                  const clean = val.replace(/[^0-9]/g, '');
+                  if (clean.length >= 7 && !customerName) {
+                    const saved = getSavedCustomers();
+                    const match = saved.find((c) => c.phone && c.phone.replace(/[^0-9]/g, '').endsWith(clean));
+                    if (match && match.name) {
+                      setCustomerName(match.name);
+                    }
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.preventDefault();
                 }}

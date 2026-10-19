@@ -152,6 +152,17 @@ export async function initializeTursoSchema(): Promise<{ success: boolean; messa
       );
     `);
 
+    // Create customers table
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT UNIQUE NOT NULL,
+        notes TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Check count; if 0 seed with IMPORTED_PRODUCTS
     const countRes = await client.execute('SELECT COUNT(*) as count FROM products;');
     const count = Number(countRes.rows[0]?.count ?? 0);
@@ -448,4 +459,37 @@ export async function resetAllStockOnTursoToZero(): Promise<{ success: boolean; 
     return { success: false, error: err?.message || 'Turso query failed' };
   }
 }
+
+/**
+ * Delete all orders from Turso database (for fresh shop opening reset)
+ */
+export async function clearOrdersFromTurso(): Promise<{ success: boolean; count?: number; error?: string }> {
+  const client = getTursoClient();
+  if (!client) return { success: false, error: 'Turso client not connected' };
+
+  try {
+    const res = await client.execute('DELETE FROM orders;');
+    return { success: true, count: res.rowsAffected };
+  } catch (err: any) {
+    console.error('Error clearing orders on Turso:', err);
+    return { success: false, error: err?.message || 'Turso query failed' };
+  }
+}
+
+/**
+ * Delete all expenses from Turso database (for fresh shop opening reset)
+ */
+export async function clearExpensesFromTurso(): Promise<{ success: boolean; count?: number; error?: string }> {
+  const client = getTursoClient();
+  if (!client) return { success: false, error: 'Turso client not connected' };
+
+  try {
+    const res = await client.execute('DELETE FROM expenses;');
+    return { success: true, count: res.rowsAffected };
+  } catch (err: any) {
+    console.error('Error clearing expenses on Turso:', err);
+    return { success: false, error: err?.message || 'Turso query failed' };
+  }
+}
+
 
