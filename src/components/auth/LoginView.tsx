@@ -191,9 +191,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <div className="pointer-events-none absolute bottom-[14%] right-[8%] w-1 h-1 rounded-full bg-[#FFF0AA] opacity-40 shadow-[0_0_8px_#D4AF37]" aria-hidden="true" />
 
       {/* Centered Login Card */}
-      <div className="w-full max-w-[440px] sm:max-w-[460px] my-auto relative z-10 animate-fade-in">
+      <div className="w-full max-w-[460px] sm:max-w-[490px] my-auto relative z-10 animate-fade-in">
         <div 
-          className="rounded-[22px] sm:rounded-[28px] p-5 sm:p-6 md:p-7 relative overflow-hidden border border-[#D4AF37]/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.95),0_0_35px_-10px_rgba(212,175,55,0.12)] backdrop-blur-2xl"
+          className="rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 relative overflow-hidden border border-[#D4AF37]/25 shadow-[0_22px_75px_-15px_rgba(0,0,0,0.95),0_0_45px_-10px_rgba(212,175,55,0.14)] backdrop-blur-2xl"
           style={{
             background: 'linear-gradient(165deg, rgba(24, 24, 30, 0.98) 0%, rgba(15, 15, 19, 0.98) 50%, rgba(10, 10, 13, 0.99) 100%)',
           }}
@@ -203,7 +203,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-[#E7C75A]/70 to-transparent" />
 
           {/* Official AL-BHURANI Round Logo */}
-          <div className="mx-auto mb-2.5 sm:mb-3 w-16 h-16 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-b from-[#E7C75A]/60 via-[#D4AF37]/30 to-transparent shadow-[0_0_20px_rgba(212,175,55,0.35)] flex items-center justify-center">
+          <div className="mx-auto mb-3 sm:mb-3.5 w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-b from-[#E7C75A]/60 via-[#D4AF37]/30 to-transparent shadow-[0_0_24px_rgba(212,175,55,0.38)] flex items-center justify-center">
             <div className="w-full h-full rounded-full overflow-hidden bg-white/95 border border-[#D4AF37]/60 shadow-inner flex items-center justify-center">
               <img
                 src="/logo.png"
@@ -215,11 +215,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
           {/* Brand Name */}
           <div className="text-center">
-            <h1 className="font-serif text-2xl sm:text-[26px] font-black tracking-[0.2em] uppercase leading-none text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-300 drop-shadow-[0_2px_12px_rgba(255,255,255,0.1)]">
+            <h1 className="font-serif text-3xl sm:text-4xl font-black tracking-[0.22em] uppercase leading-none text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-300 drop-shadow-[0_2px_12px_rgba(255,255,255,0.1)]">
               AL-BHURANI
             </h1>
             {/* Brighter champagne gold decorative divider */}
-            <div className="w-14 h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-[#E7C75A] to-transparent mt-2 mb-3 sm:mb-4 shadow-[0_0_8px_rgba(231,199,90,0.4)]" />
+            <div className="w-16 h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-[#E7C75A] to-transparent mt-2.5 mb-3.5 sm:mb-4 shadow-[0_0_8px_rgba(231,199,90,0.4)]" />
           </div>
 
           {/* Error Message */}
@@ -231,11 +231,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           )}
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5">
             
             {/* User ID Field */}
             <div>
-              <label className="text-[10px] sm:text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1">
+              <label className="text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1">
                 USER ID
               </label>
               <div className="relative">
@@ -248,15 +248,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setUserId(e.target.value)}
                   placeholder="admin"
                   autoComplete="username"
-                  style={{ paddingLeft: '40px', paddingRight: '14px', backgroundColor: '#181D26' }}
-                  className="w-full py-2.5 sm:py-2.5 rounded-xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
+                  style={{ paddingLeft: '42px', paddingRight: '16px', backgroundColor: '#181D26' }}
+                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
                 />
               </div>
             </div>
 
             {/* Password Field */}
             <div>
-              <label className="text-[10px] sm:text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1">
+              <label className="text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1">
                 PASSWORD
               </label>
               <div className="relative">
@@ -269,8 +269,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="admin123"
                   autoComplete="current-password"
-                  style={{ paddingLeft: '40px', paddingRight: '40px', backgroundColor: '#181D26' }}
-                  className="w-full py-2.5 sm:py-2.5 rounded-xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
+                  style={{ paddingLeft: '42px', paddingRight: '42px', backgroundColor: '#181D26' }}
+                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
                 />
                 <button
                   type="button"
@@ -285,14 +285,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </div>
 
             {/* Sign In Button with Rich Champagne Gold Gradient */}
-            <div className="pt-0.5">
+            <div className="pt-1">
               <button
                 type="submit"
                 disabled={isLoading}
                 style={{
                   background: 'linear-gradient(135deg, #F0D16A 0%, #D4AF37 50%, #C69B22 100%)',
                 }}
-                className="w-full py-2.5 sm:py-3 px-5 rounded-xl text-[#080808] font-black text-xs sm:text-sm tracking-[0.2em] uppercase transition-all duration-200 flex items-center justify-center gap-2 shadow-[0_4px_22px_rgba(212,175,55,0.35)] hover:brightness-110 hover:shadow-[0_6px_28px_rgba(212,175,55,0.45)] hover:scale-[1.008] active:scale-[0.99] cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                className="w-full py-3 sm:py-3.5 px-6 rounded-xl sm:rounded-2xl text-[#080808] font-black text-xs sm:text-sm tracking-[0.2em] uppercase transition-all duration-200 flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(212,175,55,0.38)] hover:brightness-110 hover:shadow-[0_6px_30px_rgba(212,175,55,0.5)] hover:scale-[1.008] active:scale-[0.99] cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
@@ -309,13 +309,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </div>
 
             {/* Micro subtitle beneath button */}
-            <p className="text-[9px] sm:text-[10px] tracking-[0.25em] text-zinc-400 uppercase text-center pt-1 font-bold">
+            <p className="text-[10px] tracking-[0.26em] text-zinc-400 uppercase text-center pt-1.5 font-bold">
               SECURE STORE ACCESS
             </p>
 
             {/* Install App Button */}
-            <div className="pt-0.5">
-              <InstallPwaButton variant="login" className="!py-2 !text-xs !rounded-xl" />
+            <div className="pt-1">
+              <InstallPwaButton variant="login" className="!py-2.5 sm:!py-3 !text-xs sm:!text-sm !rounded-xl sm:!rounded-2xl" />
             </div>
 
           </form>
