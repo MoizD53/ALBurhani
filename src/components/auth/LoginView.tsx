@@ -49,7 +49,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen w-screen flex flex-col justify-between items-center bg-[#050505] text-[#F5F5F5] p-4 sm:p-6 select-none relative overflow-x-hidden">
+    <div className="h-screen h-[100dvh] w-screen flex flex-col justify-between items-center bg-[#050505] text-[#F5F5F5] px-4 py-2 sm:px-6 sm:py-3.5 select-none relative overflow-hidden">
       
       {/* 1. Subtle brushed-metal / luxury dark marble texture overlay */}
       <div 
@@ -190,13 +190,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <div className="pointer-events-none absolute bottom-[24%] left-[14%] w-1.5 h-1.5 rounded-full bg-[#F0D16A] opacity-35 shadow-[0_0_6px_#D4AF37]" aria-hidden="true" />
       <div className="pointer-events-none absolute bottom-[14%] right-[8%] w-1 h-1 rounded-full bg-[#FFF0AA] opacity-40 shadow-[0_0_8px_#D4AF37]" aria-hidden="true" />
 
-      {/* Top spacing */}
-      <div className="h-4 sm:h-8" />
-
       {/* Centered Login Card */}
-      <div className="w-full max-w-[540px] my-auto relative z-10 animate-fade-in">
+      <div className="w-full max-w-[440px] sm:max-w-[460px] my-auto relative z-10 animate-fade-in">
         <div 
-          className="rounded-[28px] sm:rounded-[34px] p-7 sm:p-10 lg:p-12 relative overflow-hidden border border-[#D4AF37]/25 shadow-[0_25px_90px_-15px_rgba(0,0,0,0.95),0_0_55px_-10px_rgba(212,175,55,0.1)] backdrop-blur-2xl"
+          className="rounded-[22px] sm:rounded-[28px] p-5 sm:p-6 md:p-7 relative overflow-hidden border border-[#D4AF37]/25 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.95),0_0_35px_-10px_rgba(212,175,55,0.12)] backdrop-blur-2xl"
           style={{
             background: 'linear-gradient(165deg, rgba(24, 24, 30, 0.98) 0%, rgba(15, 15, 19, 0.98) 50%, rgba(10, 10, 13, 0.99) 100%)',
           }}
@@ -206,7 +203,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-[#E7C75A]/70 to-transparent" />
 
           {/* Official AL-BHURANI Round Logo */}
-          <div className="mx-auto mb-5 w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-b from-[#E7C75A]/60 via-[#D4AF37]/30 to-transparent shadow-[0_0_25px_rgba(212,175,55,0.35)] flex items-center justify-center">
+          <div className="mx-auto mb-2.5 sm:mb-3 w-16 h-16 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-b from-[#E7C75A]/60 via-[#D4AF37]/30 to-transparent shadow-[0_0_20px_rgba(212,175,55,0.35)] flex items-center justify-center">
             <div className="w-full h-full rounded-full overflow-hidden bg-white/95 border border-[#D4AF37]/60 shadow-inner flex items-center justify-center">
               <img
                 src="/logo.png"
@@ -218,27 +215,27 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
           {/* Brand Name */}
           <div className="text-center">
-            <h1 className="font-serif text-3xl sm:text-4xl font-black tracking-[0.22em] uppercase leading-none text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-300 drop-shadow-[0_2px_12px_rgba(255,255,255,0.1)]">
+            <h1 className="font-serif text-2xl sm:text-[26px] font-black tracking-[0.2em] uppercase leading-none text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-300 drop-shadow-[0_2px_12px_rgba(255,255,255,0.1)]">
               AL-BHURANI
             </h1>
             {/* Brighter champagne gold decorative divider */}
-            <div className="w-16 h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-[#E7C75A] to-transparent mt-4 mb-7 shadow-[0_0_8px_rgba(231,199,90,0.4)]" />
+            <div className="w-14 h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-[#E7C75A] to-transparent mt-2 mb-3 sm:mb-4 shadow-[0_0_8px_rgba(231,199,90,0.4)]" />
           </div>
 
           {/* Error Message */}
           {errorMessage && (
-            <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/35 text-red-400 text-xs flex items-center gap-2.5 animate-fade-in">
+            <div className="mb-3 p-2.5 rounded-xl bg-red-500/10 border border-red-500/35 text-red-400 text-xs flex items-center gap-2 animate-fade-in">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span className="font-medium leading-snug">{errorMessage}</span>
             </div>
           )}
 
           {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-3">
             
             {/* User ID Field */}
             <div>
-              <label className="text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1.5">
+              <label className="text-[10px] sm:text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1">
                 USER ID
               </label>
               <div className="relative">
@@ -251,15 +248,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setUserId(e.target.value)}
                   placeholder="admin"
                   autoComplete="username"
-                  style={{ paddingLeft: '44px', paddingRight: '16px', backgroundColor: '#181D26' }}
-                  className="w-full py-3.5 rounded-xl sm:rounded-2xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
+                  style={{ paddingLeft: '40px', paddingRight: '14px', backgroundColor: '#181D26' }}
+                  className="w-full py-2.5 sm:py-2.5 rounded-xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
                 />
               </div>
             </div>
 
             {/* Password Field */}
             <div>
-              <label className="text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1.5">
+              <label className="text-[10px] sm:text-[11px] font-bold text-[#E7C75A] tracking-wider uppercase block mb-1">
                 PASSWORD
               </label>
               <div className="relative">
@@ -272,8 +269,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="admin123"
                   autoComplete="current-password"
-                  style={{ paddingLeft: '44px', paddingRight: '44px', backgroundColor: '#181D26' }}
-                  className="w-full py-3.5 rounded-xl sm:rounded-2xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
+                  style={{ paddingLeft: '40px', paddingRight: '40px', backgroundColor: '#181D26' }}
+                  className="w-full py-2.5 sm:py-2.5 rounded-xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
                 />
                 <button
                   type="button"
@@ -288,14 +285,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </div>
 
             {/* Sign In Button with Rich Champagne Gold Gradient */}
-            <div className="pt-2">
+            <div className="pt-0.5">
               <button
                 type="submit"
                 disabled={isLoading}
                 style={{
                   background: 'linear-gradient(135deg, #F0D16A 0%, #D4AF37 50%, #C69B22 100%)',
                 }}
-                className="w-full py-3.5 px-6 rounded-xl sm:rounded-2xl text-[#080808] font-black text-xs sm:text-sm tracking-[0.2em] uppercase transition-all duration-200 flex items-center justify-center gap-2.5 shadow-[0_4px_25px_rgba(212,175,55,0.38)] hover:brightness-110 hover:shadow-[0_6px_32px_rgba(212,175,55,0.5)] hover:scale-[1.008] active:scale-[0.99] cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                className="w-full py-2.5 sm:py-3 px-5 rounded-xl text-[#080808] font-black text-xs sm:text-sm tracking-[0.2em] uppercase transition-all duration-200 flex items-center justify-center gap-2 shadow-[0_4px_22px_rgba(212,175,55,0.35)] hover:brightness-110 hover:shadow-[0_6px_28px_rgba(212,175,55,0.45)] hover:scale-[1.008] active:scale-[0.99] cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
@@ -312,13 +309,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </div>
 
             {/* Micro subtitle beneath button */}
-            <p className="text-[10px] tracking-[0.28em] text-zinc-400 uppercase text-center pt-2 font-bold">
+            <p className="text-[9px] sm:text-[10px] tracking-[0.25em] text-zinc-400 uppercase text-center pt-1 font-bold">
               SECURE STORE ACCESS
             </p>
 
             {/* Install App Button */}
-            <div className="pt-2">
-              <InstallPwaButton variant="login" />
+            <div className="pt-0.5">
+              <InstallPwaButton variant="login" className="!py-2 !text-xs !rounded-xl" />
             </div>
 
           </form>
@@ -327,7 +324,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       </div>
 
       {/* Slim Bottom Footer matching reference style */}
-      <footer className="w-full max-w-xl mt-6 py-2.5 px-6 rounded-full bg-[#121215]/90 border border-white/[0.1] hover:border-[#D4AF37]/30 flex items-center justify-center gap-3 text-xs text-zinc-400 text-center relative z-10 shadow-xl backdrop-blur-md transition-all">
+      <footer className="w-full max-w-xl py-2 px-4 rounded-full bg-[#121215]/90 border border-white/[0.1] hover:border-[#D4AF37]/30 flex items-center justify-center gap-2.5 text-[11px] sm:text-xs text-zinc-400 text-center relative z-10 shadow-lg backdrop-blur-md transition-all shrink-0">
         <Lock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
         <span className="truncate">© 2026 AL-BHURANI. All rights reserved.</span>
         <span className="text-zinc-600">|</span>
