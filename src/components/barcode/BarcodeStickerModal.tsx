@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Product } from '../../types';
-import { X, Printer, Tag, CheckCircle2 } from 'lucide-react';
+import { X, Printer, Tag } from 'lucide-react';
+import { formatPriceWithBasis } from '../../lib/pricing';
 
 interface BarcodeStickerModalProps {
   product: Product | null;
@@ -18,11 +19,11 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
           format: 'CODE128',
           lineColor: '#000000',
           width: 2,
-          height: 50,
+          height: 48,
           displayValue: true,
-          fontSize: 14,
+          fontSize: 13,
           font: 'monospace',
-          margin: 4,
+          margin: 3,
           background: '#FFFFFF',
         });
       } catch (err) {
@@ -38,99 +39,98 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md rounded-2xl bg-[#0E0E0E] border border-[#D4AF37]/35 shadow-[0_20px_60px_rgba(0,0,0,0.9)] max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
+      <div className="relative w-full max-w-md rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-[#D4AF37]/20 bg-gradient-to-r from-black via-[#161616] to-black shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 shrink-0">
-              <Tag className="w-5 h-5" />
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 shrink-0">
+              <Tag className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-semibold text-white tracking-wide text-sm sm:text-base font-serif">Barcode Sticker Preview</h3>
-              <p className="text-[11px] text-gray-400">Thermal Sticker (50mm × 35mm)</p>
+              <h3 className="font-semibold text-white text-sm font-serif">Thermal Barcode Sticker</h3>
+              <p className="text-[10px] text-zinc-400">50mm × 35mm Label (CODE128)</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Sticker Card Body (What will be printed) */}
+        {/* Sticker Preview Body */}
         <div className="p-4 sm:p-6 flex flex-col items-center overflow-y-auto custom-scrollbar flex-1">
           
           <div 
             id="barcode-sticker-print"
-            className="w-[320px] bg-white text-black p-4 rounded-xl shadow-lg border border-gray-300 flex flex-col items-center select-none"
+            className="w-[300px] bg-white text-black p-3.5 rounded-xl shadow-lg border border-gray-300 flex flex-col items-center select-none"
           >
             {/* Store Branding */}
             <div className="text-center border-b border-dashed border-gray-400 pb-1 w-full">
-              <span className="font-extrabold text-[13px] tracking-wider text-black block uppercase font-serif">
+              <span className="font-extrabold text-xs tracking-wider text-black block uppercase font-serif">
                 AL-BHURANI SWEETS & DRY ITEMS
               </span>
-              <span className="text-[10px] text-gray-600 block">
-                Pure Mithai, Fresh Namkeen & Premium Dry Fruits
+              <span className="text-[9px] text-gray-600 block">
+                Pure Ghee Mithai · Fresh Namkeen · Dry Fruits
               </span>
             </div>
 
             {/* Product Info */}
             <div className="w-full mt-2 text-left">
               <div className="flex justify-between items-baseline">
-                <span className="font-bold text-[14px] text-black leading-tight">
+                <span className="font-bold text-xs text-black leading-tight truncate">
                   {product.name}
                 </span>
-                <span className="text-xs font-semibold bg-gray-100 px-1.5 py-0.5 rounded text-gray-800">
-                  {product.netWeight}
+                <span className="text-[10px] font-bold font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-800 shrink-0 ml-1">
+                  SKU: {product.sku}
                 </span>
               </div>
               
-              <div className="flex justify-between items-center text-[10px] text-gray-600 mt-1">
-                <span>Batch: {product.batchNo}</span>
-                <span>Pkg: {product.mfgDate}</span>
-              </div>
-              <div className="flex justify-between items-center text-[10px] text-gray-600">
-                <span>Use Before: {product.expiryDate}</span>
-                <span className="text-red-700 font-bold">Veg ✓</span>
+              <div className="flex justify-between items-center text-[9px] text-gray-600 mt-0.5">
+                <span>Unit: {product.unit} ({formatPriceWithBasis(product.sellingPrice, product.unit)})</span>
+                <span className="text-emerald-700 font-bold">100% Pure ✓</span>
               </div>
             </div>
 
             {/* Rendered SVG Barcode */}
-            <div className="my-2 flex justify-center bg-white p-1 rounded w-full overflow-hidden">
-              <svg ref={barcodeRef} className="w-full max-h-[70px]"></svg>
+            <div className="my-1.5 flex justify-center bg-white p-1 rounded w-full overflow-hidden">
+              <svg ref={barcodeRef} className="w-full max-h-[64px]"></svg>
             </div>
 
-            {/* Price section */}
-            <div className="w-full flex justify-between items-center border-t border-dashed border-gray-400 pt-1.5">
-              <span className="text-[11px] font-bold text-gray-700">MRP (Incl. of all taxes)</span>
-              <span className="text-[18px] font-black text-black">
-                ₹{product.sellingPrice.toFixed(2)}
+            {/* Product Code & Price */}
+            <div className="w-full flex justify-between items-center border-t border-dashed border-gray-400 pt-1">
+              <div>
+                <span className="text-[9px] font-mono text-gray-600 block leading-tight">Code: {product.sku}</span>
+                <span className="text-[9px] text-gray-700 font-semibold">MRP (Incl. All Taxes)</span>
+              </div>
+              <span className="text-base font-black font-mono text-black">
+                {formatPriceWithBasis(product.sellingPrice, product.unit)}
               </span>
             </div>
           </div>
 
-          <p className="mt-4 text-xs text-[#B8B8B8] text-center max-w-xs">
-            Standard label formatted for thermal sticker printers (TVS, Citizen, Zebra, TSC, or Xprinter 2-inch roll).
+          <p className="mt-3 text-[11px] text-zinc-400 text-center max-w-xs">
+            Print ready for TVS, TSC, Zebra, Citizen, or Xprinter 2-inch thermal sticker rolls.
           </p>
         </div>
 
         {/* Modal Actions */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#D4AF37]/15 bg-[#161616]">
+        <div className="flex items-center justify-end gap-2.5 px-5 py-3 border-t border-white/[0.08] bg-[#161619] shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-[#B8B8B8] hover:text-white transition-colors"
+            className="px-3.5 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handlePrint}
-            className="btn-gold flex items-center gap-2"
+            className="btn-gold text-xs py-1.5 px-4 flex items-center gap-1.5 font-bold"
           >
-            <Printer className="w-4 h-4" />
-            Print Sticker Now
+            <Printer className="w-3.5 h-3.5" />
+            <span>Print Label</span>
           </button>
         </div>
 

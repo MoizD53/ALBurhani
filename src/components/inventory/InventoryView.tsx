@@ -7,14 +7,21 @@ import {
   AlertTriangle, 
   Barcode, 
   Check, 
-  X,
-  Edit2
+  X, 
+  Edit2, 
+  Download 
 } from 'lucide-react';
-import { Product, ProductCategory } from '../../types';
+import { Product, ProductCategory, SellingUnit } from '../../types';
+import { 
+  formatPriceWithBasis, 
+  formatStock, 
+  isWeightBasedProduct 
+} from '../../lib/pricing';
 
 interface InventoryViewProps {
   products: Product[];
   onAddProduct: (product: Product) => void;
+  onUpdateProduct: (product: Product) => void;
   onUpdateStock: (productId: string, newStock: number) => void;
   onOpenStickerModal: (product: Product) => void;
 }
@@ -22,147 +29,226 @@ interface InventoryViewProps {
 export const InventoryView: React.FC<InventoryViewProps> = ({
   products,
   onAddProduct,
+  onUpdateProduct,
   onUpdateStock,
   onOpenStickerModal,
 }) => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Quick Stock Editing state
   const [quickStockEditingId, setQuickStockEditingId] = useState<string | null>(null);
   const [editStockVal, setEditStockVal] = useState<number>(0);
 
-  // New Product Form State
+  // Form State
   const [name, setName] = useState('');
+  const [sku, setSku] = useState('');
   const [barcode, setBarcode] = useState('');
   const [category, setCategory] = useState<ProductCategory>('Sweets');
-  const [netWeight, setNetWeight] = useState('500g');
-  const [unit, setUnit] = useState('Box');
-  const [costPrice, setCostPrice] = useState(250);
-  const [sellingPrice, setSellingPrice] = useState(350);
-  const [stock, setStock] = useState(25);
-  const [minStock, setMinStock] = useState(8);
-  const [shelfLifeDays, setShelfLifeDays] = useState(15);
+  const [unit, setUnit] = useState<SellingUnit>('KG');
+  const [costPrice, setCostPrice] = useState<number>(0);
+  const [sellingPrice, setSellingPrice] = useState<number>(100);
+  const [stock, setStock] = useState<number>(0);
+  const [minStock, setMinStock] = useState<number>(0);
+  const [mrp, setMrp] = useState<number>(100);
+  const [taxRate, setTaxRate] = useState<number>(0);
+  const [shelfLifeDays, setShelfLifeDays] = useState<number>(30);
 
-  const categories: string[] = ['All', 'Sweets', 'Namkeen & Farsan', 'Dry Fruits', 'Snacks & Khakhra', 'Festive Gift Hampers'];
+  const categories: string[] = [
+    'All', 
+    'Sweets', 
+    'Namkeen & Farsan', 
+    'Dry Fruits', 
+    'Snacks & Khakhra', 
+    'Festive Gift Hampers'
+  ];
 
+  // Open modal for Adding
+  const handleOpenAdd = () => {
+    setEditingProduct(null);
+    setName('');
+    const randomSkuNum = Math.floor(100 + Math.random() * 900);
+    setSku(`00${randomSkuNum}`);
+    const randomBarcode = Math.floor(100000 + Math.random() * 900000);
+    setBarcode(`890100${randomBarcode}`);
+    setCategory('Sweets');
+    setUnit('KG');
+    setCostPrice(0);
+    setSellingPrice(100);
+    setStock(0);
+    setMinStock(0);
+    setMrp(100);
+    setTaxRate(0);
+    setShelfLifeDays(30);
+    setIsModalOpen(true);
+  };
+
+  // Open modal for Editing
+  const handleOpenEdit = (p: Product) => {
+    setEditingProduct(p);
+    setName(p.name);
+    setSku(p.sku || '');
+    setBarcode(p.barcode || '');
+    setCategory(p.category);
+    setUnit((p.unit as SellingUnit) || (isWeightBasedProduct(p) ? 'KG' : 'PCS'));
+    setCostPrice(p.costPrice);
+    setSellingPrice(p.sellingPrice);
+    setStock(p.stock);
+    setMinStock(p.minStock);
+    setMrp(p.mrp || p.sellingPrice);
+    setTaxRate(p.taxRate || 5);
+    setShelfLifeDays(p.shelfLifeDays || 14);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !barcode.trim()) return;
+
+    const isWeight = unit === 'KG';
+
+    if (editingProduct) {
+      // Update existing
+      const updated: Product = {
+        ...editingProduct,
+        name: name.trim(),
+        sku: sku.trim(),
+        barcode: barcode.trim(),
+        category,
+        unit,
+        priceBasis: isWeight ? '₹/kg' : '₹/pc',
+        costPrice: Number(costPrice),
+        sellingPrice: Number(sellingPrice),
+        stock: Number(stock),
+        minStock: Number(minStock),
+        mrp: Number(mrp),
+        taxRate: Number(taxRate),
+        shelfLifeDays: Number(shelfLifeDays),
+      };
+      onUpdateProduct(updated);
+    } else {
+      // Create new
+      const mfg = new Date().toISOString().split('T')[0];
+      const exp = new Date(Date.now() + shelfLifeDays * 86400000).toISOString().split('T')[0];
+      const newProd: Product = {
+        id: `prod-${Date.now()}`,
+        name: name.trim(),
+        sku: sku.trim() || `SKU-${Date.now().toString().slice(-4)}`,
+        barcode: barcode.trim(),
+        category,
+        unit,
+        priceBasis: isWeight ? '₹/kg' : '₹/pc',
+        netWeight: isWeight ? 'Per KG' : 'Per Piece',
+        costPrice: Number(costPrice),
+        sellingPrice: Number(sellingPrice),
+        stock: Number(stock),
+        minStock: Number(minStock),
+        mrp: Number(mrp),
+        taxRate: Number(taxRate),
+        shelfLifeDays: Number(shelfLifeDays),
+        batchNo: `B-${category.slice(0, 2).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+        mfgDate: mfg,
+        expiryDate: exp,
+        isActive: true,
+      };
+      onAddProduct(newProd);
+    }
+
+    setIsModalOpen(false);
+  };
+
+  // Filter products
   const filtered = products.filter((p) => {
     const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
+    const q = search.toLowerCase().trim();
     const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.barcode.includes(search);
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+      p.category.toLowerCase().includes(q);
+
     return matchesCat && matchesSearch;
   });
 
-  const handleGenerateBarcode = () => {
-    // Generate standard EAN-13 style barcode for Indian retail
-    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-    setBarcode(`890100${randomSuffix}`);
-  };
+  // Export catalogue to CSV
+  const handleExportCSV = () => {
+    const headers = ['Product Name', 'SKU / Code', 'Barcode', 'Category', 'Unit', 'Price Basis', 'Cost Price', 'Selling Price', 'Current Stock', 'Min Stock Alert', 'MRP', 'Tax Rate (%)'];
+    const rows = products.map((p) => [
+      `"${p.name.replace(/"/g, '""')}"`,
+      `="${p.sku}"`, // preserve leading zeroes in Excel
+      `="${p.barcode}"`, // preserve leading zeroes in Excel
+      `"${p.category}"`,
+      p.unit,
+      p.priceBasis || (isWeightBasedProduct(p) ? '₹/kg' : '₹/pc'),
+      p.costPrice,
+      p.sellingPrice,
+      p.stock,
+      p.minStock,
+      p.mrp || p.sellingPrice,
+      p.taxRate || 5,
+    ]);
 
-  const handleCreateProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !barcode) return;
-
-    const mfg = new Date().toISOString().split('T')[0];
-    const exp = new Date(Date.now() + shelfLifeDays * 86400000).toISOString().split('T')[0];
-
-    const newProd: Product = {
-      id: `prod-${Date.now()}`,
-      barcode,
-      name,
-      category,
-      unit,
-      netWeight,
-      costPrice: Number(costPrice),
-      sellingPrice: Number(sellingPrice),
-      stock: Number(stock),
-      minStock: Number(minStock),
-      shelfLifeDays: Number(shelfLifeDays),
-      batchNo: `B-${category.slice(0, 2).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
-      mfgDate: mfg,
-      expiryDate: exp,
-    };
-
-    onAddProduct(newProd);
-    setIsAddModalOpen(false);
-    // Reset form
-    setName('');
-    setBarcode('');
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `AL_BHURANI_Inventory_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 select-none">
       
-      {/* Top Header & Actions */}
+      {/* Header & Main Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 font-serif">
             <Package className="w-5 h-5 text-[#D4AF37]" />
-            Stock & Inventory Catalog
+            <span>Inventory & Price Catalogue</span>
           </h2>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Real-time stock tracking with barcode integration & expiry monitoring
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Manage product units (KG / PCS), prices, barcodes, and stock levels
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            handleGenerateBarcode();
-            setIsAddModalOpen(true);
-          }}
-          className="btn-gold text-xs py-2.5 px-4 flex items-center gap-2 shrink-0 font-bold"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Add New Product & Barcode</span>
-        </button>
-      </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="px-3 py-2 text-xs font-semibold rounded-xl bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] flex items-center gap-1.5 transition-colors"
+            title="Export full catalogue to CSV / Excel"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
+          </button>
 
-      {/* Filter and Stats Row (Responsive grid: 1 col on mobile, 2 on tablet, 4 on desktop) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        
-        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
-          <span className="text-[11px] uppercase tracking-wider text-gray-400 block font-semibold">Total Items</span>
-          <span className="text-xl sm:text-2xl font-bold text-white mt-1 block font-mono">{products.length} Products</span>
+          <button
+            onClick={handleOpenAdd}
+            className="btn-gold text-xs py-2 px-3.5 flex items-center gap-1.5 font-bold"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Add Product</span>
+          </button>
         </div>
-
-        <div className="p-4 rounded-2xl liquid-glass border border-white/10">
-          <span className="text-[11px] uppercase tracking-wider text-gray-400 block font-semibold">Total Units in Stock</span>
-          <span className="text-xl sm:text-2xl font-bold text-white mt-1 block font-mono">
-            {products.reduce((acc, p) => acc + p.stock, 0)} Units
-          </span>
-        </div>
-
-        <div className="p-4 rounded-2xl liquid-glass border border-amber-500/25 bg-amber-500/5">
-          <span className="text-[11px] uppercase tracking-wider text-amber-400 block flex items-center gap-1 font-semibold">
-            <AlertTriangle className="w-3.5 h-3.5" /> Low Stock Alerts
-          </span>
-          <span className="text-xl sm:text-2xl font-bold text-amber-300 mt-1 block font-mono">
-            {products.filter((p) => p.stock <= p.minStock).length} Items Low
-          </span>
-        </div>
-
-        <div className="p-4 rounded-2xl liquid-glass border border-[#D4AF37]/25 bg-[#D4AF37]/5">
-          <span className="text-[11px] uppercase tracking-wider text-[#D4AF37] block font-semibold">Inventory Valuation</span>
-          <span className="text-xl sm:text-2xl font-bold text-[#E5C158] mt-1 block font-mono">
-            ₹{products.reduce((acc, p) => acc + p.stock * p.sellingPrice, 0).toLocaleString('en-IN')}
-          </span>
-        </div>
-
       </div>
 
       {/* Controls: Search and Categories */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         
-        {/* Category Pills Slider */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar flex-nowrap">
+        {/* Category Filter Pills */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar flex-nowrap">
           {categories.map((c) => (
             <button
               key={c}
               onClick={() => setSelectedCategory(c)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
                 selectedCategory === c
-                  ? 'bg-[#D4AF37] text-black shadow-[0_0_10px_rgba(212,175,55,0.3)]'
-                  : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                  ? 'bg-[#D4AF37] text-black shadow-sm'
+                  : 'bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06]'
               }`}
             >
               {c}
@@ -172,83 +258,100 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
         {/* Search Bar */}
         <div className="relative w-full sm:w-72 shrink-0">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or barcode..."
-            className="pl-9 pr-4 py-2 text-xs bg-black/40 border border-white/10 rounded-xl text-white w-full"
+            placeholder="Search by name, SKU, or barcode..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-black/40 border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/50 focus:outline-none"
           />
         </div>
 
       </div>
 
-      {/* 1. Desktop & Laptop Table View (hidden on mobile < 768px) */}
-      <div className="hidden md:block rounded-2xl liquid-glass border border-[#D4AF37]/20 overflow-hidden shadow-xl">
+      {/* Inventory Table */}
+      <div className="rounded-2xl bg-[#121214] border border-white/[0.08] overflow-hidden shadow-xl">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-[#D4AF37]/20 bg-[#D4AF37]/5 text-gray-300 uppercase tracking-wider font-semibold text-[10px]">
-                <th className="py-3.5 px-4 whitespace-nowrap">Barcode / SKU</th>
-                <th className="py-3.5 px-4 whitespace-nowrap">Item Name & Pack</th>
-                <th className="py-3.5 px-4 whitespace-nowrap">Category</th>
-                <th className="py-3.5 px-4 text-right whitespace-nowrap">Cost</th>
-                <th className="py-3.5 px-4 text-right whitespace-nowrap">MRP / Selling</th>
-                <th className="py-3.5 px-4 text-center whitespace-nowrap">Stock Units</th>
-                <th className="py-3.5 px-4 whitespace-nowrap">Batch & Expiry</th>
-                <th className="py-3.5 px-4 text-center whitespace-nowrap">Sticker Action</th>
+              <tr className="border-b border-white/[0.08] bg-[#161619] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+                <th className="py-3 px-4">SKU / Code</th>
+                <th className="py-3 px-4">Barcode</th>
+                <th className="py-3 px-4">Product Name</th>
+                <th className="py-3 px-4">Category</th>
+                <th className="py-3 px-4 text-center">Unit Basis</th>
+                <th className="py-3 px-4 text-right">Cost</th>
+                <th className="py-3 px-4 text-right">Selling Price</th>
+                <th className="py-3 px-4 text-center">Stock Level</th>
+                <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {filtered.map((p) => {
-                const isLow = p.stock <= p.minStock;
+                const isLow = p.stock <= p.minStock && p.stock > 0;
+                const isOut = p.stock <= 0;
                 const isEditingStock = quickStockEditingId === p.id;
 
                 return (
                   <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                    {/* SKU / Code */}
+                    <td className="py-3 px-4 font-mono font-bold text-[#D4AF37] whitespace-nowrap">
+                      {p.sku}
+                    </td>
+
                     {/* Barcode */}
-                    <td className="py-3 px-4 font-mono text-[#D4AF37] font-semibold whitespace-nowrap">
+                    <td className="py-3 px-4 font-mono text-zinc-300 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
-                        <Barcode className="w-4 h-4 text-gray-500 shrink-0" />
+                        <Barcode className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                         <span>{p.barcode}</span>
                       </div>
                     </td>
 
-                    {/* Item Name */}
-                    <td className="py-3 px-4 min-w-[200px]">
-                      <div className="font-semibold text-white text-sm leading-snug">{p.name}</div>
-                      <div className="text-[11px] text-gray-400 font-medium">
-                        Net Wt: {p.netWeight} ({p.unit})
-                      </div>
+                    {/* Name */}
+                    <td className="py-3 px-4 min-w-[180px]">
+                      <div className="font-semibold text-white">{p.name}</div>
+                      <div className="text-[10px] text-zinc-500">Exp: {p.expiryDate || 'N/A'}</div>
                     </td>
 
                     {/* Category */}
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-300 border border-white/10 font-medium">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-zinc-300 border border-white/10 font-medium">
                         {p.category}
                       </span>
                     </td>
 
+                    {/* Unit Basis */}
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        isWeightBasedProduct(p)
+                          ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                          : 'bg-blue-500/10 text-blue-300 border border-blue-500/20'
+                      }`}>
+                        {isWeightBasedProduct(p) ? 'KG (Weight)' : 'PCS (Count)'}
+                      </span>
+                    </td>
+
                     {/* Cost */}
-                    <td className="py-3 px-4 text-right font-mono text-gray-400 whitespace-nowrap">
+                    <td className="py-3 px-4 text-right font-mono text-zinc-400 whitespace-nowrap">
                       ₹{p.costPrice}
                     </td>
 
-                    {/* MRP */}
+                    {/* Selling Price */}
                     <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm whitespace-nowrap">
-                      ₹{p.sellingPrice}
+                      {formatPriceWithBasis(p.sellingPrice, p.unit)}
                     </td>
 
-                    {/* Stock Units (with quick edit) */}
+                    {/* Stock Units (with quick inline edit) */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       {isEditingStock ? (
                         <div className="flex items-center justify-center gap-1">
                           <input
                             type="number"
+                            step={isWeightBasedProduct(p) ? '0.25' : '1'}
                             value={editStockVal}
                             onChange={(e) => setEditStockVal(Number(e.target.value))}
-                            className="w-16 py-1 px-1.5 text-center text-xs bg-black border border-[#D4AF37] rounded font-mono text-white"
+                            className="w-16 py-0.5 px-1.5 text-center text-xs bg-black border border-[#D4AF37] rounded font-mono text-white"
                             autoFocus
                           />
                           <button
@@ -259,7 +362,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             className="p-1 rounded bg-[#D4AF37] text-black"
                             title="Save stock"
                           >
-                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <Check className="w-3 h-3 stroke-[2.5]" />
                           </button>
                         </div>
                       ) : (
@@ -268,36 +371,42 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             setQuickStockEditingId(p.id);
                             setEditStockVal(p.stock);
                           }}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg cursor-pointer border transition-colors ${
-                            isLow 
-                              ? 'bg-red-950/60 border-red-500/40 text-red-300 hover:border-red-400' 
-                              : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400 hover:border-emerald-400'
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg cursor-pointer border transition-colors ${
+                            isOut
+                              ? 'bg-red-950/60 border-red-500/40 text-red-300'
+                              : isLow 
+                              ? 'bg-amber-950/60 border-amber-500/40 text-amber-300' 
+                              : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
                           }`}
                           title="Click to quickly edit stock count"
                         >
-                          <span className="font-bold font-mono text-xs">{p.stock}</span>
-                          <span className="text-[10px] text-gray-400">units</span>
-                          <Edit2 className="w-3 h-3 text-gray-400 hover:text-white" />
+                          <span className="font-bold font-mono text-xs">
+                            {formatStock(p.stock, p.unit)}
+                          </span>
+                          <Edit2 className="w-3 h-3 text-zinc-500 hover:text-white" />
                         </div>
                       )}
                     </td>
 
-                    {/* Batch & Expiry */}
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="font-mono text-gray-300 text-[11px]">{p.batchNo}</div>
-                      <div className="text-[10px] text-gray-400">Exp: {p.expiryDate}</div>
-                    </td>
-
-                    {/* Action: Print Sticker */}
+                    {/* Actions: Edit & Sticker */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <button
-                        onClick={() => onOpenStickerModal(p)}
-                        className="btn-gold text-[11px] py-1 px-2.5 inline-flex items-center gap-1 font-semibold"
-                        title="Generate & print 50mm thermal sticker"
-                      >
-                        <Tag className="w-3.5 h-3.5" />
-                        <span>Print Sticker</span>
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleOpenEdit(p)}
+                          className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors"
+                          title="Edit Product Details"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => onOpenStickerModal(p)}
+                          className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-[#D4AF37]/15 text-zinc-400 hover:text-[#D4AF37] transition-colors"
+                          title="Print Thermal Barcode Sticker"
+                        >
+                          <Tag className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -307,136 +416,61 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Mobile Responsive Card List (visible on phones < 768px) */}
-      <div className="md:hidden space-y-3">
-        {filtered.map((p) => {
-          const isLow = p.stock <= p.minStock;
-          const isEditingStock = quickStockEditingId === p.id;
-
-          return (
-            <div
-              key={p.id}
-              className="p-4 rounded-2xl liquid-glass border border-white/10 space-y-3"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h4 className="font-semibold text-white text-sm leading-snug">{p.name}</h4>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                    <span>{p.netWeight} ({p.unit})</span>
-                    <span>•</span>
-                    <span className="text-[#D4AF37] font-mono font-semibold">{p.barcode}</span>
-                  </div>
-                </div>
-
-                <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-gray-300 border border-white/10 shrink-0 font-medium">
-                  {p.category.split(' ')[0]}
-                </span>
-              </div>
-
-              {/* Pricing & Stock row */}
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5 text-xs">
-                <div>
-                  <span className="text-[10px] text-gray-400 block uppercase">Selling MRP</span>
-                  <span className="text-base font-bold text-white font-mono">₹{p.sellingPrice}</span>
-                </div>
-
-                <div>
-                  <span className="text-[10px] text-gray-400 block uppercase">Stock Units</span>
-                  {isEditingStock ? (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <input
-                        type="number"
-                        value={editStockVal}
-                        onChange={(e) => setEditStockVal(Number(e.target.value))}
-                        className="w-16 py-0.5 px-1.5 text-xs bg-black border border-[#D4AF37] rounded font-mono text-white"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => {
-                          onUpdateStock(p.id, editStockVal);
-                          setQuickStockEditingId(null);
-                        }}
-                        className="p-1 rounded bg-[#D4AF37] text-black"
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div 
-                      onClick={() => {
-                        setQuickStockEditingId(p.id);
-                        setEditStockVal(p.stock);
-                      }}
-                      className="flex items-center gap-1 mt-0.5 cursor-pointer"
-                    >
-                      <span className={`font-mono font-bold ${isLow ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {p.stock} units
-                      </span>
-                      <Edit2 className="w-3 h-3 text-gray-400" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                <span className="text-[10px] text-gray-500 font-mono">
-                  Exp: {p.expiryDate}
-                </span>
-
-                <button
-                  onClick={() => onOpenStickerModal(p)}
-                  className="btn-gold text-xs py-1.5 px-3 flex items-center gap-1.5 font-semibold"
-                >
-                  <Tag className="w-3.5 h-3.5" />
-                  <span>Thermal Sticker</span>
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Modal: Add New Product (TENS11 Glass & Safe Viewport) */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="relative w-full max-w-lg rounded-2xl bg-[#0E0E0E] border border-[#D4AF37]/35 shadow-[0_20px_60px_rgba(0,0,0,0.9)] max-h-[90vh] flex flex-col overflow-hidden">
+      {/* Add / Edit Product Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
+          <div className="relative w-full max-w-lg rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col max-h-[92vh]">
             
             {/* Modal Header */}
-            <div className="px-5 sm:px-6 py-4 border-b border-[#D4AF37]/20 bg-gradient-to-r from-black via-[#161616] to-black flex items-center justify-between shrink-0">
+            <div className="px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] flex items-center justify-between shrink-0">
               <h3 className="font-bold text-white text-sm sm:text-base font-serif flex items-center gap-2">
-                <Plus className="w-4 h-4 text-[#D4AF37] stroke-[2.5]" />
-                Add New Sweet or Namkeen Item
+                <Package className="w-4 h-4 text-[#D4AF37]" />
+                <span>{editingProduct ? 'Edit Product Setup' : 'Add New Sweets / Namkeen Product'}</span>
               </h3>
               <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Scrollable Form Body */}
-            <form onSubmit={handleCreateProduct} className="p-5 sm:p-6 overflow-y-auto space-y-4 custom-scrollbar flex-1">
+            {/* Form */}
+            <form onSubmit={handleSaveProduct} className="p-5 overflow-y-auto space-y-4 custom-scrollbar flex-1">
               
               <div>
-                <label className="text-xs text-gray-300 font-semibold block mb-1">
-                  Product Name
+                <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                  Product Name *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Royal Pista Roll, Dry Fruit Halwa"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
+                  placeholder="e.g. Kaju Katli Special, Gulab Jamun"
+                  className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Barcode (EAN-13 / CODE128)
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                    Product Code / SKU *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                    placeholder="e.g. 00101"
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-mono focus:border-[#D4AF37]/60 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-zinc-500 mt-0.5 block">Preserves leading zeroes</span>
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                    Barcode Number *
                   </label>
                   <div className="flex gap-1.5">
                     <input
@@ -444,148 +478,148 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       required
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
-                      className="text-xs sm:text-sm font-mono bg-black/50 border-[#D4AF37]/30 text-white"
+                      placeholder="e.g. 890100100101"
+                      className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-mono focus:border-[#D4AF37]/60 focus:outline-none"
                     />
                     <button
                       type="button"
-                      onClick={handleGenerateBarcode}
-                      className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-lg text-xs text-[#D4AF37] hover:bg-white/10 font-bold shrink-0"
+                      onClick={() => {
+                        const random = Math.floor(100000 + Math.random() * 900000);
+                        setBarcode(`890100${random}`);
+                      }}
+                      className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-xl text-xs text-[#D4AF37] hover:bg-white/10 font-bold shrink-0"
                       title="Auto-Generate Barcode"
                     >
                       Gen
                     </button>
                   </div>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
                     Category
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as ProductCategory)}
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
                   >
-                    <option value="Sweets">Sweets (Mithai)</option>
+                    <option value="Sweets">Sweets</option>
                     <option value="Namkeen & Farsan">Namkeen & Farsan</option>
                     <option value="Dry Fruits">Dry Fruits</option>
                     <option value="Snacks & Khakhra">Snacks & Khakhra</option>
                     <option value="Festive Gift Hampers">Festive Gift Hampers</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Net Weight
-                  </label>
-                  <input
-                    type="text"
-                    value={netWeight}
-                    onChange={(e) => setNetWeight(e.target.value)}
-                    placeholder="e.g. 250g, 500g, 1kg"
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
-                  />
-                </div>
 
                 <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Packaging Unit
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                    Selling Unit *
                   </label>
                   <select
                     value={unit}
-                    onChange={(e) => setUnit(e.target.value)}
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white"
+                    onChange={(e) => setUnit(e.target.value as SellingUnit)}
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-bold focus:border-[#D4AF37]/60 focus:outline-none"
                   >
-                    <option value="Box">Box</option>
-                    <option value="Pouch">Pouch</option>
-                    <option value="Jar">Jar</option>
-                    <option value="Tin">Tin</option>
-                    <option value="Pack">Pack</option>
+                    <option value="KG">KG — Sold by Weight (e.g. ₹800/kg)</option>
+                    <option value="PCS">PCS — Sold by Count (e.g. ₹20/pc)</option>
+                    <option value="Box">Box (Count)</option>
+                    <option value="Pack">Pack (Count)</option>
+                    <option value="Tin">Tin (Count)</option>
+                    <option value="Jar">Jar (Count)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Cost Price (₹)
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                    Selling Price (₹ {unit === 'KG' ? 'per KG' : 'per piece'}) *
+                  </label>
+                  <input
+                    type="number"
+                    step={unit === 'KG' ? '10' : '1'}
+                    required
+                    value={sellingPrice}
+                    onChange={(e) => setSellingPrice(Number(e.target.value))}
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-[#D4AF37]/40 rounded-xl text-white font-mono font-bold focus:border-[#D4AF37] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                    Cost Price (₹ {unit === 'KG' ? 'per KG' : 'per piece'})
                   </label>
                   <input
                     type="number"
                     value={costPrice}
                     onChange={(e) => setCostPrice(Number(e.target.value))}
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Selling Price / MRP (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={sellingPrice}
-                    onChange={(e) => setSellingPrice(Number(e.target.value))}
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-mono focus:border-[#D4AF37]/60 focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Initial Stock
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                    Stock ({unit === 'KG' ? 'in KG' : 'in Pieces'}) *
                   </label>
                   <input
                     type="number"
+                    step={unit === 'KG' ? '0.25' : '1'}
+                    required
                     value={stock}
                     onChange={(e) => setStock(Number(e.target.value))}
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-mono focus:border-[#D4AF37]/60 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
                     Min Stock Alert
                   </label>
                   <input
                     type="number"
                     value={minStock}
                     onChange={(e) => setMinStock(Number(e.target.value))}
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-mono focus:border-[#D4AF37]/60 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Shelf Life (Days)
+                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                    GST Rate (%)
                   </label>
                   <input
                     type="number"
-                    value={shelfLifeDays}
-                    onChange={(e) => setShelfLifeDays(Number(e.target.value))}
-                    className="text-xs sm:text-sm bg-black/50 border-[#D4AF37]/30 text-white font-mono"
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(Number(e.target.value))}
+                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white font-mono focus:border-[#D4AF37]/60 focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Modal Footer Actions */}
-              <div className="pt-4 border-t border-white/10 flex items-center justify-end gap-3 shrink-0">
+              {/* Actions */}
+              <div className="pt-3 border-t border-white/[0.08] flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-xs text-gray-400 hover:text-white transition-colors"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-xs text-zinc-400 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-gold text-xs py-2 px-4 font-bold">
-                  Save Product & Ready Barcode
+                <button
+                  type="submit"
+                  className="btn-gold text-xs py-2 px-4 font-bold"
+                >
+                  {editingProduct ? 'Save Changes' : 'Create Product'}
                 </button>
               </div>
 
             </form>
+
           </div>
         </div>
       )}

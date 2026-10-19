@@ -1,6 +1,6 @@
 import { createClient, Client } from '@libsql/client/web';
-import { Product, OrderBill } from '../types';
-import { INITIAL_PRODUCTS } from '../data/mockProducts';
+import { Product, OrderBill, ExpenseItem } from '../types';
+import { IMPORTED_PRODUCTS } from '../data/importedProducts';
 
 // Read config from Vite env or localStorage
 const getTursoConfig = () => {
@@ -71,13 +71,13 @@ export function saveTursoCustomCredentials(url: string, token: string) {
     if (url) localStorage.setItem('albhurani_turso_url', url.trim());
     if (token) localStorage.setItem('albhurani_turso_token', token.trim());
     else localStorage.removeItem('albhurani_turso_token');
-    clientInstance = null; // force re-create
+    clientInstance = null;
     lastConfigKey = '';
   }
 }
 
 /**
- * Initialize database schema on Turso
+ * Initialize database schema on Turso with safe non-destructive migrations
  */
 export async function initializeTursoSchema(): Promise<{ success: boolean; message: string }> {
   const client = getTursoClient();
@@ -90,29 +90,36 @@ export async function initializeTursoSchema(): Promise<{ success: boolean; messa
     await client.execute(`
       CREATE TABLE IF NOT EXISTS products (
         id TEXT PRIMARY KEY,
+        sku TEXT,
         barcode TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
         category TEXT NOT NULL,
         unit TEXT NOT NULL,
-        net_weight TEXT NOT NULL,
+        price_basis TEXT,
+        net_weight TEXT,
         cost_price REAL NOT NULL,
         selling_price REAL NOT NULL,
-        stock INTEGER NOT NULL,
-        min_stock INTEGER NOT NULL,
-        shelf_life_days INTEGER NOT NULL,
-        batch_no TEXT NOT NULL,
-        mfg_date TEXT NOT NULL,
-        expiry_date TEXT NOT NULL,
+        stock REAL NOT NULL,
+        min_stock REAL NOT NULL,
+        shelf_life_days INTEGER,
+        batch_no TEXT,
+        mfg_date TEXT,
+        expiry_date TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Safe column migrations for existing tables
+    try { await client.execute('ALTER TABLE products ADD COLUMN sku TEXT;'); } catch {}
+    try { await client.execute('ALTER TABLE products ADD COLUMN price_basis TEXT;'); } catch {}
 
     // Create orders table
     await client.execute(`
       CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
         bill_number TEXT NOT NULL,
+        transaction_type TEXT DEFAULT 'CUSTOMER_BILL',
         items_json TEXT NOT NULL,
         subtotal REAL NOT NULL,
         discount_amount REAL NOT NULL,
@@ -128,6 +135,8 @@ export async function initializeTursoSchema(): Promise<{ success: boolean; messa
       );
     `);
 
+    try { await client.execute("ALTER TABLE orders ADD COLUMN transaction_type TEXT DEFAULT 'CUSTOMER_BILL';"); } catch {}
+
     // Create expenses table
     await client.execute(`
       CREATE TABLE IF NOT EXISTS expenses (
@@ -137,42 +146,49 @@ export async function initializeTursoSchema(): Promise<{ success: boolean; messa
         amount REAL NOT NULL,
         date TEXT NOT NULL,
         payment_mode TEXT NOT NULL,
+        paid_to TEXT,
+        notes TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Check if products exist; if 0, seed with INITIAL_PRODUCTS
+    // Check count; if 0 seed with IMPORTED_PRODUCTS
     const countRes = await client.execute('SELECT COUNT(*) as count FROM products;');
     const count = Number(countRes.rows[0]?.count ?? 0);
 
     if (count === 0) {
-      for (const p of INITIAL_PRODUCTS) {
+      for (const p of IMPORTED_PRODUCTS) {
         await client.execute({
           sql: `INSERT OR REPLACE INTO products (
-            id, barcode, name, category, unit, net_weight, cost_price, selling_price,
+            id, sku, barcode, name, category, unit, price_basis, net_weight, cost_price, selling_price,
             stock, min_stock, shelf_life_days, batch_no, mfg_date, expiry_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             p.id,
+            p.sku || p.barcode,
             p.barcode,
             p.name,
             p.category,
             p.unit,
-            p.netWeight,
+            p.priceBasis || '₹/pc',
+            p.netWeight || '',
             p.costPrice,
             p.sellingPrice,
             p.stock,
             p.minStock,
-            p.shelfLifeDays,
-            p.batchNo,
-            p.mfgDate,
-            p.expiryDate,
+            p.shelfLifeDays || 90,
+            p.batchNo || 'BATCH-01',
+            p.mfgDate || '2026-10-18',
+            p.expiryDate || '2027-01-18',
           ],
         });
       }
     }
 
-    return { success: true, message: `Connected to Turso successfully! Schema ready (${count === 0 ? 'Seeded initial products' : `${count} products found`}).` };
+    return { 
+      success: true, 
+      message: `Turso connected! Ready with ${count === 0 ? `${IMPORTED_PRODUCTS.length} imported products` : `${count} products found`}.` 
+    };
   } catch (err: any) {
     console.error('Turso schema initialization error:', err);
     return { success: false, message: err?.message || 'Failed to initialize Turso database schema.' };
@@ -190,19 +206,22 @@ export async function fetchProductsFromTurso(): Promise<Product[] | null> {
     const res = await client.execute('SELECT * FROM products ORDER BY category ASC, name ASC;');
     const products: Product[] = res.rows.map((row) => ({
       id: String(row.id),
+      sku: String(row.sku || row.barcode),
       barcode: String(row.barcode),
       name: String(row.name),
       category: row.category as any,
       unit: String(row.unit),
-      netWeight: String(row.net_weight),
+      priceBasis: row.price_basis ? String(row.price_basis) : undefined,
+      netWeight: row.net_weight ? String(row.net_weight) : undefined,
       costPrice: Number(row.cost_price),
       sellingPrice: Number(row.selling_price),
       stock: Number(row.stock),
       minStock: Number(row.min_stock),
-      shelfLifeDays: Number(row.shelf_life_days),
-      batchNo: String(row.batch_no),
-      mfgDate: String(row.mfg_date),
-      expiryDate: String(row.expiry_date),
+      shelfLifeDays: Number(row.shelf_life_days || 90),
+      batchNo: String(row.batch_no || ''),
+      mfgDate: String(row.mfg_date || ''),
+      expiryDate: String(row.expiry_date || ''),
+      isActive: true,
     }));
 
     return products;
@@ -222,14 +241,16 @@ export async function saveProductToTurso(product: Product): Promise<boolean> {
   try {
     await client.execute({
       sql: `INSERT INTO products (
-        id, barcode, name, category, unit, net_weight, cost_price, selling_price,
+        id, sku, barcode, name, category, unit, price_basis, net_weight, cost_price, selling_price,
         stock, min_stock, shelf_life_days, batch_no, mfg_date, expiry_date, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(id) DO UPDATE SET
+        sku=excluded.sku,
         barcode=excluded.barcode,
         name=excluded.name,
         category=excluded.category,
         unit=excluded.unit,
+        price_basis=excluded.price_basis,
         net_weight=excluded.net_weight,
         cost_price=excluded.cost_price,
         selling_price=excluded.selling_price,
@@ -242,19 +263,21 @@ export async function saveProductToTurso(product: Product): Promise<boolean> {
         updated_at=CURRENT_TIMESTAMP;`,
       args: [
         product.id,
+        product.sku || product.barcode,
         product.barcode,
         product.name,
         product.category,
         product.unit,
-        product.netWeight,
+        product.priceBasis || '₹/pc',
+        product.netWeight || '',
         product.costPrice,
         product.sellingPrice,
         product.stock,
         product.minStock,
-        product.shelfLifeDays,
-        product.batchNo,
-        product.mfgDate,
-        product.expiryDate,
+        product.shelfLifeDays || 90,
+        product.batchNo || '',
+        product.mfgDate || '',
+        product.expiryDate || '',
       ],
     });
     return true;
@@ -291,10 +314,11 @@ export async function fetchOrdersFromTurso(): Promise<OrderBill[] | null> {
   if (!client) return null;
 
   try {
-    const res = await client.execute('SELECT * FROM orders ORDER BY created_at DESC LIMIT 100;');
+    const res = await client.execute('SELECT * FROM orders ORDER BY created_at DESC LIMIT 200;');
     const orders: OrderBill[] = res.rows.map((row) => ({
       id: String(row.id),
       billNumber: String(row.bill_number),
+      transactionType: (row.transaction_type as any) || 'CUSTOMER_BILL',
       items: JSON.parse(String(row.items_json || '[]')),
       subtotal: Number(row.subtotal),
       discountAmount: Number(row.discount_amount),
@@ -326,12 +350,13 @@ export async function saveOrderToTurso(order: OrderBill): Promise<boolean> {
   try {
     await client.execute({
       sql: `INSERT OR REPLACE INTO orders (
-        id, bill_number, items_json, subtotal, discount_amount, gst_amount, grand_total,
+        id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
         payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       args: [
         order.id,
         order.billNumber,
+        order.transactionType || 'CUSTOMER_BILL',
         JSON.stringify(order.items),
         order.subtotal,
         order.discountAmount,
@@ -349,6 +374,61 @@ export async function saveOrderToTurso(order: OrderBill): Promise<boolean> {
     return true;
   } catch (err) {
     console.error('Error saving order to Turso:', err);
+    return false;
+  }
+}
+
+/**
+ * Fetch expenses from Turso
+ */
+export async function fetchExpensesFromTurso(): Promise<ExpenseItem[] | null> {
+  const client = getTursoClient();
+  if (!client) return null;
+
+  try {
+    const res = await client.execute('SELECT * FROM expenses ORDER BY created_at DESC LIMIT 200;');
+    return res.rows.map((row) => ({
+      id: String(row.id),
+      title: String(row.title),
+      category: String(row.category),
+      amount: Number(row.amount),
+      date: String(row.date),
+      paymentMode: row.payment_mode as any,
+      paidTo: row.paid_to ? String(row.paid_to) : undefined,
+      notes: row.notes ? String(row.notes) : undefined,
+    }));
+  } catch (err) {
+    console.error('Error fetching expenses from Turso:', err);
+    return null;
+  }
+}
+
+/**
+ * Save expense to Turso
+ */
+export async function saveExpenseToTurso(expense: ExpenseItem): Promise<boolean> {
+  const client = getTursoClient();
+  if (!client) return false;
+
+  try {
+    await client.execute({
+      sql: `INSERT OR REPLACE INTO expenses (
+        id, title, category, amount, date, payment_mode, paid_to, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      args: [
+        expense.id,
+        expense.title,
+        expense.category,
+        expense.amount,
+        expense.date,
+        expense.paymentMode,
+        expense.paidTo || null,
+        expense.notes || null,
+      ],
+    });
+    return true;
+  } catch (err) {
+    console.error('Error saving expense to Turso:', err);
     return false;
   }
 }

@@ -1,122 +1,197 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Barcode, 
-  Clock, 
-  Volume2, 
   Menu, 
-  Store,
-  Wifi
+  Store, 
+  Settings, 
+  ShieldCheck,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Bell,
+  Calendar,
+  LogOut
 } from 'lucide-react';
-import { playBeep } from '../../lib/utils';
+import { UserProfile } from '../../types';
+import { ActiveTab } from './Sidebar';
 
 interface HeaderProps {
+  activeTab: ActiveTab;
   onToggleMobileMenu?: () => void;
-  isTursoConnected?: boolean;
+  currentUser: UserProfile;
+  onOpenSettings?: () => void;
+  onSignOut?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
+  activeTab,
   onToggleMobileMenu,
-  isTursoConnected = false
+  currentUser,
+  onOpenSettings,
+  onSignOut,
+  isSidebarCollapsed,
+  onToggleSidebar,
 }) => {
-  const [time, setTime] = useState<string>('');
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const notifMenuRef = useRef<HTMLDivElement>(null);
 
+  // Close dropdowns on outside click
   useEffect(() => {
-    const update = () => {
-      setTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+      if (notifMenuRef.current && !notifMenuRef.current.contains(e.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
     };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const tabTitles: Record<ActiveTab, { title: string; subtitle: string }> = {
+    'overview': { title: 'Dashboard', subtitle: 'Executive Overview' },
+    'pos': { title: 'POS Billing', subtitle: 'Barcode Scan & Rapid Checkout' },
+    'customer-bills': { title: 'Customer Bills', subtitle: 'Tax Invoices & Receipts History' },
+    'no-bill-sales': { title: 'No-Bill Sales', subtitle: 'Internal Counter Sales Records' },
+    'inventory': { title: 'Inventory Management', subtitle: 'Product Catalog, Pricing & Stock' },
+    'expenses': { title: 'Expenses Tracker', subtitle: 'Daily Shop Operating Costs' },
+    'reports': { title: 'Reports & Analytics', subtitle: 'Financial Audit & Excel Exports' },
+    'settings': { title: 'Settings', subtitle: 'Hardware Diagnostics & Store Preferences' },
+  };
+
+  const currentTabInfo = tabTitles[activeTab] || { title: 'AL-BHURANI POS', subtitle: 'Retail POS' };
+
+  // Format today's date like "Monday, Oct 19"
+  const todayFormatted = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  });
+
   return (
-    <header className="h-13 min-h-[52px] px-3 sm:px-5 bg-[#090909] border-b border-white/[0.08] flex items-center justify-between z-10 shrink-0 gap-3 select-none">
+    <header className="h-14 px-4 sm:px-6 bg-[#080808] border-b border-white/[0.06] flex items-center justify-between z-20 shrink-0 gap-3 select-none">
       
-      {/* Left: Mobile Hamburger + Store & Branch info */}
+      {/* Left: Collapse Button & Current Section */}
       <div className="flex items-center gap-3 min-w-0">
-        {/* Mobile menu toggle */}
+        
+        {/* Mobile Hamburger */}
         <button
           onClick={onToggleMobileMenu}
-          className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-colors shrink-0"
-          title="Open Navigation Menu"
-          aria-label="Open Navigation Menu"
+          className="lg:hidden p-2 rounded-xl bg-[#121214] border border-white/[0.08] text-zinc-400 hover:text-white transition-colors shrink-0"
+          title="Open Navigation"
+          aria-label="Open Navigation"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-4 h-4" />
         </button>
 
-        {/* Brand & Branch */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="font-extrabold text-sm sm:text-base tracking-widest uppercase font-serif text-[#D4AF37] shrink-0">
-            AL-BHURANI
-          </span>
-          <span className="text-white/20 hidden sm:inline">|</span>
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 truncate">
-            <Store className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-            <span className="truncate font-medium">Station Road Main Counter</span>
-          </div>
-        </div>
-      </div>
+        {/* Desktop Collapse Button */}
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className="hidden lg:flex p-2 rounded-xl bg-[#121214] border border-white/[0.08] hover:border-[#D4AF37]/35 text-zinc-400 hover:text-white transition-colors shrink-0"
+            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
+        )}
 
-      {/* Right: Status indicators & cashier pill */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-
-        {/* Database Status Indicator */}
-        <div 
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] text-xs"
-          title={isTursoConnected ? 'Connected to Turso Cloud libSQL Database' : 'Running on Local Storage Cache'}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${
-            isTursoConnected 
-              ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' 
-              : 'bg-amber-400/80'
-          }`} />
-          <Wifi className="w-3 h-3 text-gray-500" />
-          <span className="text-[11px] text-gray-400 font-medium hidden md:inline">
-            {isTursoConnected ? 'Cloud Sync' : 'Local Cache'}
-          </span>
-        </div>
-
-        {/* Scanner Readiness */}
-        <div 
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/[0.08] border border-emerald-500/20 text-xs"
-          title="USB & Bluetooth Barcode Scanner Engine Ready"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <Barcode className="w-3.5 h-3.5 text-emerald-400/90" />
-          <span className="hidden md:inline text-[11px] text-emerald-300 font-medium">Scanner Ready</span>
-        </div>
-
-        {/* Beep Audio Test Control */}
-        <button
-          onClick={() => playBeep('scan')}
-          title="Test POS Barcode Audio Beep"
-          className="p-1.5 rounded-lg text-gray-400 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors shrink-0"
-          aria-label="Test POS Audio Beep"
-        >
-          <Volume2 className="w-4 h-4" />
-        </button>
-
-        {/* Live Digital Clock */}
-        <div className="hidden lg:flex items-center gap-1.5 text-xs text-gray-300 font-mono px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/[0.05] shrink-0">
-          <Clock className="w-3.5 h-3.5 text-gray-500" />
-          <span className="font-semibold tracking-wider">{time}</span>
-        </div>
-
-        {/* Divider */}
-        <div className="w-px h-5 bg-white/10 mx-0.5" />
-
-        {/* Cashier & Counter Information */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] flex items-center justify-center font-bold text-xs font-serif select-none shrink-0 shadow-[0_0_8px_rgba(212,175,55,0.15)]">
-            C1
-          </div>
-          <div className="hidden sm:block text-left leading-none">
-            <span className="text-xs font-semibold text-white block">Counter 01</span>
-            <span className="text-[10px] text-emerald-400 font-medium mt-0.5 block flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-emerald-400 inline-block" />
-              Shift Active
+        {/* Current Tab Info (for tabs other than overview) */}
+        {activeTab !== 'overview' && (
+          <div className="hidden sm:flex items-center gap-2 min-w-0">
+            <h2 className="text-sm font-bold text-white tracking-tight truncate">
+              {currentTabInfo.title}
+            </h2>
+            <span className="text-zinc-600">·</span>
+            <span className="text-xs text-zinc-400 truncate">
+              {currentTabInfo.subtitle}
             </span>
           </div>
+        )}
+      </div>
+
+      {/* Right Controls: Notifications, Date Pill & Owner Dropdown */}
+      <div className="flex items-center gap-2.5 shrink-0">
+        
+        {/* Notification Bell with Gold Dot */}
+        <div className="relative" ref={notifMenuRef}>
+          <button
+            onClick={() => setIsNotificationsOpen((prev) => !prev)}
+            className="p-2 rounded-xl bg-[#121214] border border-white/[0.08] hover:border-[#D4AF37]/35 text-zinc-400 hover:text-white transition-colors relative"
+            title="System Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.8)]" />
+          </button>
+
+          {/* Notifications Dropdown */}
+          {isNotificationsOpen && (
+            <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-[#121214] border border-[#D4AF37]/30 shadow-2xl p-3 z-50 animate-fade-in text-xs space-y-2">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                <span className="font-bold text-white">System Notifications</span>
+                <span className="text-[10px] text-[#D4AF37] font-semibold">1 New</span>
+              </div>
+              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
+                <span className="font-semibold text-white block">304 Products Synchronized</span>
+                <p className="text-[11px] text-zinc-400">
+                  Full stock inventory catalogue is active and ready for POS counter scanning.
+                </p>
+                <span className="text-[10px] text-zinc-500 block">Just now</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Date Pill (Matching TEN11 screenshot) */}
+        <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#121214] border border-white/[0.08] text-xs font-semibold text-white shadow-sm">
+          <Calendar className="w-3.5 h-3.5 text-[#D4AF37]" />
+          <span>{todayFormatted}</span>
+        </div>
+
+        {/* Owner Profile Dropdown */}
+        <div className="relative" ref={profileMenuRef}>
+          <button
+            onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+            className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-[#121214] hover:bg-[#18181C] border border-white/[0.08] hover:border-[#D4AF37]/35 transition-all group shadow-sm"
+          >
+            <div className="w-5 h-5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#D4AF37] flex items-center justify-center font-bold text-xs shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-xs font-bold text-white group-hover:text-[#E7C75A] transition-colors">
+              Owner
+            </span>
+            <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300" />
+          </button>
+
+          {/* Profile Dropdown */}
+          {isProfileMenuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-[#121214] border border-[#D4AF37]/30 shadow-2xl py-2 z-50 animate-fade-in text-xs">
+              <div className="px-3.5 py-2.5 border-b border-white/[0.06] mb-1">
+                <span className="font-bold text-white block truncate">AL-BHURANI</span>
+                <span className="text-[10px] text-[#C5A85A] font-semibold uppercase tracking-wider block mt-0.5">
+                  Owner · Godi Road Store
+                </span>
+              </div>
+
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  onSignOut?.();
+                }}
+                className="w-full px-3.5 py-2 text-left text-zinc-300 hover:text-white hover:bg-white/[0.06] flex items-center gap-2.5 transition-colors font-medium rounded-lg group"
+              >
+                <LogOut className="w-3.5 h-3.5 text-[#D4AF37] group-hover:text-amber-400" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

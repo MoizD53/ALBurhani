@@ -13,7 +13,7 @@ interface UseBarcodeScannerProps {
  */
 export function useBarcodeScanner({
   onScan,
-  minChars = 4,
+  minChars = 2,
   maxIntervalMs = 60,
   enabled = true
 }: UseBarcodeScannerProps) {

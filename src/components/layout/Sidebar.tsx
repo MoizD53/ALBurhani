@@ -1,18 +1,30 @@
 import React from 'react';
 import { 
+  LayoutDashboard, 
   ShoppingBag, 
+  FileText, 
+  ReceiptText, 
   Package, 
-  DollarSign, 
-  Barcode, 
-  Store, 
-  ChevronLeft,
-  ChevronRight,
-  X,
-  AlertTriangle,
-  Wifi
+  TrendingDown, 
+  BarChart3, 
+  Settings, 
+  ChevronLeft, 
+  ChevronRight, 
+  X, 
+  ShieldCheck, 
+  AlertTriangle
 } from 'lucide-react';
+import { UserProfile } from '../../types';
 
-export type ActiveTab = 'pos' | 'inventory' | 'finance' | 'barcode-guide';
+export type ActiveTab = 
+  | 'overview' 
+  | 'pos' 
+  | 'customer-bills' 
+  | 'no-bill-sales' 
+  | 'inventory' 
+  | 'expenses' 
+  | 'reports' 
+  | 'settings';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -22,7 +34,7 @@ interface SidebarProps {
   setIsCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
-  isTursoConnected?: boolean;
+  currentUser: UserProfile;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -33,40 +45,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsCollapsed,
   isMobileOpen,
   setIsMobileOpen,
-  isTursoConnected = false
+  currentUser,
 }) => {
   const navItems = [
     {
+      id: 'overview' as ActiveTab,
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+    },
+    {
       id: 'pos' as ActiveTab,
       label: 'POS Billing',
-      sublabel: 'Scan & rapid checkout',
       icon: ShoppingBag,
-      badge: 'Live',
-      alertCount: undefined,
+    },
+    {
+      id: 'customer-bills' as ActiveTab,
+      label: 'Customer Bills',
+      icon: FileText,
+    },
+    {
+      id: 'no-bill-sales' as ActiveTab,
+      label: 'No-Bill Sales',
+      icon: ReceiptText,
     },
     {
       id: 'inventory' as ActiveTab,
-      label: 'Stock & Items',
-      sublabel: 'Catalog & barcode labels',
+      label: 'Inventory',
       icon: Package,
-      badge: undefined,
       alertCount: lowStockCount,
     },
     {
-      id: 'finance' as ActiveTab,
-      label: 'Finance & Sales',
-      sublabel: 'Daily cash, UPI, records',
-      icon: DollarSign,
-      badge: undefined,
-      alertCount: undefined,
+      id: 'expenses' as ActiveTab,
+      label: 'Expenses',
+      icon: TrendingDown,
     },
     {
-      id: 'barcode-guide' as ActiveTab,
-      label: 'Barcode Guide',
-      sublabel: 'Hardware & live tester',
-      icon: Barcode,
-      badge: undefined,
-      alertCount: undefined,
+      id: 'reports' as ActiveTab,
+      label: 'Reports & Export',
+      icon: BarChart3,
+    },
+    {
+      id: 'settings' as ActiveTab,
+      label: 'Settings',
+      icon: Settings,
     },
   ];
 
@@ -80,157 +101,155 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const showLabels = !isCollapsed || isMobileOpen;
 
   const sidebarContent = (
-    <div className="flex flex-col h-full select-none">
-
-      {/* Brand Header */}
-      <div className={`flex items-center gap-3 mb-6 shrink-0 ${showLabels ? '' : 'justify-center'}`}>
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E5C158] via-[#D4AF37] to-[#8B6914] flex items-center justify-center text-black font-black font-serif text-sm shadow-[0_0_12px_rgba(212,175,55,0.25)] shrink-0">
-          AB
+    <div className="flex flex-col h-full select-none justify-between">
+      
+      {/* Top Section: Brand & Nav Items */}
+      <div className="flex flex-col min-h-0">
+        
+        {/* Brand Header */}
+        <div className={`mb-4 shrink-0 ${showLabels ? 'px-1' : 'flex justify-center'}`}>
+          {showLabels ? (
+            <div className="p-2.5 rounded-xl bg-[#121214] border border-[#D4AF37]/25 flex items-center justify-between shadow-[0_4px_16px_rgba(0,0,0,0.5)]">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-black border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] font-serif font-black text-xs shadow-[0_0_10px_rgba(212,175,55,0.25)] shrink-0">
+                  AB
+                </div>
+                <div className="min-w-0">
+                  <h1 className="font-extrabold text-xs tracking-[0.16em] uppercase font-serif text-white leading-none truncate">
+                    AL-BHURANI
+                  </h1>
+                  <p className="text-[9px] tracking-[0.18em] text-[#C5A85A] uppercase font-semibold mt-1 truncate">
+                    Sweets & Dry Items
+                  </p>
+                </div>
+              </div>
+              
+              {isMobileOpen && (
+                <button
+                  onClick={() => setIsMobileOpen(false)}
+                  className="lg:hidden p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                  aria-label="Close sidebar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <div 
+              title="AL-BHURANI Sweets & Dry Items"
+              className="w-10 h-10 rounded-xl bg-[#121214] border border-[#D4AF37]/35 flex items-center justify-center text-[#D4AF37] font-serif font-black text-sm shadow-[0_0_12px_rgba(212,175,55,0.2)] cursor-pointer"
+              onClick={() => setIsCollapsed(false)}
+            >
+              AB
+            </div>
+          )}
         </div>
+
+        {/* Section Label */}
         {showLabels && (
-          <div className="min-w-0 flex-1">
-            <h1 className="font-extrabold text-sm tracking-widest uppercase font-serif text-white leading-none truncate">
-              AL-BHURANI
-            </h1>
-            <p className="text-[10px] tracking-wider text-[#D4AF37]/80 uppercase font-medium mt-1 truncate">
-              Sweets & Dry Items
-            </p>
+          <div className="text-[10px] font-bold tracking-[0.22em] text-[#C5A85A]/75 uppercase px-3 py-1.5">
+            NAVIGATION
           </div>
         )}
-        {/* Mobile close button */}
-        {isMobileOpen && (
-          <button
-            onClick={() => setIsMobileOpen(false)}
-            className="lg:hidden p-1.5 ml-auto rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-colors shrink-0"
-            aria-label="Close sidebar"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
 
-      {/* Nav section header */}
-      {showLabels && (
-        <div className="text-[10px] uppercase font-bold tracking-[0.16em] text-gray-500 px-2 mb-2">
-          Navigation
-        </div>
-      )}
+        {/* Nav items list */}
+        <nav className="space-y-1 overflow-y-auto no-scrollbar pr-0.5">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
 
-      {/* Nav items */}
-      <nav className="flex-1 space-y-1 min-h-0 overflow-y-auto no-scrollbar">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleSelectTab(item.id)}
+                title={!showLabels ? item.label : undefined}
+                className={`w-full flex items-center ${
+                  showLabels ? 'px-3 py-2.5 justify-between' : 'p-2.5 justify-center'
+                } rounded-xl text-left transition-all duration-150 group relative ${
+                  isActive
+                    ? 'border border-[#D4AF37]/45 bg-[#181611] text-white font-semibold shadow-sm'
+                    : 'text-[#A1A1AA] hover:text-white hover:bg-white/[0.03] border border-transparent'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`shrink-0 transition-colors ${
+                    isActive ? 'text-[#E7C75A]' : 'text-zinc-500 group-hover:text-zinc-300'
+                  }`}>
+                    <Icon className="w-4 h-4 stroke-[2]" />
+                  </div>
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => handleSelectTab(item.id)}
-              title={!showLabels ? `${item.label} — ${item.sublabel}` : undefined}
-              className={`w-full flex items-center ${
-                showLabels ? 'px-3 py-2.5 justify-between' : 'p-3 justify-center'
-              } rounded-xl text-left transition-all duration-150 group relative ${
-                isActive
-                  ? 'bg-[#D4AF37]/12 text-white font-medium border-l-2 border-[#D4AF37]'
-                  : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={`shrink-0 transition-colors ${
-                  isActive ? 'text-[#D4AF37]' : 'text-gray-500 group-hover:text-gray-300'
-                }`}>
-                  <Icon className="w-4 h-4 stroke-[2]" />
-                </div>
-
-                {showLabels && (
-                  <div className="min-w-0 text-left">
-                    <span className={`text-[13px] block leading-snug truncate ${
-                      isActive ? 'text-white font-semibold' : 'text-gray-300 group-hover:text-white'
+                  {showLabels && (
+                    <span className={`text-xs block truncate ${
+                      isActive ? 'text-white font-semibold' : 'text-[#A1A1AA] group-hover:text-white'
                     }`}>
                       {item.label}
                     </span>
-                    <span className="text-[11px] text-gray-500 block truncate group-hover:text-gray-400">
-                      {item.sublabel}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Badges when expanded */}
-              {showLabels && (
-                <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                  {item.badge && isActive && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                      {item.badge}
-                    </span>
-                  )}
-                  {item.alertCount !== undefined && item.alertCount > 0 && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25 flex items-center gap-0.5">
-                      <AlertTriangle className="w-2.5 h-2.5" />
-                      {item.alertCount}
-                    </span>
                   )}
                 </div>
-              )}
 
-              {/* Collapsed dot badge for alerts */}
-              {!showLabels && item.alertCount !== undefined && item.alertCount > 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400" />
-              )}
-            </button>
-          );
-        })}
-      </nav>
+                {/* Badges */}
+                {showLabels && item.alertCount !== undefined && item.alertCount > 0 && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/25 flex items-center gap-0.5 shrink-0 ml-1">
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    {item.alertCount}
+                  </span>
+                )}
 
-      {/* Footer: Compact branch & database status controls */}
-      <div className="pt-3 border-t border-white/[0.08] space-y-2 shrink-0">
+                {/* Collapsed dot */}
+                {!showLabels && isActive && (
+                  <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-[#D4AF37]" />
+                )}
+                {!showLabels && item.alertCount !== undefined && item.alertCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Footer: User Profile & Collapse (TEN11 style) */}
+      <div className="pt-3 border-t border-white/[0.06] shrink-0 space-y-2">
         
-        {/* Branch & Database Status Box */}
+        {/* User Profile Card */}
         {showLabels ? (
-          <div className="px-3 py-2 rounded-xl bg-white/[0.025] border border-white/[0.05]">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5 text-gray-300 font-medium">
-                <Store className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span>Branch #01</span>
-              </div>
-              <div className="flex items-center gap-1 text-[10px]">
-                <span className={`w-1.5 h-1.5 rounded-full ${isTursoConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                <span className={`font-medium ${isTursoConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {isTursoConnected ? 'Cloud Sync' : 'Local'}
-                </span>
-              </div>
+          <div className="p-2.5 rounded-xl bg-[#121214] border border-white/[0.08] flex items-center gap-2.5 min-w-0 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/35 flex items-center justify-center text-[#D4AF37] font-bold text-xs shrink-0">
+              <ShieldCheck className="w-4 h-4" />
             </div>
-            <p className="text-[10px] text-gray-500 mt-0.5 truncate pl-5">
-              Station Road · Counter 01
-            </p>
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-white block truncate leading-none">
+                AL-BHURANI
+              </span>
+              <span className="text-[10px] text-[#C5A85A] block truncate font-semibold uppercase tracking-wider mt-1">
+                Owner · Main Store
+              </span>
+            </div>
           </div>
         ) : (
-          <div 
-            className="flex justify-center py-1 text-gray-500" 
-            title={`Branch #01 · ${isTursoConnected ? 'Cloud Sync Active' : 'Local Storage Mode'}`}
-          >
-            <div className="relative">
-              <Store className="w-4 h-4 text-gray-400" />
-              <span className={`absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ${
-                isTursoConnected ? 'bg-emerald-400' : 'bg-amber-400'
-              }`} />
+          <div className="flex flex-col items-center gap-1.5 py-0.5">
+            <div 
+              title="AL-BHURANI · Owner"
+              className="w-8 h-8 rounded-full bg-[#121214] border border-[#D4AF37]/35 flex items-center justify-center text-[#D4AF37]"
+            >
+              <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
         )}
 
-        {/* Collapse toggle button (desktop only) */}
-        <div className="hidden lg:block">
+        {/* Desktop Sidebar Collapse Toggle */}
+        <div className="hidden lg:block pt-0.5">
           <button
             onClick={() => setIsCollapsed((prev) => !prev)}
-            className={`w-full py-2 ${showLabels ? 'px-3 justify-start gap-2' : 'px-0 justify-center'} rounded-xl text-gray-500 hover:text-gray-200 hover:bg-white/[0.04] transition-colors flex items-center text-xs font-medium`}
+            className={`w-full py-1.5 ${showLabels ? 'px-2.5 justify-start gap-2' : 'px-0 justify-center'} rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03] transition-colors flex items-center text-xs font-medium`}
             title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             {isCollapsed ? (
-              <ChevronRight className="w-4 h-4 shrink-0 text-[#D4AF37]" />
+              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-[#D4AF37]" />
             ) : (
               <>
-                <ChevronLeft className="w-4 h-4 shrink-0" />
-                <span className="text-[11px]">Collapse Sidebar</span>
+                <ChevronLeft className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+                <span className="text-[11px] text-zinc-400">Collapse</span>
               </>
             )}
           </button>
@@ -245,8 +264,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex shrink-0 h-screen flex-col py-4 border-r border-white/[0.08] transition-all duration-200 ease-in-out overflow-hidden bg-[#090909] ${
-          isCollapsed ? 'w-[72px] px-2.5' : 'w-[240px] px-3.5'
+        className={`hidden lg:flex shrink-0 h-screen flex-col py-4 border-r border-white/[0.06] transition-all duration-200 ease-in-out overflow-hidden bg-[#0B0B0D] ${
+          isCollapsed ? 'w-[72px] px-2' : 'w-[230px] px-3'
         }`}
       >
         {sidebarContent}
@@ -256,14 +275,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isMobileOpen && (
         <div
           onClick={() => setIsMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/85 backdrop-blur-sm lg:hidden"
           aria-hidden="true"
         />
       )}
 
       {/* Mobile drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[260px] h-screen py-4 px-4 bg-[#090909] border-r border-white/[0.08] flex flex-col transform transition-transform duration-200 ease-in-out lg:hidden shadow-2xl ${
+        className={`fixed inset-y-0 left-0 z-50 w-[240px] h-screen py-4 px-3 bg-[#0B0B0D] border-r border-white/[0.08] flex flex-col transform transition-transform duration-200 ease-in-out lg:hidden shadow-2xl ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
