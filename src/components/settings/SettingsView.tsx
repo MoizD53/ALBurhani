@@ -290,15 +290,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Scanner Compatibility Info & Action Buttons */}
           <div className="space-y-2 text-xs">
             <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-[11px] text-zinc-400 space-y-1">
-              <span className="text-[#D4AF37] font-semibold block">Hardware Compatibility Guidance:</span>
+              <span className="text-[#D4AF37] font-semibold block">Hardware Compatibility Guidance (iMing IR-5000 & Future Devices):</span>
               <p>
-                • <strong>Universal USB HID:</strong> Compatible with all standard plug-and-play USB & 2.4GHz wireless barcode scanners without drivers or extensions.
+                • <strong>Universal USB HID Keyboard:</strong> 100% compatible with shop scanner (iMing IR-5000) and any standard 1D/2D wired USB, 2.4GHz wireless dongle, or Bluetooth scanner in standard HID mode. No special drivers, SDKs, or browser extensions needed.
               </p>
               <p>
-                • <strong>Suffix Handling:</strong> Automatically supports scanners that append <em>Enter</em>, <em>Tab</em>, or <em>No Suffix</em>.
+                • <strong>Suffixes Supported:</strong> Automatically detects <em>Enter (CR/LF)</em>, <em>Tab (\t)</em>, and <em>No Suffix (rapid-burst detection)</em>. Exact barcodes with leading zeros (e.g. <code>0001</code>) are always preserved.
               </p>
               <p>
-                • <strong>Scanner Setup:</strong> If a scanner does not type characters, scan the <em>"USB HID Keyboard Emulation Mode"</em> configuration barcode in its user manual (avoid Virtual COM / RS-232 / OPOS modes).
+                • <strong>Configuration Note:</strong> If your scanner (e.g. iMing IR-5000) does not register keystrokes, ensure it is set to <em>"USB HID Keyboard Mode"</em> by scanning the mode barcode in the quick-start sheet. Scanners in Virtual COM / RS-232 / OPOS mode will not transmit keyboard events until switched to HID mode.
               </p>
             </div>
 

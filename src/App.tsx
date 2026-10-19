@@ -9,7 +9,8 @@ import {
   updateStockOnTurso,
   clearOrdersFromTurso,
   clearExpensesFromTurso,
-  resetAllStockOnTursoToZero
+  resetAllStockOnTursoToZero,
+  deleteOrderFromTurso
 } from './lib/turso';
 import {
   preserveRealCustomersFromOrders,
@@ -17,6 +18,12 @@ import {
   upsertCustomerFromSale,
   CustomerRecord
 } from './lib/customers';
+import {
+  getDeletedOrderIds,
+  recordDeletedOrder,
+  isOrderDeleted,
+  isDemoOrTestOrder
+} from './lib/orders';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { PosBillingView } from './components/pos/PosBillingView';
@@ -117,54 +124,88 @@ export function App() {
     return getSavedCustomers();
   });
 
-  // Orders State (Clean real orders only, resets all demo/test orders for fresh opening)
+  // Orders State (Clean real orders only, resets all demo/test orders for fresh opening while preserving genuine sales)
   const [orders, setOrders] = useState<OrderBill[]>(() => {
     try {
-      const isFreshShopMigrated = typeof window !== 'undefined' 
-        ? localStorage.getItem('albhurani_fresh_shop_opening_v1') 
-        : null;
-
-      if (!isFreshShopMigrated && typeof window !== 'undefined') {
-        // 1. Preserve any real customer records if they exist in pre-opening orders
-        const saved = localStorage.getItem('albhurani_orders');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) {
-              preserveRealCustomersFromOrders(parsed);
-            }
-          } catch {}
-        }
-
-        // 2. Clear all demo/test orders and expenses from localStorage
-        localStorage.setItem('albhurani_orders', JSON.stringify([]));
-        localStorage.setItem('albhurani_expenses', JSON.stringify([]));
-        localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
-        localStorage.setItem('albhurani_fresh_opening_timestamp', String(Date.now()));
-
-        // 3. Clear Turso database orders & expenses asynchronously
-        clearOrdersFromTurso().catch(() => {});
-        clearExpensesFromTurso().catch(() => {});
-
-        return [];
-      }
+      const isFreshShopMigratedV2 = typeof window !== 'undefined' 
+        ? localStorage.getItem('albhurani_fresh_shop_opening_v2') === 'true'
+        : false;
+      const isFreshShopMigratedV1 = typeof window !== 'undefined' 
+        ? localStorage.getItem('albhurani_fresh_shop_opening_v1') === 'true'
+        : false;
 
       const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_orders') : null;
+      let parsedOrders: OrderBill[] = [];
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const cleanOrders = parsed.filter(
-            (o: OrderBill) =>
-              o &&
-              o.id &&
-              !o.id.startsWith('bill-init-') &&
-              !o.id.startsWith('sim-') &&
-              !o.id.startsWith('mock-') &&
-              !o.billNumber?.startsWith('ALB-SIM')
-          );
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            parsedOrders = parsed;
+          }
+        } catch {}
+      }
+
+      // Check for the specific incorrect test invoice ALB-INV-2726 and tombstone it immediately
+      const deletedIds = getDeletedOrderIds();
+      const wrongInvoice = parsedOrders.find(
+        (o) => o.billNumber === 'ALB-INV-2726' || o.id === 'ALB-INV-2726'
+      );
+      if (wrongInvoice) {
+        recordDeletedOrder(wrongInvoice.id, wrongInvoice.billNumber);
+        deletedIds.add(wrongInvoice.id);
+        deletedIds.add(wrongInvoice.billNumber);
+        deleteOrderFromTurso(wrongInvoice.id, wrongInvoice.billNumber).catch(() => {});
+      } else {
+        recordDeletedOrder('ALB-INV-2726', 'ALB-INV-2726');
+        deletedIds.add('ALB-INV-2726');
+      }
+
+      // Filter out test orders, ALB-INV-2726, and tombstones
+      const cleanOrders = parsedOrders.filter(
+        (o: OrderBill) =>
+          o &&
+          o.id &&
+          !isDemoOrTestOrder(o) &&
+          !deletedIds.has(o.id) &&
+          (!o.billNumber || !deletedIds.has(o.billNumber))
+      );
+
+      // If neither v1 nor v2 migration has run yet:
+      if (!isFreshShopMigratedV2 && !isFreshShopMigratedV1 && typeof window !== 'undefined') {
+        if (cleanOrders.length > 0) {
+          // Genuine sales already exist! Preserve real customers and keep genuine sales.
+          preserveRealCustomersFromOrders(parsedOrders);
+          localStorage.setItem('albhurani_orders', JSON.stringify(cleanOrders));
+          localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
+          localStorage.setItem('albhurani_fresh_shop_opening_v2', 'true');
           return cleanOrders;
+        } else {
+          // First-time fresh opening with only demo/mock orders
+          preserveRealCustomersFromOrders(parsedOrders);
+          localStorage.setItem('albhurani_orders', JSON.stringify([]));
+          localStorage.setItem('albhurani_expenses', JSON.stringify([]));
+          localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
+          localStorage.setItem('albhurani_fresh_shop_opening_v2', 'true');
+          localStorage.setItem('albhurani_fresh_opening_timestamp', String(Date.now()));
+          clearOrdersFromTurso().catch(() => {});
+          clearExpensesFromTurso().catch(() => {});
+          return [];
         }
       }
+
+      // If v1 was completed previously, mark v2 without wiping genuine sales or reset timestamps
+      if (isFreshShopMigratedV1 && !isFreshShopMigratedV2 && typeof window !== 'undefined') {
+        localStorage.setItem('albhurani_fresh_shop_opening_v2', 'true');
+        localStorage.setItem('albhurani_orders', JSON.stringify(cleanOrders));
+        return cleanOrders;
+      }
+
+      // If orders had bad orders stripped, persist the cleaned list
+      if (typeof window !== 'undefined' && saved && cleanOrders.length !== parsedOrders.length) {
+        localStorage.setItem('albhurani_orders', JSON.stringify(cleanOrders));
+      }
+
+      return cleanOrders;
     } catch {
       // fallback
     }
@@ -175,8 +216,8 @@ export function App() {
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
     try {
       const isFreshShopMigrated = typeof window !== 'undefined' 
-        ? localStorage.getItem('albhurani_fresh_shop_opening_v1') 
-        : null;
+        ? (localStorage.getItem('albhurani_fresh_shop_opening_v2') === 'true' || localStorage.getItem('albhurani_fresh_shop_opening_v1') === 'true')
+        : false;
 
       if (!isFreshShopMigrated && typeof window !== 'undefined') {
         return [];
@@ -220,18 +261,22 @@ export function App() {
         if (!client) return;
 
         const isFreshShopMigrated = typeof window !== 'undefined' 
-          ? localStorage.getItem('albhurani_fresh_shop_opening_v1') 
-          : null;
+          ? (localStorage.getItem('albhurani_fresh_shop_opening_v2') === 'true' || localStorage.getItem('albhurani_fresh_shop_opening_v1') === 'true')
+          : false;
         const resetTimestamp = typeof window !== 'undefined'
           ? Number(localStorage.getItem('albhurani_fresh_opening_timestamp') || '0')
           : 0;
+        const deletedIds = getDeletedOrderIds();
 
         const remoteOrders = await fetchOrdersFromTurso();
         if (remoteOrders && remoteOrders.length > 0) {
-          // Filter out orders that were created before fresh opening reset or match mock IDs
+          // Filter out orders that were created before fresh opening reset, match mock IDs, or are deleted
           const validRemoteOrders = remoteOrders.filter((ro) => {
-            if (ro.id.startsWith('bill-init-') || ro.id.startsWith('sim-') || ro.id.startsWith('mock-')) return false;
-            if (ro.billNumber?.startsWith('ALB-SIM')) return false;
+            if (deletedIds.has(ro.id) || (ro.billNumber && deletedIds.has(ro.billNumber))) {
+              deleteOrderFromTurso(ro.id, ro.billNumber).catch(() => {});
+              return false;
+            }
+            if (isDemoOrTestOrder(ro)) return false;
             if (isFreshShopMigrated && resetTimestamp > 0 && ro.timestamp && ro.timestamp < resetTimestamp) {
               return false;
             }
@@ -247,7 +292,11 @@ export function App() {
               const localIds = new Set(localOrders.map((o) => o.id));
               const localBillNumbers = new Set(localOrders.map((o) => o.billNumber));
               const toAdd = validRemoteOrders.filter(
-                (ro) => !localIds.has(ro.id) && !localBillNumbers.has(ro.billNumber)
+                (ro) =>
+                  !localIds.has(ro.id) &&
+                  !localBillNumbers.has(ro.billNumber) &&
+                  !deletedIds.has(ro.id) &&
+                  (!ro.billNumber || !deletedIds.has(ro.billNumber))
               );
               if (toAdd.length === 0) return localOrders;
               const merged = [...localOrders, ...toAdd];
@@ -407,6 +456,7 @@ export function App() {
         localStorage.setItem('albhurani_orders', JSON.stringify([]));
         localStorage.setItem('albhurani_expenses', JSON.stringify([]));
         localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
+        localStorage.setItem('albhurani_fresh_shop_opening_v2', 'true');
         localStorage.setItem('albhurani_fresh_opening_timestamp', String(Date.now()));
       }
 
@@ -441,6 +491,38 @@ export function App() {
       return { success: true, message: 'All 305 product stock counts have been reset to 0.' };
     } catch (err: any) {
       return { success: false, message: err?.message || 'Stock reset failed.' };
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string): Promise<boolean> => {
+    const orderToDelete = orders.find((o) => o.id === orderId);
+    const billNumber = orderToDelete?.billNumber;
+
+    // 1. Immediately record in persistent tombstone storage to prevent resurrection on sync/refresh
+    recordDeletedOrder(orderId, billNumber);
+
+    // 2. Immediately update state and localStorage consistently
+    let updatedOrders: OrderBill[] = [];
+    setOrders((prev) => {
+      updatedOrders = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
+      try {
+        localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
+      } catch (storageErr) {
+        console.error('Failed to update localStorage after deleting order:', storageErr);
+      }
+      return updatedOrders;
+    });
+
+    // 3. Delete from Turso database (both by id and bill_number)
+    try {
+      const ok = await deleteOrderFromTurso(orderId, billNumber);
+      if (!ok) {
+        console.warn(`Turso deletion for order ${orderId} (${billNumber || ''}) failed or offline. Tombstone will clean it up on sync.`);
+      }
+      return true;
+    } catch (tursoErr) {
+      console.warn('Failed to delete order from Turso:', tursoErr);
+      return true;
     }
   };
 
@@ -529,6 +611,7 @@ export function App() {
               orders={orders}
               expenses={expenses}
               onNavigateToTab={setActiveTab}
+              onDeleteOrder={handleDeleteOrder}
             />
           )}
 
@@ -542,11 +625,17 @@ export function App() {
           )}
 
           {activeTab === 'customer-bills' && (
-            <CustomerBillsView orders={orders} />
+            <CustomerBillsView 
+              orders={orders} 
+              onDeleteOrder={handleDeleteOrder}
+            />
           )}
 
           {activeTab === 'no-bill-sales' && (
-            <NoBillSalesView orders={orders} />
+            <NoBillSalesView 
+              orders={orders} 
+              onDeleteOrder={handleDeleteOrder}
+            />
           )}
 
           {activeTab === 'inventory' && (

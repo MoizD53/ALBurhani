@@ -31,11 +31,11 @@ export interface UseBarcodeScannerProps {
 export function useBarcodeScanner({
   onScan,
   minChars = 2,
-  maxIntervalMs = 70,
+  maxIntervalMs = 85,
   enabled = true,
   supportTabSuffix = true,
   supportNoSuffix = true,
-  noSuffixTimeoutMs = 95,
+  noSuffixTimeoutMs = 100,
 }: UseBarcodeScannerProps) {
   const buffer = useRef<string>('');
   const timestamps = useRef<number[]>([]);

@@ -10,14 +10,16 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 
 interface NoBillSalesViewProps {
   orders: OrderBill[];
+  onDeleteOrder?: (orderId: string) => void;
 }
 
-export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders }) => {
+export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders, onDeleteOrder }) => {
   const [search, setSearch] = useState('');
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
 
@@ -99,7 +101,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders }) => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by ID, Time, Product..."
-          style={{ paddingLeft: '34px' }}
+          style={{ paddingLeft: '40px' }}
           className="w-full pr-8 py-1.5 text-xs bg-black/40 border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/50 focus:outline-none"
         />
         {search && (
@@ -126,7 +128,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders }) => {
                 <th className="py-3 px-4 text-right">Subtotal</th>
                 <th className="py-3 px-4 text-right">Total Amount</th>
                 <th className="py-3 px-4 text-center">Payment</th>
-                <th className="py-3 px-4 text-center">Line Items</th>
+                <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -169,14 +171,31 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ orders }) => {
                             {s.paymentMethod}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => setExpandedSaleId(isExpanded ? null : s.id)}
-                            className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors"
-                            title="Toggle Item Details"
-                          >
-                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </button>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setExpandedSaleId(isExpanded ? null : s.id)}
+                              className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors"
+                              title="Toggle Item Details"
+                            >
+                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                            {onDeleteOrder && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Delete this sales entry ${s.billNumber} (₹${s.grandTotal.toFixed(2)})?`)) {
+                                    onDeleteOrder(s.id);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-rose-500/15 text-zinc-500 hover:text-rose-400 border border-white/[0.08] transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                                title="Delete Entry"
+                                aria-label={`Delete sales entry ${s.billNumber} for ₹${s.grandTotal.toFixed(2)}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
 

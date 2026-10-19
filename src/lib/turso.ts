@@ -492,4 +492,26 @@ export async function clearExpensesFromTurso(): Promise<{ success: boolean; coun
   }
 }
 
+/**
+ * Delete a specific order from Turso database by order ID or bill number
+ */
+export async function deleteOrderFromTurso(orderId: string, billNumber?: string): Promise<boolean> {
+  const client = getTursoClient();
+  if (!client) return false;
+
+  try {
+    const targetBill = billNumber || orderId;
+    await client.execute({
+      sql: 'DELETE FROM orders WHERE id = ? OR bill_number = ?;',
+      args: [orderId, targetBill],
+    });
+    return true;
+  } catch (err) {
+    console.error('Error deleting order from Turso:', err);
+    return false;
+  }
+}
+
+
+
 

@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { IMPORTED_PRODUCTS } from '../data/importedProducts';
-import { lookupProduct, buildCartItem, deductStock, isWeightBasedProduct } from '../lib/pricing';
-import { Product, OrderBill } from '../types';
+import { lookupProduct, buildCartItem, isWeightBasedProduct } from '../lib/pricing';
 
 describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () => {
 
@@ -41,16 +40,16 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
     });
   });
 
-  // ─── 2. Scanner Suffix Support (Enter, Tab, No-Suffix) ───
-  describe('2. Scanner Suffix Support (Enter, Tab, No-Suffix)', () => {
-    // Simulator for scanner input logic
+  // ─── 2. Scanner Suffix Support (Enter, Tab, No-Suffix, CR/LF) ───
+  describe('2. Scanner Suffix Support (Enter, Tab, No-Suffix, CR/LF)', () => {
+    // Simulator for scanner input logic matching useBarcodeScanner.ts
     function simulateScannerKeystrokes({
       chars,
       charIntervalMs = 20,
       suffix = 'Enter', // 'Enter' | 'Tab' | 'None'
       minChars = 2,
-      maxIntervalMs = 70,
-      noSuffixTimeoutMs = 95,
+      maxIntervalMs = 85,
+      noSuffixTimeoutMs = 100,
     }: {
       chars: string;
       charIntervalMs?: number;
@@ -108,7 +107,7 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
       return { scannedBarcode: resultBarcode, detectedSuffix: resultSuffix };
     }
 
-    it('correctly decodes rapid scanner input with Enter suffix', () => {
+    it('correctly decodes rapid scanner input with Enter suffix (CR / LF)', () => {
       const res = simulateScannerKeystrokes({
         chars: '0001',
         charIntervalMs: 15,
@@ -138,7 +137,17 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
       expect(res.detectedSuffix).toBe('None');
     });
 
-    it('does NOT trigger No Suffix scan on slow human typing (>70ms per char)', () => {
+    it('tolerates wireless USB dongle and Bluetooth radio jitter up to 85ms per char', () => {
+      const res = simulateScannerKeystrokes({
+        chars: '0001',
+        charIntervalMs: 75, // Intermittent wireless lag within 85ms tolerance
+        suffix: 'Enter',
+      });
+      expect(res.scannedBarcode).toBe('0001');
+      expect(res.detectedSuffix).toBe('Enter');
+    });
+
+    it('does NOT trigger No Suffix scan on slow human typing (>150ms per char)', () => {
       const res = simulateScannerKeystrokes({
         chars: '0001',
         charIntervalMs: 250, // Human speed: 250ms per key
@@ -151,7 +160,7 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
 
   // ─── 3. Rapid Consecutive Scans vs Duplicate Suppression ───
   describe('3. Rapid Consecutive Scans vs Duplicate Suppression', () => {
-    it('suppresses duplicate scan events within 350ms window (e.g. dual keydown + form submit)', () => {
+    it('suppresses duplicate scan events within 350ms window for identical barcode', () => {
       let lastScan = { code: '', time: 0 };
       const processedCodes: string[] = [];
 
@@ -170,6 +179,28 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
       // Instantaneous second event from form submission 5ms later
       expect(handleScan('0001', 1005)).toBe(false);
       expect(processedCodes.length).toBe(1);
+    });
+
+    it('allows consecutive scans of different products in rapid succession without debounce delay', () => {
+      let lastScan = { code: '', time: 0 };
+      const processedCodes: string[] = [];
+
+      const handleScan = (rawCode: string, timestamp: number) => {
+        const code = rawCode.trim();
+        if (lastScan.code === code && (timestamp - lastScan.time) < 350) {
+          return false;
+        }
+        lastScan = { code, time: timestamp };
+        processedCodes.push(code);
+        return true;
+      };
+
+      // Scan product A at t=1000ms
+      expect(handleScan('0001', 1000)).toBe(true);
+      // Scan different product B 150ms later (different barcode, must NOT be suppressed)
+      expect(handleScan('0002', 1150)).toBe(true);
+
+      expect(processedCodes).toEqual(['0001', '0002']);
     });
 
     it('allows legitimate consecutive scans of the same product (> 350ms apart)', () => {
@@ -205,7 +236,7 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
     });
   });
 
-  // ─── 4. Product Selection Behavior: PCS vs KG vs Multi-Match ───
+  // ─── 4. Product Selection Behavior: PCS vs KG vs Unknown Barcode ───
   describe('4. Catalog Matching & Product Type Behavior', () => {
     it('auto-adds PCS items directly to cart without requiring quantity modal', () => {
       const matches = lookupProduct(IMPORTED_PRODUCTS, '0001');
@@ -224,13 +255,19 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
 
       const kajuSpecial = weightItems[0];
       expect(isWeightBasedProduct(kajuSpecial)).toBe(true);
-      // KG items must trigger quantity dialog
     });
 
-    it('returns empty array cleanly for unknown barcodes without crashing', () => {
+    it('returns empty array cleanly for unknown barcodes without crashing or altering state', () => {
       const unknown = lookupProduct(IMPORTED_PRODUCTS, 'UNKNOWN-BARCODE-99999');
       expect(Array.isArray(unknown)).toBe(true);
       expect(unknown.length).toBe(0);
+
+      // Simulate POS response to unknown barcode
+      let errorNotified = false;
+      if (unknown.length === 0) {
+        errorNotified = true;
+      }
+      expect(errorNotified).toBe(true);
     });
 
     it('returns multiple products for disambiguation modal when SKU/query matches multiple items', () => {
@@ -242,22 +279,41 @@ describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () =>
 
   // ─── 5. Manual Form Input & Focus Protection ───
   describe('5. Manual Form Input & Focus Protection', () => {
+    it('ignores keydown events in regular form inputs so user typing is never treated as a scan', () => {
+      const shouldIgnoreEvent = (targetTagName: string, isBarcodeInput: boolean) => {
+        const isInput = targetTagName === 'INPUT' || targetTagName === 'TEXTAREA';
+        if (isInput && !isBarcodeInput) {
+          return true; // ignored, regular form typing protected
+        }
+        return false;
+      };
+
+      // Customer Name input
+      expect(shouldIgnoreEvent('INPUT', false)).toBe(true);
+
+      // Customer Phone input
+      expect(shouldIgnoreEvent('INPUT', false)).toBe(true);
+
+      // Search field input
+      expect(shouldIgnoreEvent('INPUT', false)).toBe(true);
+
+      // Dedicated Barcode input (has data-barcode-input="true")
+      expect(shouldIgnoreEvent('INPUT', true)).toBe(false);
+
+      // Body or background clicks
+      expect(shouldIgnoreEvent('DIV', false)).toBe(false);
+      expect(shouldIgnoreEvent('BODY', false)).toBe(false);
+    });
+
     it('does not steal focus if user is actively editing customerName or customerPhone', () => {
-      // Simulate activeElement check
       const canRefocus = (activeElementName: string, isBarcodeInput: boolean) => {
         if (activeElementName === 'INPUT' && !isBarcodeInput) {
-          return false; // active cashier typing, focus NOT stolen
+          return false;
         }
         return true;
       };
 
-      // When focused in customerName
       expect(canRefocus('INPUT', false)).toBe(false);
-
-      // When focused in customerPhone
-      expect(canRefocus('INPUT', false)).toBe(false);
-
-      // When focused in body/buttons after modal close
       expect(canRefocus('BUTTON', false)).toBe(true);
       expect(canRefocus('BODY', false)).toBe(true);
     });

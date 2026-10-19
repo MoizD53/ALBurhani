@@ -18,7 +18,8 @@ import {
   ShoppingBag,
   Clock,
   Printer,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
 import { isOrderInDateRange } from '../../lib/utils';
@@ -28,6 +29,7 @@ interface OverviewDashboardViewProps {
   orders: OrderBill[];
   expenses: ExpenseItem[];
   onNavigateToTab: (tab: any) => void;
+  onDeleteOrder?: (orderId: string) => void;
 }
 
 export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
@@ -35,6 +37,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   orders,
   expenses,
   onNavigateToTab,
+  onDeleteOrder,
 }) => {
   // Privacy mode toggle (matches eye icon in TEN11 screenshot)
   const [isMasked, setIsMasked] = useState(false);
@@ -342,7 +345,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
                     <th className="pb-2 font-normal">Date & Time</th>
                     <th className="pb-2 font-normal">Tender</th>
                     <th className="pb-2 text-right font-normal">Amount</th>
-                    <th className="pb-2 text-right font-normal">Receipt</th>
+                    <th className="pb-2 text-right font-normal">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
@@ -381,14 +384,31 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
                         <td className="py-2.5 text-right font-mono font-bold text-[#E7C75A]">
                           ₹{order.grandTotal.toFixed(2)}
                         </td>
-                        <td className="py-2.5 text-right">
-                          <button
-                            onClick={() => setSelectedReceiptOrder(order)}
-                            className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
-                            title="Reprint / View Receipt"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                          </button>
+                        <td className="py-2.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setSelectedReceiptOrder(order)}
+                              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                              title="Reprint / View Receipt"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                            </button>
+                            {onDeleteOrder && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Delete this sales entry ${order.billNumber} (₹${order.grandTotal.toFixed(2)})?`)) {
+                                    onDeleteOrder(order.id);
+                                  }
+                                }}
+                                className="p-1 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                                title="Delete Entry"
+                                aria-label={`Delete sales entry ${order.billNumber} for ₹${order.grandTotal.toFixed(2)}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

@@ -185,7 +185,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     },
     enabled: true,
     minChars: 2,
-    maxIntervalMs: 70,
+    maxIntervalMs: 85,
   });
 
   // Manual barcode / SKU input submission (pressing Enter)
