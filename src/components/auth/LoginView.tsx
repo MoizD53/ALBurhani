@@ -215,14 +215,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             </span>
           </div>
 
-          {/* Brand Name & Subtitle */}
+          {/* Brand Name */}
           <div className="text-center">
             <h1 className="font-serif text-3xl sm:text-4xl font-black tracking-[0.22em] uppercase leading-none text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-300 drop-shadow-[0_2px_12px_rgba(255,255,255,0.1)]">
               AL-BHURANI
             </h1>
-            <p className="text-[10px] sm:text-xs font-semibold text-[#E7C75A] tracking-[0.26em] uppercase mt-2.5">
-              RETAIL POS & BUSINESS MANAGEMENT
-            </p>
             {/* Brighter champagne gold decorative divider */}
             <div className="w-16 h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-[#E7C75A] to-transparent mt-4 mb-7 shadow-[0_0_8px_rgba(231,199,90,0.4)]" />
           </div>
