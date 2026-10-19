@@ -85,9 +85,19 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     'Festive Gift Hampers'
   ];
 
-  // Auto-focus barcode input
+  // Auto-focus barcode input without stealing focus from active cashier form editing
   const refocusBarcode = () => {
     setTimeout(() => {
+      // Never steal focus from active text inputs (search, customer details, payment amounts, etc.)
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable) &&
+        activeEl.getAttribute('data-barcode-input') !== 'true'
+      ) {
+        return; // Cashier is actively editing another form field
+      }
+
       if (!selectedProductForQuantity && multipleMatchedProducts.length === 0 && !completedOrder && !isCameraOpen) {
         barcodeInputRef.current?.focus();
       }
@@ -411,6 +421,12 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                     data-barcode-input="true"
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab' && barcodeInput.trim()) {
+                        e.preventDefault();
+                        processBarcode(barcodeInput);
+                      }
+                    }}
                     style={{ paddingLeft: '38px' }}
                     className="w-full pr-8 py-2 text-xs sm:text-sm font-mono bg-black/60 border border-white/[0.1] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/70 focus:bg-black focus:outline-none transition-colors"
                     placeholder="Scan barcode or enter SKU..."
@@ -471,6 +487,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 placeholder="Search name or SKU..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.preventDefault();
+                }}
                 style={{ paddingLeft: '32px' }}
                 className="w-full pr-7 py-1.5 text-xs bg-[#111115] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/50 focus:outline-none transition-colors"
               />
@@ -678,6 +697,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 placeholder="Customer Name (optional)"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.preventDefault();
+                }}
                 className="text-xs py-1 px-2 bg-black/40 border border-white/[0.07] rounded-lg text-white placeholder:text-zinc-600 focus:border-[#D4AF37]/50 focus:outline-none"
               />
               <input
@@ -685,6 +707,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 placeholder="Phone (optional)"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.preventDefault();
+                }}
                 className="text-xs py-1 px-2 bg-black/40 border border-white/[0.07] rounded-lg text-white font-mono placeholder:text-zinc-600 focus:border-[#D4AF37]/50 focus:outline-none"
               />
             </div>

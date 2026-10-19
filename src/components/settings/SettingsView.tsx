@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { UserProfile, Product } from '../../types';
 import { playBeep } from '../../lib/utils';
+import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 
 interface SettingsViewProps {
   currentUser: UserProfile;
@@ -25,13 +26,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onChangeUser,
   productsCount,
 }) => {
-  // Hardware scanner live test state
-  const [testBuffer, setTestBuffer] = useState<string>('');
+  // Hardware scanner live test state (Bench testing only, never creates orders or touches stock)
   const [lastScannedResult, setLastScannedResult] = useState<{
     code: string;
+    suffix: 'Enter' | 'Tab' | 'None';
     speedMs: number;
+    charCount: number;
+    avgIntervalMs: number;
     timestamp: string;
   } | null>(null);
+
+  // Use universal scanner hook for live diagnostics
+  useBarcodeScanner({
+    onScan: (code, meta) => {
+      playBeep('scan');
+      setLastScannedResult({
+        code,
+        suffix: meta?.suffix || 'Enter',
+        speedMs: meta?.elapsedMs || 0,
+        charCount: meta?.charCount || code.length,
+        avgIntervalMs: meta?.avgIntervalMs || 0,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+    },
+    enabled: true,
+    minChars: 1,
+    maxIntervalMs: 80,
+  });
 
   // Store information
   const [storeName, setStoreName] = useState('AL-BHURANI Sweets & Dry Items');
@@ -39,43 +60,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [gstin, setGstin] = useState('24AABCA1234F1Z5');
   const [phone, setPhone] = useState('+91 98765 43210');
   const [isSavedMessage, setIsSavedMessage] = useState(false);
-
-  // Hardware Scanner Speed Test Listener
-  useEffect(() => {
-    let rawBuffer = '';
-    let startTime = 0;
-
-    const handleKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
-
-      const now = Date.now();
-      if (!startTime || now - startTime > 300) {
-        startTime = now;
-        rawBuffer = '';
-      }
-
-      if (e.key === 'Enter') {
-        if (rawBuffer.length >= 3) {
-          const totalTime = now - startTime;
-          playBeep('scan');
-          setLastScannedResult({
-            code: rawBuffer,
-            speedMs: totalTime,
-            timestamp: new Date().toLocaleTimeString(),
-          });
-          rawBuffer = '';
-          startTime = 0;
-        }
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        rawBuffer += e.key;
-        setTestBuffer(rawBuffer);
-      }
-    };
-
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
 
   const handleSaveStore = (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,54 +163,110 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Barcode className="w-4 h-4 text-[#D4AF37]" />
-              <span>Hardware Scanner Diagnostic Bench</span>
+              <span>Universal USB Scanner Diagnostic Bench</span>
             </h3>
             <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Listening
+              Live HID Listener
             </span>
           </div>
 
-          <p className="text-xs text-zinc-400">
-            Plug in any USB or Wireless HID barcode scanner gun and scan a barcode to benchmark transmission latency in milliseconds.
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Plug in any USB, 2.4GHz wireless dongle, or Bluetooth HID barcode scanner gun. Scan any product or test barcode to verify transmission payload, detected suffix, and transmission latency.
           </p>
 
           {/* Test Display Card */}
-          <div className="p-4 rounded-xl bg-black/60 border border-white/[0.1] font-mono text-center space-y-2">
+          <div className="p-4 rounded-xl bg-black/60 border border-white/[0.1] font-mono space-y-3">
             {lastScannedResult ? (
-              <div className="space-y-1">
-                <span className="text-[10px] text-zinc-500 uppercase">Decoded Barcode:</span>
-                <div className="text-xl font-bold text-[#D4AF37] tracking-wider">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs border-b border-white/[0.08] pb-1.5">
+                  <span className="text-zinc-500 uppercase text-[10px]">Decoded Barcode:</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    lastScannedResult.suffix === 'Enter'
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : lastScannedResult.suffix === 'Tab'
+                        ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    Suffix: {lastScannedResult.suffix === 'Enter' ? 'Enter (CR/LF)' : lastScannedResult.suffix === 'Tab' ? 'Tab (\\t)' : 'No Suffix (Auto)'}
+                  </span>
+                </div>
+
+                <div className="text-xl sm:text-2xl font-bold text-[#D4AF37] tracking-wider text-center py-1 break-all">
                   {lastScannedResult.code}
                 </div>
-                <div className="flex items-center justify-center gap-4 text-xs pt-1">
-                  <span className="text-emerald-400 font-semibold">
-                    ⚡ {lastScannedResult.speedMs} ms Latency
-                  </span>
-                  <span className="text-zinc-500">
-                    {lastScannedResult.timestamp}
-                  </span>
+
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px] pt-1 border-t border-white/[0.06]">
+                  <div className="bg-white/[0.02] p-1.5 rounded-lg border border-white/[0.04]">
+                    <span className="text-zinc-500 block text-[9px] uppercase">Latency</span>
+                    <span className="text-emerald-400 font-bold">⚡ {lastScannedResult.speedMs} ms</span>
+                  </div>
+                  <div className="bg-white/[0.02] p-1.5 rounded-lg border border-white/[0.04]">
+                    <span className="text-zinc-500 block text-[9px] uppercase">Characters</span>
+                    <span className="text-zinc-200 font-bold">{lastScannedResult.charCount} digits</span>
+                  </div>
+                  <div className="bg-white/[0.02] p-1.5 rounded-lg border border-white/[0.04]">
+                    <span className="text-zinc-500 block text-[9px] uppercase">Avg Speed</span>
+                    <span className="text-zinc-200 font-bold">{lastScannedResult.avgIntervalMs} ms/char</span>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-zinc-500 text-center pt-0.5">
+                  Captured at {lastScannedResult.timestamp} · Preserves exact string & leading zeros
                 </div>
               </div>
             ) : (
-              <div className="py-3 text-zinc-500 text-xs">
-                Scan any barcode now to benchmark scanner hardware...
+              <div className="py-6 text-center space-y-1">
+                <Barcode className="w-8 h-8 text-zinc-600 mx-auto stroke-1" />
+                <p className="text-xs font-semibold text-zinc-300">Scanner Bench Ready</p>
+                <p className="text-[11px] text-zinc-500">
+                  Scan any barcode now to test hardware decoding, speed, and suffix...
+                </p>
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between pt-1">
-            <button
-              onClick={() => playBeep('scan')}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-xs font-semibold text-zinc-300 flex items-center gap-1.5 transition-colors"
-            >
-              <Volume2 className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>Test Audio Beep</span>
-            </button>
+          {/* Scanner Compatibility Info & Action Buttons */}
+          <div className="space-y-2 text-xs">
+            <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-[11px] text-zinc-400 space-y-1">
+              <span className="text-[#D4AF37] font-semibold block">Hardware Compatibility Guidance:</span>
+              <p>
+                • <strong>Universal USB HID:</strong> Compatible with all standard plug-and-play USB & 2.4GHz wireless barcode scanners without drivers or extensions.
+              </p>
+              <p>
+                • <strong>Suffix Handling:</strong> Automatically supports scanners that append <em>Enter</em>, <em>Tab</em>, or <em>No Suffix</em>.
+              </p>
+              <p>
+                • <strong>Scanner Setup:</strong> If a scanner does not type characters, scan the <em>"USB HID Keyboard Emulation Mode"</em> configuration barcode in its user manual (avoid Virtual COM / RS-232 / OPOS modes).
+              </p>
+            </div>
 
-            <span className="text-[11px] text-zinc-500">
-              HID Keyboard Emulation Mode
-            </span>
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => playBeep('scan')}
+                  className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-xs font-semibold text-zinc-300 flex items-center gap-1.5 transition-colors"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Test Audio Chirp</span>
+                </button>
+
+                {lastScannedResult && (
+                  <button
+                    type="button"
+                    onClick={() => setLastScannedResult(null)}
+                    className="px-2.5 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-white transition-colors"
+                  >
+                    Clear Bench
+                  </button>
+                )}
+              </div>
+
+              <span className="text-[10px] font-mono text-zinc-500">
+                Safe Diagnostic Mode
+              </span>
+            </div>
           </div>
         </div>
 
