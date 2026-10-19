@@ -205,14 +205,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           {/* Subtle top edge champagne highlight line */}
           <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-[#E7C75A]/70 to-transparent" />
 
-          {/* Clean reserved placeholder area for official AL-BHURANI logo */}
-          <div className="w-32 h-16 sm:w-36 sm:h-20 mx-auto rounded-2xl border border-dashed border-[#D4AF37]/25 bg-white/[0.015] flex flex-col items-center justify-center mb-5 hover:border-[#D4AF37]/45 transition-colors">
-            <span className="text-[9px] uppercase font-bold tracking-[0.25em] text-[#D4AF37]/50">
-              Logo Area
-            </span>
-            <span className="text-[8px] text-zinc-500 tracking-wider mt-1">
-              Reserved Placeholder
-            </span>
+          {/* Official AL-BHURANI Round Logo */}
+          <div className="mx-auto mb-5 w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-b from-[#E7C75A]/60 via-[#D4AF37]/30 to-transparent shadow-[0_0_25px_rgba(212,175,55,0.35)] flex items-center justify-center">
+            <div className="w-full h-full rounded-full overflow-hidden bg-white/95 border border-[#D4AF37]/60 shadow-inner flex items-center justify-center">
+              <img
+                src="/logo.png"
+                alt="Al Burhani Sweet Mart Logo"
+                className="w-full h-full object-contain rounded-full drop-shadow-sm select-none"
+              />
+            </div>
           </div>
 
           {/* Brand Name */}

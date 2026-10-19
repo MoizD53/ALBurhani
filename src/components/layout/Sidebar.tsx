@@ -123,8 +123,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {showLabels ? (
             <div className="p-2.5 rounded-xl bg-[#121214] border border-[#D4AF37]/25 flex items-center justify-between shadow-[0_4px_16px_rgba(0,0,0,0.5)]">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-black border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] font-serif font-black text-xs shadow-[0_0_10px_rgba(212,175,55,0.25)] shrink-0">
-                  AB
+                <div className="w-8 h-8 rounded-full bg-white/95 border border-[#D4AF37]/50 flex items-center justify-center overflow-hidden shadow-[0_0_10px_rgba(212,175,55,0.3)] shrink-0">
+                  <img src="/logo.png" alt="Al Burhani" className="w-full h-full object-contain rounded-full" />
                 </div>
                 <div className="min-w-0">
                   <h1 className="font-extrabold text-xs tracking-[0.16em] uppercase font-serif text-white leading-none truncate">
@@ -149,10 +149,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <div 
               title="AL-BHURANI Sweets & Dry Items"
-              className="w-10 h-10 rounded-xl bg-[#121214] border border-[#D4AF37]/35 flex items-center justify-center text-[#D4AF37] font-serif font-black text-sm shadow-[0_0_12px_rgba(212,175,55,0.2)] cursor-pointer"
+              className="w-10 h-10 rounded-full bg-white/95 border border-[#D4AF37]/50 flex items-center justify-center overflow-hidden shadow-[0_0_12px_rgba(212,175,55,0.3)] cursor-pointer hover:scale-105 transition-transform"
               onClick={() => setIsCollapsed(false)}
             >
-              AB
+              <img src="/logo.png" alt="Al Burhani" className="w-full h-full object-contain rounded-full" />
             </div>
           )}
         </div>

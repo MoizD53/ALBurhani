@@ -141,6 +141,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
 
             {/* Store Header Branding */}
             <div className="text-center pb-2 border-b border-black">
+              <img
+                src="/logo.png"
+                alt="AL-BHURANI Logo"
+                className="w-10 h-10 mx-auto mb-1 rounded-full object-contain"
+              />
               <h2 className="font-bold text-sm tracking-widest uppercase">AL-BHURANI</h2>
               <p className="text-[8.5px] uppercase font-semibold">Sweets & Dry Items Franchise</p>
               <p className="text-[8px] text-gray-700">Godi Road, Near Clock Tower</p>
