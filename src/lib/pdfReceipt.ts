@@ -290,18 +290,319 @@ export function generateReceiptPdfBlob(order: OrderBill): Blob {
 }
 
 /**
- * Triggers a browser download of the receipt PDF.
+ * Helper to convert Uint8Array bytes to base64 for fallback data URLs.
  */
-export function downloadReceiptPdf(order: OrderBill): void {
-  const blob = generateReceiptPdfBlob(order);
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Receipt-${order.billNumber}.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * Triggers a robust browser download of the receipt PDF named Receipt-[billNumber].pdf.
+ * Compatible with Windows 7, Chrome 109, Firefox ESR, IE/Legacy Edge, and modern browsers.
+ */
+export function downloadReceiptPdf(order: OrderBill): boolean {
+  try {
+    const filename = `Receipt-${order.billNumber}.pdf`;
+    const blob = generateReceiptPdfBlob(order);
+
+    // 1. IE11 / Legacy Edge / Windows 7 specific API check
+    if (typeof (window.navigator as any).msSaveOrOpenBlob === 'function') {
+      (window.navigator as any).msSaveOrOpenBlob(blob, filename);
+      return true;
+    }
+
+    // 2. Standard Blob Object URL Download
+    if (typeof window !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.download = filename;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+
+      // Keep link and ObjectURL alive for 60 seconds so Windows 7 / slower disks complete writing
+      setTimeout(() => {
+        try {
+          if (link.parentNode) {
+            link.parentNode.removeChild(link);
+          }
+          URL.revokeObjectURL(url);
+        } catch {}
+      }, 60000);
+
+      return true;
+    }
+
+    // 3. Fallback: Base64 Data URI Download if ObjectURL is not available
+    const bytes = generateReceiptPdfBytes(order);
+    const base64 = uint8ArrayToBase64(bytes);
+    const dataUrl = `data:application/pdf;base64,${base64}`;
+    const link = document.createElement('a');
+    link.style.display = 'none';
+    link.href = dataUrl;
+    link.download = filename;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try {
+        if (link.parentNode) link.parentNode.removeChild(link);
+      } catch {}
+    }, 10000);
+    return true;
+  } catch (err) {
+    console.error('downloadReceiptPdf failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Generates self-contained print-ready HTML for the 80mm thermal receipt.
+ * Used for isolated print preview window and fallback Save as PDF.
+ */
+export function generateReceiptHtml(order: OrderBill): string {
+  const hasGst = order.gstAmount > 0;
+  const isRevised = Boolean(order.isRevised);
+  const taxableValue = Math.max(0, order.subtotal - order.discountAmount - order.gstAmount);
+  const cgstAmount = Math.round((order.gstAmount / 2) * 100) / 100;
+  const sgstAmount = Math.round((order.gstAmount - cgstAmount) * 100) / 100;
+
+  const titleText = hasGst
+    ? (isRevised ? 'REVISED TAX INVOICE (GST INCL)' : 'TAX INVOICE (GST INCLUSIVE)')
+    : (isRevised ? 'REVISED RETAIL SALE MEMO (0% GST)' : 'RETAIL SALE MEMO (0% GST)');
+
+  const itemsHtml = order.items.map((it) => `
+    <tr>
+      <td style="padding: 2px 0; text-align: left; vertical-align: top;">
+        <div style="font-weight: 800; line-height: 1.1;">${it.product.name}</div>
+        <div style="font-size: 8px; font-family: monospace;">[${it.product.sku}]</div>
+      </td>
+      <td style="padding: 2px 4px; text-align: center; vertical-align: top; white-space: nowrap; font-weight: 800;">
+        ${it.formattedQuantity || it.quantity}
+      </td>
+      <td style="padding: 2px 4px; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800;">
+        Rs. ${it.unitPrice}
+      </td>
+      <td style="padding: 2px 0; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800;">
+        Rs. ${it.lineTotal.toFixed(2)}
+      </td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Receipt-${order.billNumber}</title>
+  <style>
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-size: 9px;
+      line-height: 1.25;
+      color: #000;
+      background: #fff;
+      width: 72mm;
+      max-width: 72mm;
+      margin: 0 auto;
+      padding: 2mm 3mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .bolder { font-weight: 800; }
+    .black { font-weight: 900; }
+    .border-b { border-bottom: 1px solid #000; }
+    .border-b-2 { border-bottom: 2px solid #000; }
+    .border-b-dashed { border-bottom: 1px dashed #000; }
+    .border-t { border-top: 1px solid #000; }
+    .border-t-2 { border-top: 2px solid #000; }
+    .border-t-dotted { border-top: 1px dotted #000; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+    .py-1 { padding-top: 4px; padding-bottom: 4px; }
+    .pt-1 { padding-top: 4px; }
+    .pb-1 { padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    th { font-weight: 900; border-bottom: 2px solid #000; padding-bottom: 2px; }
+    @media print {
+      body { width: 72mm; margin: 0 auto; padding: 1mm 2.5mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="text-center pb-1 border-b-2">
+    <h1 style="font-size: 16px; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase;">AL-BURHANI</h1>
+    <div style="font-size: 8.5px; font-weight: 800; text-transform: uppercase; margin-top: 2px;">Sweets & Dry Items Franchise</div>
+    <div style="font-size: 8px; font-weight: 600;">Godi Road, Near Clock Tower</div>
+    <div style="font-size: 8px; font-weight: 600;">Ph: +91 98765 43210</div>
+    ${hasGst ? `
+      <div class="border-t pt-1" style="margin-top: 4px;">
+        <div style="font-size: 8.5px; font-weight: 900;">GSTIN: 24AABCA1234F1Z5</div>
+        <div style="display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: 8px; font-weight: 900; margin-top: 2px;">
+          ${titleText}
+        </div>
+      </div>
+    ` : `
+      <div class="border-t pt-1" style="margin-top: 4px;">
+        <div style="display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: 8px; font-weight: 900;">
+          ${titleText}
+        </div>
+      </div>
+    `}
+  </div>
+
+  <div class="py-1 border-b-dashed" style="font-size: 8.5px; font-weight: 700;">
+    <div class="flex-between">
+      <span>Bill: ${order.billNumber}</span>
+      <span>Date: ${order.createdAt}</span>
+    </div>
+    <div class="flex-between" style="margin-top: 2px;">
+      <span>Cashier: ${order.cashierName}</span>
+      <span>Mode: ${order.paymentMethod}</span>
+    </div>
+    ${order.customerPhone ? `
+      <div style="margin-top: 2px;">
+        Customer: ${order.customerName || 'Walk-in'} (${order.customerPhone})
+      </div>
+    ` : ''}
+  </div>
+
+  <div class="py-1 border-b">
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align: left;">ITEM</th>
+          <th style="text-align: center; width: 40px;">QTY</th>
+          <th style="text-align: right; width: 44px;">RATE</th>
+          <th style="text-align: right; width: 50px;">AMT</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="py-1 border-b-dashed" style="font-size: 9.5px; font-weight: 700;">
+    <div class="flex-between">
+      <span>Subtotal ${hasGst ? '(Incl. GST)' : ''}:</span>
+      <span class="bolder">Rs. ${order.subtotal.toFixed(2)}</span>
+    </div>
+    ${order.discountAmount > 0 ? `
+      <div class="flex-between black" style="margin-top: 2px;">
+        <span>Discount Savings:</span>
+        <span>-Rs. ${order.discountAmount.toFixed(2)}</span>
+      </div>
+    ` : ''}
+    ${hasGst ? `
+      <div class="border-t-dotted pt-1" style="margin-top: 3px; font-size: 8.5px;">
+        <div class="flex-between bolder">
+          <span>Included 5% GST:</span>
+          <span>Rs. ${order.gstAmount.toFixed(2)}</span>
+        </div>
+        <div class="flex-between" style="padding-left: 8px;">
+          <span>• CGST (2.5%):</span>
+          <span>Rs. ${cgstAmount.toFixed(2)}</span>
+        </div>
+        <div class="flex-between" style="padding-left: 8px;">
+          <span>• SGST (2.5%):</span>
+          <span>Rs. ${sgstAmount.toFixed(2)}</span>
+        </div>
+        <div class="flex-between" style="padding-left: 8px;">
+          <span>• Taxable Value:</span>
+          <span>Rs. ${taxableValue.toFixed(2)}</span>
+        </div>
+      </div>
+    ` : ''}
+    <div class="flex-between border-t-2 pt-1" style="margin-top: 4px; font-size: 11px; font-weight: 900;">
+      <span>GRAND TOTAL:</span>
+      <span style="font-size: 13px;">Rs. ${order.grandTotal.toFixed(2)}</span>
+    </div>
+  </div>
+
+  <div class="py-1 border-b-dashed" style="font-size: 8.5px; font-weight: 700;">
+    ${isRevised && order.originalGrandTotal !== undefined ? `
+      <div class="flex-between">
+        <span>Original Total:</span>
+        <span class="bolder">Rs. ${order.originalGrandTotal.toFixed(2)}</span>
+      </div>
+      <div class="flex-between">
+        <span>Previously Paid (${order.originalPaymentMethod || order.paymentMethod}):</span>
+        <span class="bolder">Rs. ${order.originalGrandTotal.toFixed(2)}</span>
+      </div>
+      ${order.additionalAmountPaid !== undefined ? `
+        <div class="flex-between black">
+          <span>Additional Paid (${order.additionalPaymentMethod || order.paymentMethod}):</span>
+          <span>Rs. ${order.additionalAmountPaid.toFixed(2)}</span>
+        </div>
+      ` : ''}
+      <div class="flex-between border-t-dotted pt-1 black">
+        <span>Total Settled:</span>
+        <span>Rs. ${order.grandTotal.toFixed(2)}</span>
+      </div>
+    ` : `
+      <div class="flex-between">
+        <span>Paid via ${order.paymentMethod}:</span>
+        <span class="bolder">Rs. ${order.amountReceived.toFixed(2)}</span>
+      </div>
+      ${order.changeGiven > 0 ? `
+        <div class="flex-between black">
+          <span>Change Returned:</span>
+          <span>Rs. ${order.changeGiven.toFixed(2)}</span>
+        </div>
+      ` : ''}
+    `}
+  </div>
+
+  <div class="text-center pt-1" style="font-size: 8px; font-weight: 900;">
+    <p>*** Thank You For Visiting AL-BURHANI! ***</p>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * Opens a dedicated clean print window and triggers the browser print dialog.
+ * Completely isolates the thermal receipt from parent DOM styling, transforms, and overflow rules.
+ */
+export function printReceiptViaWindow(order: OrderBill): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const html = generateReceiptHtml(order);
+    const printWin = window.open('', '_blank', 'width=420,height=650');
+    if (!printWin) return false;
+    printWin.document.open();
+    printWin.document.write(html);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      try {
+        printWin.print();
+      } catch (err) {
+        console.error('printWin.print failed:', err);
+      }
+    }, 250);
+    return true;
+  } catch (err) {
+    console.error('printReceiptViaWindow failed:', err);
+    return false;
+  }
 }
 
 export interface ShareResult {
@@ -344,16 +645,22 @@ export async function shareReceiptPdfWhatsApp(
   const billType = hasGst ? 'Tax Invoice' : 'Retail Sale Memo';
   const messageText = `*AL-BURHANI Sweets & Dry Items*\nDear ${custName}, thank you for your purchase!\n${billType}: *${order.billNumber}*\nDate: ${order.createdAt}\nTotal Amount: *Rs. ${order.grandTotal.toFixed(2)}*\n\nYour receipt PDF is attached. We look forward to serving you again!`;
 
-  // 3. When a recipient phone number is available, ALWAYS route directly to WhatsApp with that phone number
+  // 3. When a recipient phone number is available, ALWAYS download PDF locally first, then open WhatsApp Web
   if (normalizedPhone) {
     try {
+      // Step A: Trigger local download first
       downloadReceiptPdf(order);
+
+      // Step B: Build WhatsApp Web URL
       const waUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(messageText)}`;
+
+      // Step C: Open WhatsApp Web
       if (typeof window !== 'undefined') {
         window.open(waUrl, '_blank', 'noopener,noreferrer');
       }
+
       const displayPhone = formatPhoneNumberForDisplay(normalizedPhone);
-      const msg = `Receipt PDF downloaded. Opening WhatsApp for ${displayPhone} — attach the downloaded receipt to send.`;
+      const msg = `Receipt PDF downloaded (Receipt-${order.billNumber}.pdf). In WhatsApp Web, attach the downloaded receipt to send to ${displayPhone}.`;
       feedbackCallback?.(msg, 'success');
       return { method: 'whatsapp-fallback', success: true, message: msg };
     } catch (err: any) {
@@ -392,14 +699,14 @@ export async function shareReceiptPdfWhatsApp(
     }
   }
 
-  // 5. Fallback without recipient: download PDF and open general WhatsApp
+  // 5. Fallback without recipient: download PDF locally and open general WhatsApp
   try {
     downloadReceiptPdf(order);
     const waUrl = `https://wa.me/?text=${encodeURIComponent(messageText)}`;
     if (typeof window !== 'undefined') {
       window.open(waUrl, '_blank', 'noopener,noreferrer');
     }
-    const msg = 'Receipt PDF downloaded. In WhatsApp, attach the downloaded receipt file to send to the customer.';
+    const msg = `Receipt PDF downloaded (Receipt-${order.billNumber}.pdf). In WhatsApp Web, attach the downloaded receipt file.`;
     feedbackCallback?.(msg, 'info');
     return { method: 'whatsapp-fallback', success: true, message: msg };
   } catch (err: any) {

@@ -75,7 +75,9 @@ const VALID_TABS: ActiveTab[] = [
 function getTabFromHash(): ActiveTab {
   if (typeof window === 'undefined') return 'pos';
   const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
-  if (raw === 'customer-bills') return 'no-bill-sales';
+  if (raw === 'dashboard' || raw === 'overview') return 'overview';
+  if (raw === 'customer-bills' || raw === 'bills' || raw === 'counter-sales') return 'no-bill-sales';
+  if (raw === 'stock') return 'inventory';
   return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'pos';
 }
 
@@ -441,8 +443,9 @@ export function App() {
     if (!isAuthenticated) return;
     if (typeof window !== 'undefined') {
       const currentHash = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
-      if (currentHash !== activeTab) {
-        window.location.hash = activeTab === 'overview' ? '' : `#${activeTab}`;
+      const targetHash = activeTab === 'overview' ? 'dashboard' : activeTab;
+      if (currentHash !== targetHash && !(activeTab === 'overview' && (currentHash === 'overview' || currentHash === 'dashboard'))) {
+        window.location.hash = `#${targetHash}`;
       }
     }
   }, [activeTab, isAuthenticated]);
@@ -458,7 +461,7 @@ export function App() {
         return;
       }
       const targetTab = getTabFromHash();
-      setActiveTab(targetTab);
+      setActiveTab((prev) => (prev !== targetTab ? targetTab : prev));
     };
 
     window.addEventListener('hashchange', handleHashChange);

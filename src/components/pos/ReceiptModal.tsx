@@ -12,7 +12,11 @@ import {
   Edit2,
   Phone
 } from 'lucide-react';
-import { shareReceiptPdfWhatsApp, downloadReceiptPdf } from '../../lib/pdfReceipt';
+import { 
+  shareReceiptPdfWhatsApp, 
+  downloadReceiptPdf,
+  printReceiptViaWindow 
+} from '../../lib/pdfReceipt';
 import { 
   isValidWhatsAppPhoneNumber, 
   updateOrderCustomerPhone 
@@ -37,6 +41,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [showPrintHelp, setShowPrintHelp] = useState(false);
 
   // Sync state whenever prop order changes (e.g. reopening different bill or revised order)
   useEffect(() => {
@@ -73,7 +78,32 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   if (!order) return null;
 
   const handlePrint = () => {
-    window.print();
+    setShowPrintHelp(true);
+    // Ensure receipt content renders completely before triggering the print dialog
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        try {
+          window.print();
+        } catch (err) {
+          console.error('window.print() error:', err);
+          setFeedback({
+            message: 'Browser print dialog could not open directly. Press Ctrl+P or use "Clean Print Window".',
+            type: 'info',
+          });
+        }
+      }, 60);
+    });
+  };
+
+  const handlePrintViaCleanWindow = () => {
+    if (!order) return;
+    const ok = printReceiptViaWindow(order);
+    if (!ok) {
+      setFeedback({
+        message: 'Could not open clean print window. Please press Ctrl+P to print.',
+        type: 'info',
+      });
+    }
   };
 
   const handleShareWhatsApp = async () => {

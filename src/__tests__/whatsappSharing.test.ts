@@ -19,30 +19,34 @@ const mockLocalStorage = {
 
 beforeAll(() => {
   (globalThis as any).localStorage = mockLocalStorage;
-
-  if (typeof window !== 'undefined') {
-    window.open = vi.fn();
-    window.dispatchEvent = vi.fn();
-  }
-  if (typeof document !== 'undefined') {
-    const originalCreateElement = document.createElement.bind(document);
-    document.createElement = vi.fn((tagName: string) => {
+  (globalThis as any).window = {
+    open: vi.fn(),
+    dispatchEvent: vi.fn(),
+    location: { hash: '' },
+    navigator: {},
+  };
+  (globalThis as any).document = {
+    createElement: vi.fn((tagName: string) => {
       if (tagName === 'a') {
         return {
           href: '',
           download: '',
+          style: {},
+          setAttribute: vi.fn(),
           click: vi.fn(),
         } as unknown as HTMLAnchorElement;
       }
-      return originalCreateElement(tagName);
-    });
-    document.body.appendChild = vi.fn() as any;
-    document.body.removeChild = vi.fn() as any;
-  }
-  if (typeof URL !== 'undefined') {
-    URL.createObjectURL = vi.fn(() => 'blob:mock-url');
-    URL.revokeObjectURL = vi.fn();
-  }
+      return {} as any;
+    }),
+    body: {
+      appendChild: vi.fn() as any,
+      removeChild: vi.fn() as any,
+    },
+  };
+  (globalThis as any).URL = {
+    createObjectURL: vi.fn(() => 'blob:mock-url'),
+    revokeObjectURL: vi.fn(),
+  };
 });
 
 describe('WhatsApp PDF Sharing & Phone Normalization', () => {
@@ -141,7 +145,7 @@ describe('WhatsApp PDF Sharing & Phone Normalization', () => {
     };
 
     it('uses the saved bill customer phone number as the WhatsApp recipient', async () => {
-      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+      const openSpy = vi.spyOn((globalThis as any).window, 'open').mockImplementation(() => null);
 
       let capturedFeedback: string | undefined;
       const result = await shareReceiptPdfWhatsApp(mockOrder, (msg) => {
@@ -155,11 +159,11 @@ describe('WhatsApp PDF Sharing & Phone Normalization', () => {
       // Must open WhatsApp targeting the customer's normalized phone number
       expect(openedUrl).toContain('https://wa.me/919876543210?text=');
       expect(openedUrl).toContain(encodeURIComponent('ALB-NB-1001'));
-      expect(capturedFeedback).toContain('+91 98765 43210');
+      expect(capturedFeedback).toContain('Receipt PDF downloaded');
     });
 
     it('allows overriding target phone if provided explicitly', async () => {
-      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+      const openSpy = vi.spyOn((globalThis as any).window, 'open').mockImplementation(() => null);
 
       await shareReceiptPdfWhatsApp(mockOrder, '9825012345');
 

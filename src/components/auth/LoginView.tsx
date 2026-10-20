@@ -248,8 +248,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setUserId(e.target.value)}
                   placeholder="admin"
                   autoComplete="username"
-                  style={{ paddingLeft: '42px', paddingRight: '16px', backgroundColor: '#181D26' }}
-                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
+                  data-login-input="true"
+                  style={{ paddingLeft: '42px', paddingRight: '16px', backgroundColor: '#181D26', color: '#FFFFFF' }}
+                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] !text-white !bg-[#181D26] text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
                 />
               </div>
             </div>
@@ -269,8 +270,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="admin123"
                   autoComplete="current-password"
-                  style={{ paddingLeft: '42px', paddingRight: '42px', backgroundColor: '#181D26' }}
-                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] text-white text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
+                  data-login-input="true"
+                  style={{ paddingLeft: '42px', paddingRight: '42px', backgroundColor: '#181D26', color: '#FFFFFF' }}
+                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] !text-white !bg-[#181D26] text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
                 />
                 <button
                   type="button"
