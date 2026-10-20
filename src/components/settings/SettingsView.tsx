@@ -5,12 +5,18 @@ import {
   Barcode, 
   Volume2, 
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Printer
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { playBeep } from '../../lib/utils';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 import { saveSettingToTurso, fetchSettingsFromTurso } from '../../lib/turso';
+import { 
+  getSavedThermalRollWidth, 
+  saveThermalRollWidth, 
+  ThermalRollWidth 
+} from '../../lib/pdfReceipt';
 
 interface SettingsViewProps {
   currentUser: UserProfile;
@@ -87,8 +93,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } catch {}
     return '+91 98765 43210';
   });
+  const [thermalWidth, setThermalWidth] = useState<ThermalRollWidth>(getSavedThermalRollWidth);
   const [isSavedMessage, setIsSavedMessage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveRollWidth = (width: ThermalRollWidth) => {
+    setThermalWidth(width);
+    saveThermalRollWidth(width);
+  };
 
   useEffect(() => {
     fetchSettingsFromTurso('store_profile').then((res) => {
@@ -322,6 +334,75 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Safe Diagnostic Mode
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* 3. Thermal Receipt Roll Printer Configuration */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm space-y-4 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+              <Printer className="w-4 h-4 text-[#B8860B]" />
+              <span>Thermal Receipt Roll Printer Setup</span>
+            </h3>
+            <span className="text-[10px] text-emerald-600 font-mono font-bold">
+              Continuous Roll
+            </span>
+          </div>
+
+          <p className="text-xs text-stone-500 leading-relaxed">
+            Select your thermal printer's installed paper roll width. Eliminates A4 paper waste, removes trailing white space, and drives continuous roll paper cutting directly from receipt content height.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => handleSaveRollWidth('80mm')}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                thermalWidth === '80mm'
+                  ? 'border-[#C99A18] bg-amber-50/60 ring-2 ring-[#C99A18]/30 shadow-xs'
+                  : 'border-[#E8DEC8] bg-[#FAF8F5] hover:bg-stone-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-stone-900 text-xs">80 mm Thermal Roll (Standard Retail)</span>
+                {thermalWidth === '80mm' && (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                )}
+              </div>
+              <p className="text-[11px] text-stone-600 leading-snug">
+                Recommended for Epson TM-T82, TVS, NGX, and 3-inch POS printers. Printable width 72mm.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSaveRollWidth('58mm')}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                thermalWidth === '58mm'
+                  ? 'border-[#C99A18] bg-amber-50/60 ring-2 ring-[#C99A18]/30 shadow-xs'
+                  : 'border-[#E8DEC8] bg-[#FAF8F5] hover:bg-stone-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-stone-900 text-xs">58 mm Thermal Roll (Compact Mobile)</span>
+                {thermalWidth === '58mm' && (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                )}
+              </div>
+              <p className="text-[11px] text-stone-600 leading-snug">
+                For 2-inch mobile Bluetooth / USB thermal receipt printers. Printable width 48mm.
+              </p>
+            </button>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] text-[11px] text-stone-600 space-y-1">
+            <span className="text-[#A67D0C] font-bold block">Epson Thermal Printer Configuration Guidance:</span>
+            <p>
+              • <strong>Paper Size Setting:</strong> In Chrome Print Preview &gt; <em>More settings</em>, select Paper size <strong>80 x 297 mm</strong> or <strong>Roll Paper 80 x Receipt</strong> with <strong>Margins: None</strong>.
+            </p>
+            <p>
+              • <strong>Automatic Cut Behavior:</strong> In Windows Printer Properties &gt; Document Settings &gt; Paper Source, set to <em>"Receipt [Feed, Cut]"</em> or <em>"Cut at end of document"</em>.
+            </p>
           </div>
         </div>
 

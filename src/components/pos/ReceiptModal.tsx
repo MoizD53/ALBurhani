@@ -16,7 +16,10 @@ import {
   shareReceiptPdfWhatsApp, 
   downloadReceiptPdf,
   printReceiptViaWindow,
-  printReceiptViaIframe
+  printReceiptViaIframe,
+  getSavedThermalRollWidth,
+  saveThermalRollWidth,
+  ThermalRollWidth
 } from '../../lib/pdfReceipt';
 import { 
   isValidWhatsAppPhoneNumber, 
@@ -43,6 +46,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const [phoneInput, setPhoneInput] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [showPrintHelp, setShowPrintHelp] = useState(false);
+  const [rollWidth, setRollWidth] = useState<ThermalRollWidth>(getSavedThermalRollWidth);
 
   // Sync state whenever prop order changes (e.g. reopening different bill or revised order)
   useEffect(() => {
@@ -105,7 +109,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     // Isolate thermal receipt via dedicated iframe: guarantees 100% visible preview,
     // suppresses Chrome headers/footers, and cuts at exact continuous roll content length.
     try {
-      const ok = printReceiptViaIframe(order);
+      const ok = printReceiptViaIframe(order, rollWidth);
       if (!ok) {
         window.print();
       }
@@ -117,7 +121,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
   const handlePrintViaCleanWindow = () => {
     if (!order) return;
-    const ok = printReceiptViaWindow(order);
+    const ok = printReceiptViaWindow(order, rollWidth);
     if (!ok) {
       setFeedback({
         message: 'Could not open clean print window. Please press Ctrl+P to print.',
@@ -209,16 +213,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none print:p-0 print:bg-white print:static print:block"
       onClick={onClose}
     >
-      {/* Thermal Print Driver Settings: 80mm continuous roll, content-driven height, zero trailing feed */}
+      {/* Thermal Print Driver Settings: Configurable roll width, content-driven height, zero trailing feed */}
       <style>{`
         @media print {
           @page {
-            size: 80mm auto;
+            size: ${rollWidth === '58mm' ? '58mm' : '80mm'} auto;
             margin: 0mm !important;
           }
           html, body {
-            width: 80mm !important;
-            max-width: 80mm !important;
+            width: ${rollWidth === '58mm' ? '58mm' : '80mm'} !important;
+            max-width: ${rollWidth === '58mm' ? '58mm' : '80mm'} !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #FFFFFF !important;
@@ -236,10 +240,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             position: fixed !important;
             left: 0 !important;
             top: 0 !important;
-            width: 72mm !important;
-            max-width: 72mm !important;
+            width: ${rollWidth === '58mm' ? '48mm' : '72mm'} !important;
+            max-width: ${rollWidth === '58mm' ? '48mm' : '72mm'} !important;
             margin: 0 !important;
-            padding: 1.5mm 2.5mm !important;
+            padding: 1.5mm ${rollWidth === '58mm' ? '1.5mm' : '2.5mm'} !important;
             border: none !important;
             box-shadow: none !important;
             z-index: 99999999 !important;
@@ -378,6 +382,43 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
         )}
 
+        {/* Quick Thermal Roll Size Selector (80mm vs 58mm) */}
+        <div className="flex items-center justify-between px-4 py-2 bg-[#FAF8F5] border-b border-[#E8DEC8] text-xs shrink-0 print:hidden">
+          <span className="text-[11px] font-bold text-stone-600">Roll Paper:</span>
+          <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-[#E8DEC8] shadow-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setRollWidth('80mm');
+                saveThermalRollWidth('80mm');
+              }}
+              className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                rollWidth === '80mm'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+              title="Standard 80mm (3-inch) retail thermal roll (Epson TM-T82)"
+            >
+              80mm Roll (3")
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRollWidth('58mm');
+                saveThermalRollWidth('58mm');
+              }}
+              className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                rollWidth === '58mm'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+              title="Compact 58mm (2-inch) mobile / Bluetooth thermal roll"
+            >
+              58mm Roll (2")
+            </button>
+          </div>
+        </div>
+
         {/* Receipt Content Body */}
         <div className="p-3 sm:p-4 overflow-y-auto flex-1 flex flex-col items-center custom-scrollbar bg-stone-50 print:p-0 print:bg-white print:overflow-visible">
           
@@ -389,7 +430,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               WebkitPrintColorAdjust: 'exact',
               printColorAdjust: 'exact',
             }}
-            className="w-[72mm] max-w-[72mm] bg-white text-black p-2.5 rounded shadow-md border border-stone-300 font-sans text-[9px] leading-tight select-none print:w-[72mm] print:max-w-[72mm] print:border-none print:shadow-none print:p-1 print:m-0"
+            className={`${
+              rollWidth === '58mm' 
+                ? 'w-[48mm] max-w-[48mm] text-[8px] p-2 print:w-[48mm] print:max-w-[48mm]' 
+                : 'w-[72mm] max-w-[72mm] text-[9px] p-2.5 print:w-[72mm] print:max-w-[72mm]'
+            } bg-white text-black rounded shadow-md border border-stone-300 font-sans leading-tight select-none print:border-none print:shadow-none print:p-1 print:m-0`}
           >
 
             {/* Store Header Branding (Clean bold text, NO LOGO image, Correct spelling AL-BURHANI) */}

@@ -1215,7 +1215,24 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                                   Math.max(1, parseInt(e.target.value) || 1)
                                 )
                               }
-                              className="w-10 text-center text-xs font-mono font-bold bg-transparent text-white focus:outline-none"
+                              style={{
+                                width: '42px',
+                                height: '26px',
+                                padding: '0',
+                                margin: '0',
+                                backgroundColor: '#FFFFFF',
+                                color: '#1C1917',
+                                border: '1.5px solid #C99A18',
+                                borderRadius: '6px',
+                                textAlign: 'center',
+                                fontWeight: '800',
+                                fontSize: '13px',
+                                lineHeight: '26px',
+                                WebkitAppearance: 'none',
+                                MozAppearance: 'textfield',
+                              }}
+                              className="no-spinner font-mono shadow-inner focus:outline-none focus:ring-1 focus:ring-[#C99A18]"
+                              title="Number of sticker copies"
                             />
 
                             <button

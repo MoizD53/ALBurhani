@@ -110,6 +110,16 @@
     color: #A8A29E;
   }
 
+  /* Compact numeric stepper inputs: suppress browser spinner buttons & ensure visible content */
+  .no-spinner::-webkit-outer-spin-button,
+  .no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spinner {
+    -moz-appearance: textfield;
+  }
+
   /* High-contrast styling for Login View inputs, preventing dark text or autofill inversion */
   input[data-login-input],
   .login-input {

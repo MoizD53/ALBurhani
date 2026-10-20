@@ -177,7 +177,7 @@ describe('AL-BHURANI POS — Billing Modes, GST-Inclusive Calculations & Receipt
       expect(pdfText.includes('Rs. 60.00')).toBe(true);
     });
 
-    it('generates thermal receipt HTML with empty title and zero margins to eliminate browser headers/footers', () => {
+    it('generates thermal receipt HTML with empty title, zero margins, and content-driven roll sizes for 80mm and 58mm', () => {
       const cart = [buildCartItem(sampleProduct60, 2)];
       const calc = calculateOrderTotals(cart, 0, 'NO_BILL');
 
@@ -197,21 +197,26 @@ describe('AL-BHURANI POS — Billing Modes, GST-Inclusive Calculations & Receipt
         createdAt: '20 Oct 2026, 11:30 AM',
       };
 
-      const html = generateReceiptHtml(testOrder);
+      // 1. Test 80mm configuration
+      const html80 = generateReceiptHtml(testOrder, '80mm');
+      expect(html80).toContain('<title></title>');
+      expect(html80).toContain('size: 80mm');
+      expect(html80).toContain('margin: 0 !important');
+      expect(html80).toContain('width: 72mm');
+      expect(html80).toContain('AL-BURHANI');
+      expect(html80).toContain('ALB-NB-9901');
+      expect(html80).toContain('Standard Sweet Box');
+      expect(html80).toContain('Rs. 120.00');
 
-      // Verify title is empty so Chrome does not print the page title in the top header
-      expect(html).toContain('<title></title>');
-
-      // Verify zero-margin 80mm continuous roll layout suppressing browser header and footer boxes
-      expect(html).toContain('size: 80mm auto');
-      expect(html).toContain('margin: 0 !important');
-      expect(html).toContain('width: 72mm');
-
-      // Verify essential receipt content is rendered
-      expect(html).toContain('AL-BURHANI');
-      expect(html).toContain('ALB-NB-9901');
-      expect(html).toContain('Standard Sweet Box');
-      expect(html).toContain('Rs. 120.00');
+      // 2. Test 58mm configuration
+      const html58 = generateReceiptHtml(testOrder, '58mm');
+      expect(html58).toContain('<title></title>');
+      expect(html58).toContain('size: 58mm');
+      expect(html58).toContain('margin: 0 !important');
+      expect(html58).toContain('width: 48mm');
+      expect(html58).toContain('AL-BURHANI');
+      expect(html58).toContain('ALB-NB-9901');
+      expect(html58).toContain('Standard Sweet Box');
     });
 
     it('creates an isolated print iframe to print without SPA clipping or blank preview', () => {

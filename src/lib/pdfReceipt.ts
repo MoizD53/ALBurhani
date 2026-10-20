@@ -382,11 +382,43 @@ export function downloadReceiptPdf(order: OrderBill): boolean {
   }
 }
 
+export type ThermalRollWidth = '80mm' | '58mm';
+
+export function getSavedThermalRollWidth(): ThermalRollWidth {
+  if (typeof window === 'undefined') return '80mm';
+  try {
+    const saved = localStorage.getItem('albhurani_thermal_roll_width');
+    if (saved === '58mm' || saved === '80mm') return saved;
+  } catch {}
+  return '80mm';
+}
+
+export function saveThermalRollWidth(width: ThermalRollWidth): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('albhurani_thermal_roll_width', width);
+  } catch {}
+}
+
 /**
- * Generates self-contained print-ready HTML for the 80mm thermal receipt.
- * Used for isolated print preview window and fallback Save as PDF.
+ * Generates self-contained print-ready HTML for 80mm or 58mm thermal receipt rolls.
+ * Enforces valid CSS Paged Media @page dimensions and zero margins to eliminate A4 paper waste.
  */
-export function generateReceiptHtml(order: OrderBill): string {
+export function generateReceiptHtml(
+  order: OrderBill,
+  rollWidth: ThermalRollWidth = getSavedThermalRollWidth()
+): string {
+  const is58mm = rollWidth === '58mm';
+  const rollWidthMm = is58mm ? 58 : 80;
+  const printableWidthMm = is58mm ? 48 : 72;
+  const paddingH = is58mm ? '1.5mm' : '2.5mm';
+  const fontSizeBase = is58mm ? '8px' : '9px';
+  const storeTitleSize = is58mm ? '14px' : '16px';
+  const grandTotalSize = is58mm ? '11px' : '13px';
+  const qtyColWidth = is58mm ? '30px' : '38px';
+  const rateColWidth = is58mm ? '36px' : '44px';
+  const amtColWidth = is58mm ? '44px' : '52px';
+
   const hasGst = order.gstAmount > 0;
   const isRevised = Boolean(order.isRevised);
   const taxableValue = Math.max(0, order.subtotal - order.discountAmount - order.gstAmount);
@@ -397,19 +429,36 @@ export function generateReceiptHtml(order: OrderBill): string {
     ? (isRevised ? 'REVISED TAX INVOICE (GST INCL)' : 'TAX INVOICE (GST INCLUSIVE)')
     : (isRevised ? 'REVISED RETAIL SALE MEMO (0% GST)' : 'RETAIL SALE MEMO (0% GST)');
 
+  // Estimate content height in mm for static CSS @page size (valid <length>{2} syntax prevents Chrome A4 fallback)
+  const itemRowCount = order.items.length;
+  const estimatedHeightMm = Math.max(
+    65,
+    Math.ceil(
+      (is58mm ? 70 : 65) +
+      itemRowCount * (is58mm ? 11 : 8.5) +
+      (hasGst ? 16 : 0) +
+      (order.customerPhone ? 5 : 0) +
+      (order.discountAmount > 0 ? 5 : 0)
+    )
+  );
+
   const itemsHtml = order.items.map((it) => `
     <tr>
-      <td style="padding: 2px 0; text-align: left; vertical-align: top;">
-        <div style="font-weight: 800; line-height: 1.1;">${it.product.name}</div>
-        <div style="font-size: 8px; font-family: monospace;">[${it.product.sku}]</div>
+      <td style="padding: 2px 0; text-align: left; vertical-align: top; word-break: break-word;">
+        <div style="font-weight: 800; font-size: ${is58mm ? '8px' : '9px'}; line-height: 1.15;">${it.product.name}</div>
+        ${it.product.barcode ? `
+          <div style="font-size: ${is58mm ? '6.5px' : '7.5px'}; font-family: monospace; color: #222; font-weight: 700;">[${it.product.barcode}]</div>
+        ` : (it.product.sku ? `
+          <div style="font-size: ${is58mm ? '6.5px' : '7.5px'}; font-family: monospace; color: #222; font-weight: 700;">[${it.product.sku}]</div>
+        ` : '')}
       </td>
-      <td style="padding: 2px 4px; text-align: center; vertical-align: top; white-space: nowrap; font-weight: 800;">
+      <td style="padding: 2px 2px; text-align: center; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '7.5px' : '8.5px'}; width: ${qtyColWidth};">
         ${it.formattedQuantity || it.quantity}
       </td>
-      <td style="padding: 2px 4px; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800;">
+      <td style="padding: 2px 2px; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '7.5px' : '8.5px'}; width: ${rateColWidth};">
         Rs. ${it.unitPrice}
       </td>
-      <td style="padding: 2px 0; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800;">
+      <td style="padding: 2px 0; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '8px' : '9px'}; width: ${amtColWidth};">
         Rs. ${it.lineTotal.toFixed(2)}
       </td>
     </tr>
@@ -422,7 +471,7 @@ export function generateReceiptHtml(order: OrderBill): string {
   <title></title>
   <style>
     @page {
-      size: 80mm auto;
+      size: ${rollWidthMm}mm ${estimatedHeightMm}mm;
       margin: 0 !important;
     }
     *, *::before, *::after {
@@ -432,14 +481,14 @@ export function generateReceiptHtml(order: OrderBill): string {
     }
     html, body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      font-size: 9px;
+      font-size: ${fontSizeBase};
       line-height: 1.25;
       color: #000;
       background: #fff;
-      width: 72mm;
-      max-width: 72mm;
+      width: ${printableWidthMm}mm;
+      max-width: ${printableWidthMm}mm;
       margin: 0 auto;
-      padding: 1.5mm 2.5mm;
+      padding: 1.5mm ${paddingH};
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -457,40 +506,42 @@ export function generateReceiptHtml(order: OrderBill): string {
     .py-1 { padding-top: 4px; padding-bottom: 4px; }
     .pt-1 { padding-top: 4px; }
     .pb-1 { padding-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    table { width: 100%; border-collapse: collapse; font-size: ${fontSizeBase}; }
     th { font-weight: 900; border-bottom: 2px solid #000; padding-bottom: 2px; }
     @media print {
       html, body {
-        width: 72mm !important;
+        width: ${printableWidthMm}mm !important;
+        max-width: ${printableWidthMm}mm !important;
         margin: 0 auto !important;
-        padding: 1.5mm 2.5mm !important;
+        padding: 1.5mm ${paddingH} !important;
       }
     }
   </style>
 </head>
 <body>
+  <div id="receipt-container" style="width: 100%; max-width: ${printableWidthMm}mm; margin: 0 auto;">
   <div class="text-center pb-1 border-b-2">
-    <h1 style="font-size: 16px; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase;">AL-BURHANI</h1>
-    <div style="font-size: 8.5px; font-weight: 800; text-transform: uppercase; margin-top: 2px;">Sweets & Dry Items Franchise</div>
-    <div style="font-size: 8px; font-weight: 600;">Godi Road, Near Clock Tower</div>
-    <div style="font-size: 8px; font-weight: 600;">Ph: +91 98765 43210</div>
+    <h1 style="font-size: ${storeTitleSize}; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase;">AL-BURHANI</h1>
+    <div style="font-size: ${is58mm ? '7.5px' : '8.5px'}; font-weight: 800; text-transform: uppercase; margin-top: 2px;">Sweets & Dry Items Franchise</div>
+    <div style="font-size: ${is58mm ? '7px' : '8px'}; font-weight: 600;">Godi Road, Near Clock Tower</div>
+    <div style="font-size: ${is58mm ? '7px' : '8px'}; font-weight: 600;">Ph: +91 98765 43210</div>
     ${hasGst ? `
       <div class="border-t pt-1" style="margin-top: 4px;">
-        <div style="font-size: 8.5px; font-weight: 900;">GSTIN: 24AABCA1234F1Z5</div>
-        <div style="display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: 8px; font-weight: 900; margin-top: 2px;">
+        <div style="font-size: ${is58mm ? '7.5px' : '8.5px'}; font-weight: 900;">GSTIN: 24AABCA1234F1Z5</div>
+        <div style="display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: ${is58mm ? '7px' : '8px'}; font-weight: 900; margin-top: 2px;">
           ${titleText}
         </div>
       </div>
     ` : `
       <div class="border-t pt-1" style="margin-top: 4px;">
-        <div style="display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: 8px; font-weight: 900;">
+        <div style="display: inline-block; border: 1px solid #000; padding: 1px 4px; font-size: ${is58mm ? '7px' : '8px'}; font-weight: 900;">
           ${titleText}
         </div>
       </div>
     `}
   </div>
 
-  <div class="py-1 border-b-dashed" style="font-size: 8.5px; font-weight: 700;">
+  <div class="py-1 border-b-dashed" style="font-size: ${is58mm ? '7.5px' : '8.5px'}; font-weight: 700;">
     <div class="flex-between">
       <span>Bill: ${order.billNumber}</span>
       <span>Date: ${order.createdAt}</span>
@@ -511,9 +562,9 @@ export function generateReceiptHtml(order: OrderBill): string {
       <thead>
         <tr>
           <th style="text-align: left;">ITEM</th>
-          <th style="text-align: center; width: 40px;">QTY</th>
-          <th style="text-align: right; width: 44px;">RATE</th>
-          <th style="text-align: right; width: 50px;">AMT</th>
+          <th style="text-align: center; width: ${qtyColWidth};">QTY</th>
+          <th style="text-align: right; width: ${rateColWidth};">RATE</th>
+          <th style="text-align: right; width: ${amtColWidth};">AMT</th>
         </tr>
       </thead>
       <tbody>
@@ -522,7 +573,7 @@ export function generateReceiptHtml(order: OrderBill): string {
     </table>
   </div>
 
-  <div class="py-1 border-b-dashed" style="font-size: 9.5px; font-weight: 700;">
+  <div class="py-1 border-b-dashed" style="font-size: ${is58mm ? '8.5px' : '9.5px'}; font-weight: 700;">
     <div class="flex-between">
       <span>Subtotal ${hasGst ? '(Incl. GST)' : ''}:</span>
       <span class="bolder">Rs. ${order.subtotal.toFixed(2)}</span>
@@ -534,7 +585,7 @@ export function generateReceiptHtml(order: OrderBill): string {
       </div>
     ` : ''}
     ${hasGst ? `
-      <div class="border-t-dotted pt-1" style="margin-top: 3px; font-size: 8.5px;">
+      <div class="border-t-dotted pt-1" style="margin-top: 3px; font-size: ${is58mm ? '7.5px' : '8.5px'};">
         <div class="flex-between bolder">
           <span>Included 5% GST:</span>
           <span>Rs. ${order.gstAmount.toFixed(2)}</span>
@@ -553,13 +604,13 @@ export function generateReceiptHtml(order: OrderBill): string {
         </div>
       </div>
     ` : ''}
-    <div class="flex-between border-t-2 pt-1" style="margin-top: 4px; font-size: 11px; font-weight: 900;">
+    <div class="flex-between border-t-2 pt-1" style="margin-top: 4px; font-size: ${is58mm ? '10px' : '11px'}; font-weight: 900;">
       <span>GRAND TOTAL:</span>
-      <span style="font-size: 13px;">Rs. ${order.grandTotal.toFixed(2)}</span>
+      <span style="font-size: ${grandTotalSize};">Rs. ${order.grandTotal.toFixed(2)}</span>
     </div>
   </div>
 
-  <div class="py-1 border-b-dashed" style="font-size: 8.5px; font-weight: 700;">
+  <div class="py-1 border-b-dashed" style="font-size: ${is58mm ? '7.5px' : '8.5px'}; font-weight: 700;">
     ${isRevised && order.originalGrandTotal !== undefined ? `
       <div class="flex-between">
         <span>Original Total:</span>
@@ -593,8 +644,9 @@ export function generateReceiptHtml(order: OrderBill): string {
     `}
   </div>
 
-  <div class="text-center pt-1" style="font-size: 8px; font-weight: 900;">
+  <div class="text-center pt-1" style="font-size: ${is58mm ? '7px' : '8px'}; font-weight: 900;">
     <p>*** Thank You For Visiting AL-BURHANI! ***</p>
+  </div>
   </div>
 </body>
 </html>`;
@@ -604,10 +656,13 @@ export function generateReceiptHtml(order: OrderBill): string {
  * Opens a dedicated clean print window and triggers the browser print dialog.
  * Completely isolates the thermal receipt from parent DOM styling, transforms, and overflow rules.
  */
-export function printReceiptViaWindow(order: OrderBill): boolean {
+export function printReceiptViaWindow(
+  order: OrderBill,
+  rollWidth: ThermalRollWidth = getSavedThermalRollWidth()
+): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    const html = generateReceiptHtml(order);
+    const html = generateReceiptHtml(order, rollWidth);
     const printWin = window.open('', '_blank', 'width=420,height=650');
     if (!printWin) return false;
     printWin.document.open();
@@ -630,10 +685,13 @@ export function printReceiptViaWindow(order: OrderBill): boolean {
 
 /**
  * Prints the thermal receipt via a dedicated hidden iframe.
- * Completely isolates the receipt from SPA DOM hierarchy, avoids blank preview pages,
- * prevents pop-up blocking, and eliminates browser headers/footers with zero-margin 80mm continuous roll.
+ * Dynamically computes the exact receipt content height and sets @page size to
+ * eliminate A4 page waste, prevent trailing feeds, and cut immediately after content.
  */
-export function printReceiptViaIframe(order: OrderBill): boolean {
+export function printReceiptViaIframe(
+  order: OrderBill,
+  rollWidth: ThermalRollWidth = getSavedThermalRollWidth()
+): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false;
   try {
     const iframeId = '__thermal_receipt_print_frame__';
@@ -660,22 +718,39 @@ export function printReceiptViaIframe(order: OrderBill): boolean {
     const doc = iframe.contentWindow?.document || iframe.contentDocument;
     if (!doc || !iframe.contentWindow) return false;
 
-    const html = generateReceiptHtml(order);
+    const html = generateReceiptHtml(order, rollWidth);
     doc.open();
     doc.write(html);
     doc.close();
 
     const triggerPrint = () => {
       try {
-        iframe?.contentWindow?.focus();
-        iframe?.contentWindow?.print();
+        const win = iframe?.contentWindow;
+        const d = win?.document;
+        if (d) {
+          const receiptEl = d.getElementById('receipt-container') || d.body;
+          const contentHeightPx = receiptEl.scrollHeight || receiptEl.getBoundingClientRect().height;
+          // In CSS: 96px = 25.4mm
+          const contentHeightMm = Math.ceil((contentHeightPx * 25.4) / 96) + 3; // +3mm bottom margin before cut
+          const rollMm = rollWidth === '58mm' ? 58 : 80;
+
+          let styleEl = d.getElementById('__dynamic_page_size__');
+          if (!styleEl) {
+            styleEl = d.createElement('style');
+            styleEl.id = '__dynamic_page_size__';
+            d.head.appendChild(styleEl);
+          }
+          styleEl.innerHTML = `@page { size: ${rollMm}mm ${contentHeightMm}mm !important; margin: 0 !important; }`;
+        }
+        win?.focus();
+        win?.print();
       } catch (printErr) {
         console.error('iframe print failed, falling back to window.print():', printErr);
         window.print();
       }
     };
 
-    // 150ms timeout ensures the browser parses CSS, calculates 80mm layout and renders before opening print dialog
+    // 150ms timeout ensures fonts and layout are computed before opening print dialog
     setTimeout(triggerPrint, 150);
     return true;
   } catch (err) {
