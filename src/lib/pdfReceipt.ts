@@ -631,11 +631,38 @@ export interface ShareResult {
 }
 
 /**
+ * Formats a clean, professional WhatsApp receipt summary message.
+ * Completely free of misleading claims about attachments.
+ */
+export function formatWhatsAppReceiptMessage(order: OrderBill): string {
+  const custName = order.customerName ? order.customerName.trim() : 'Valued Customer';
+  const hasGst = order.gstAmount > 0;
+  const billType = hasGst ? 'Tax Invoice' : 'Retail Sale Memo';
+  const itemCount = order.items.length;
+  const itemsText = `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`;
+
+  return [
+    `🧾 *AL-BURHANI SWEETS & DRY ITEMS*`,
+    `Godi Road, Near Clock Tower · Ph: +91 98765 43210`,
+    `────────────────────────`,
+    `Dear *${custName}*,`,
+    `Thank you for shopping with us!`,
+    ``,
+    `*${billType}:* ${order.billNumber}`,
+    `*Date:* ${order.createdAt}`,
+    `*Items:* ${itemsText}`,
+    `*Payment Mode:* ${order.paymentMethod}`,
+    `*Grand Total:* *Rs. ${order.grandTotal.toFixed(2)}*`,
+    `────────────────────────`,
+    `_We look forward to serving you again!_`,
+  ].join('\n');
+}
+
+/**
  * Shares or prepares WhatsApp sharing for the receipt PDF:
  * 1. Generates and strictly validates the real receipt PDF before initiating any share.
  * 2. On Android/mobile: uses native Web Share Level 2 to attach the actual PDF file directly to WhatsApp.
- * 3. On desktop / WhatsApp Web: downloads the PDF locally and opens WhatsApp with clean transaction details
- *    (WITHOUT claiming "Your receipt PDF is attached" when only text was sent).
+ * 3. On desktop / WhatsApp Web: downloads the PDF locally and opens WhatsApp with professional transaction details.
  */
 export async function shareReceiptPdfWhatsApp(
   order: OrderBill,
@@ -670,10 +697,8 @@ export async function shareReceiptPdfWhatsApp(
   const rawPhone = explicitPhone !== undefined ? explicitPhone : order.customerPhone;
   const normalizedPhone = normalizeWhatsAppPhoneNumber(rawPhone);
 
-  // 3. Prepare receipt metadata
-  const custName = order.customerName ? order.customerName.trim() : 'Valued Customer';
-  const hasGst = order.gstAmount > 0;
-  const billType = hasGst ? 'Tax Invoice' : 'Retail Sale Memo';
+  // 3. Prepare professional message text
+  const messageText = formatWhatsAppReceiptMessage(order);
 
   // 4. On Android / Mobile: Use Web Share API Level 2 if supported (actually attaches the PDF file via share sheet)
   if (
@@ -685,10 +710,9 @@ export async function shareReceiptPdfWhatsApp(
     try {
       const file = new File([blob], filename, { type: 'application/pdf' });
       if (navigator.canShare({ files: [file] })) {
-        const nativeShareText = `*AL-BURHANI Sweets & Dry Items*\nDear ${custName}, thank you for your purchase!\n${billType}: *${order.billNumber}*\nDate: ${order.createdAt}\nTotal Amount: *Rs. ${order.grandTotal.toFixed(2)}*\n\nYour receipt PDF is attached below. We look forward to serving you again!`;
         await navigator.share({
           title: `Receipt ${order.billNumber}`,
-          text: nativeShareText,
+          text: messageText,
           files: [file],
         });
         const msg = 'Receipt PDF shared successfully with file attached.';
@@ -704,17 +728,14 @@ export async function shareReceiptPdfWhatsApp(
   }
 
   // 5. Desktop / WhatsApp Web: WhatsApp Web URL schemes ONLY support prefilled text, NOT binary file payloads.
-  // REMOVE the false/misleading "Your receipt PDF is attached" claim when sending via WhatsApp Web!
-  const desktopMessageText = `*AL-BURHANI Sweets & Dry Items*\nDear ${custName}, thank you for your purchase!\n${billType}: *${order.billNumber}*\nDate: ${order.createdAt}\nCashier: ${order.cashierName}\nTotal Amount: *Rs. ${order.grandTotal.toFixed(2)}*\n\nWe look forward to serving you again!`;
-
   try {
     // Step A: Trigger local download first so user has the PDF ready to attach in WhatsApp Web
     downloadReceiptPdf(order);
 
     // Step B: Build targeted WhatsApp Web URL
     const waUrl = normalizedPhone
-      ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(desktopMessageText)}`
-      : `https://wa.me/?text=${encodeURIComponent(desktopMessageText)}`;
+      ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(messageText)}`
+      : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
 
     // Step C: Open WhatsApp Web
     if (typeof window !== 'undefined') {
@@ -723,8 +744,8 @@ export async function shareReceiptPdfWhatsApp(
 
     const displayPhone = normalizedPhone ? formatPhoneNumberForDisplay(normalizedPhone) : '';
     const msg = normalizedPhone
-      ? `Receipt PDF downloaded (${filename}). In WhatsApp Web, click 📎 to attach the downloaded PDF to ${displayPhone}.`
-      : `Receipt PDF downloaded (${filename}). In WhatsApp Web, click 📎 to attach the downloaded PDF file.`;
+      ? `Receipt PDF downloaded (${filename}). In WhatsApp, click 📎 to attach the downloaded PDF to ${displayPhone}.`
+      : `Receipt PDF downloaded (${filename}). In WhatsApp, click 📎 to attach the downloaded PDF file.`;
     
     feedbackCallback?.(msg, 'success');
     return { method: 'whatsapp-fallback', success: true, message: msg };
