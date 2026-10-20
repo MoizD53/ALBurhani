@@ -84,19 +84,25 @@ export const Header: React.FC<HeaderProps> = ({
   });
 
   return (
-    <header className="h-14 px-4 sm:px-6 bg-white border-b border-[#E8DEC8] flex items-center justify-between z-20 shrink-0 gap-3 select-none shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+    <header 
+      style={{
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        height: 'calc(3.5rem + env(safe-area-inset-top, 0px))',
+      }}
+      className="px-3 sm:px-6 bg-white border-b border-[#E8DEC8] flex items-center justify-between z-20 shrink-0 gap-2 sm:gap-3 select-none shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
+    >
       
       {/* Left: Collapse Button & Current Section */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         
-        {/* Mobile Hamburger */}
+        {/* Mobile Hamburger (44px touch target) */}
         <button
           onClick={onToggleMobileMenu}
-          className="lg:hidden p-2 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] hover:border-[#D4AF37] text-stone-600 hover:text-stone-900 transition-colors shrink-0"
+          className="lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] hover:border-[#D4AF37] text-stone-600 hover:text-stone-900 transition-colors shrink-0"
           title="Open Navigation"
           aria-label="Open Navigation"
         >
-          <Menu className="w-4 h-4" />
+          <Menu className="w-5 h-5" />
         </button>
 
         {/* Desktop Collapse Button */}

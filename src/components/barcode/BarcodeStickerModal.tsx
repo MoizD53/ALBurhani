@@ -40,7 +40,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none print:p-0 print:bg-white print:static print:block">
-      <div className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:bg-white print:overflow-visible">
+      <div className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl max-h-[92vh] max-h-[92dvh] flex flex-col overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:bg-white print:overflow-visible">
         
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#E8DEC8] bg-[#FAF8F5] shrink-0 print:hidden">

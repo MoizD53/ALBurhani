@@ -189,7 +189,93 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         onPaymentFilterChange={setPaymentFilter}
       />
 
-      {/* 5. Audit Log Table */}
+      {/* 5. Mobile No-Bill Sales Cards (< 640px) */}
+      <div className="sm:hidden space-y-2.5">
+        {filteredSales.length === 0 ? (
+          <BillingEmptyState
+            icon={ReceiptText}
+            title="No Internal Counter Sales Found"
+            description={
+              hasActiveFilters
+                ? 'No transactions match your current search query or payment mode filter.'
+                : 'No counter sales (0% GST) have been recorded yet.'
+            }
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={() => {
+              setSearch('');
+              setPaymentFilter('ALL');
+            }}
+          />
+        ) : (
+          filteredSales.map((s) => (
+            <div 
+              key={s.id}
+              className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm space-y-2.5"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="font-mono font-bold text-[#B8860B] text-sm block">{s.billNumber}</span>
+                  <span className="text-stone-400 font-mono text-[11px]">{s.createdAt}</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  s.paymentMethod === 'UPI'
+                    ? 'bg-purple-500/15 text-purple-700 border border-purple-500/25'
+                    : s.paymentMethod === 'CARD'
+                    ? 'bg-blue-500/15 text-blue-700 border border-blue-500/25'
+                    : 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/25'
+                }`}>
+                  {s.paymentMethod}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs py-1.5 border-t border-b border-[#F5F2EB]">
+                <div>
+                  <span className="text-stone-500 font-medium">Cashier: {s.cashierName}</span>
+                  <span className="text-[10px] text-stone-400 block font-mono">{s.items.length} items sold</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono font-bold text-stone-900 text-base block">Rs. {s.grandTotal.toFixed(2)}</span>
+                  <span className="text-[10px] text-stone-400 font-mono">0% GST Memo</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-0.5">
+                {onModifyOrder && (
+                  <button
+                    type="button"
+                    onClick={() => onModifyOrder(s)}
+                    className="flex-1 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center justify-center gap-1.5 min-h-[44px]"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Modify</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderForReceipt(s)}
+                  className="flex-1 py-2 px-3 rounded-xl bg-[#FAF8F5] hover:bg-[#F5F2EB] text-stone-700 border border-[#E8DEC8] text-xs font-bold flex items-center justify-center gap-1.5 min-h-[44px]"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#B8860B]" />
+                  <span>Receipt</span>
+                </button>
+                {onDeleteOrder && (
+                  <button
+                    type="button"
+                    onClick={() => setPendingDeleteSale(s)}
+                    className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                    aria-label={`Delete entry ${s.billNumber}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* 6. Audit Log Table (Tablets & Desktop) */}
+      <div className="hidden sm:block">
       <BillingTableContainer>
         <table className="w-full text-left text-xs">
           <thead>
@@ -372,6 +458,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
           </tbody>
         </table>
       </BillingTableContainer>
+      </div>
 
       {/* 6. Receipt Modal */}
       {selectedOrderForReceipt && (

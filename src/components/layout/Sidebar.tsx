@@ -201,7 +201,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Badges */}
                 {showLabels && item.alertCount !== undefined && item.alertCount > 0 && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 border border-amber-500/25 flex items-center gap-0.5 shrink-0 ml-1">
+                  <span 
+                    title={`${item.alertCount} products at or below minimum stock alert`}
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 border border-amber-500/25 flex items-center gap-0.5 shrink-0 ml-1"
+                  >
                     <AlertTriangle className="w-2.5 h-2.5" />
                     {item.alertCount}
                   </span>
@@ -297,9 +300,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer (iPhone safe-area & dynamic viewport aware) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[240px] h-screen py-4 px-3 bg-white border-r border-[#E8DEC8] flex flex-col transform transition-transform duration-200 ease-in-out lg:hidden shadow-2xl ${
+        style={{
+          paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+        }}
+        className={`fixed inset-y-0 left-0 z-50 w-[260px] h-screen h-[100dvh] px-3 bg-white border-r border-[#E8DEC8] flex flex-col transform transition-transform duration-200 ease-in-out lg:hidden shadow-2xl ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

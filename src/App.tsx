@@ -38,6 +38,7 @@ import {
 import { migrateCatalogPrices, MIGRATION_STORAGE_KEY } from './lib/catalogMigration';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
+import { BottomNav } from './components/layout/BottomNav';
 import { PosBillingView } from './components/pos/PosBillingView';
 import { CustomerBillsView } from './components/bills/CustomerBillsView';
 import { NoBillSalesView } from './components/bills/NoBillSalesView';
@@ -850,7 +851,7 @@ export function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#FAF8F5] text-[#1C1917] antialiased">
+    <div className="flex h-screen h-[100dvh] w-screen overflow-hidden bg-[#FAF8F5] text-[#1C1917] antialiased">
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -865,7 +866,7 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden bg-[#FAF8F5]">
+      <div className="flex-1 flex flex-col h-screen h-[100dvh] min-w-0 overflow-hidden bg-[#FAF8F5]">
         
         {/* Top Header */}
         <Header 
@@ -880,7 +881,9 @@ export function App() {
 
         {/* View Body */}
         <main className={`flex-1 min-h-0 min-w-0 ${
-          activeTab === 'pos' ? 'overflow-hidden' : 'overflow-y-auto p-3 sm:p-5 lg:p-6 custom-scrollbar'
+          activeTab === 'pos' 
+            ? 'overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0' 
+            : 'overflow-y-auto p-3 sm:p-5 lg:p-6 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:pb-6 custom-scrollbar'
         }`}>
           {activeTab === 'overview' && (
             <OverviewDashboardView
@@ -967,6 +970,14 @@ export function App() {
             />
           )}
         </main>
+
+        {/* Mobile Bottom Navigation Bar (Phones & Small Screens) */}
+        <BottomNav
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          lowStockCount={lowStockCount}
+        />
       </div>
 
       {/* Barcode Thermal Sticker Modal */}

@@ -225,8 +225,47 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
       </div>
 
-      {/* Expenses Table */}
-      <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
+      {/* Mobile Expenses Cards (< 640px) */}
+      <div className="sm:hidden space-y-2.5">
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-stone-400 bg-white rounded-2xl border border-[#E8DEC8]">
+            No operating expenses recorded matching your search.
+          </div>
+        ) : (
+          filtered.map((e) => (
+            <div 
+              key={e.id}
+              className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm space-y-2"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-stone-900 text-sm leading-tight">{e.title}</h4>
+                  <span className="text-[10px] text-stone-400 font-mono">{e.date}</span>
+                </div>
+                <span className="font-mono font-bold text-rose-600 text-base">
+                  Rs. {e.amount.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs pt-1.5 border-t border-[#F5F2EB]">
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8] font-semibold">
+                  {e.category}
+                </span>
+                <span className="text-stone-500 text-[11px]">
+                  Paid via: <strong className="text-stone-700">{e.paymentMode}</strong>
+                </span>
+              </div>
+              {e.paidTo && (
+                <div className="text-[11px] text-stone-500 pt-0.5">
+                  Paid to: <span className="text-stone-800 font-medium">{e.paidTo}</span>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Expenses Table (Tablets & Desktop) */}
+      <div className="hidden sm:block rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead>
@@ -283,7 +322,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       {/* Record Expense Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none">
-          <div className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden flex flex-col">
+          <div className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] overflow-y-auto">
             
             {/* Header */}
             <div className="px-5 py-3.5 border-b border-[#E8DEC8] bg-[#FAF8F5] flex items-center justify-between shrink-0">

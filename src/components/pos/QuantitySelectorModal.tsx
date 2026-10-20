@@ -139,7 +139,7 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
       tabIndex={-1}
     >
       <div 
-        className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden flex flex-col"
+        className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}

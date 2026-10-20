@@ -41,13 +41,34 @@
     --gold-border: rgba(201, 154, 24, 0.24);
   }
 
+  html {
+    height: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background-color: #FAF8F5;
     color: #1C1917;
     min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
     font-variant-numeric: tabular-nums lining-nums;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent iOS Safari 100vh jumping & keyboard auto-zoom */
+  @media screen and (max-width: 768px) {
+    :where(input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    input[type="search"],
+    select,
+    textarea) {
+      font-size: 16px !important;
+    }
   }
 
   ::-webkit-scrollbar {
@@ -409,5 +430,22 @@
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(201, 154, 24, 0.45);
+  }
+
+  /* iOS Safe Area & Touch Utilities */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .min-h-touch {
+    min-height: 44px;
   }
 }

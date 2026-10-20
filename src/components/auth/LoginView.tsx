@@ -191,7 +191,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <div className="pointer-events-none absolute bottom-[14%] right-[8%] w-1 h-1 rounded-full bg-[#FFF0AA] opacity-40 shadow-[0_0_8px_#D4AF37]" aria-hidden="true" />
 
       {/* Centered Login Card */}
-      <div className="w-full max-w-[460px] sm:max-w-[490px] my-auto relative z-10 animate-fade-in">
+      <div className="w-full max-w-[460px] sm:max-w-[490px] my-auto relative z-10 animate-fade-in max-h-[96dvh] overflow-y-auto custom-scrollbar">
         <div 
           className="rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 relative overflow-hidden border border-[#D4AF37]/25 shadow-[0_22px_75px_-15px_rgba(0,0,0,0.95),0_0_45px_-10px_rgba(212,175,55,0.14)] backdrop-blur-2xl"
           style={{

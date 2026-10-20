@@ -130,7 +130,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
 
       <div 
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-sm rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:overflow-visible print:bg-white"
+        className="relative w-full max-w-sm rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden max-h-[92vh] max-h-[92dvh] flex flex-col print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:overflow-visible print:bg-white"
       >
         
         {/* Header (Hidden when printing) */}
@@ -379,7 +379,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
             <button
               type="button"
               onClick={handlePrint}
-              className="py-2.5 px-3 rounded-xl btn-gold text-xs font-bold flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+              className="py-2.5 px-3 rounded-xl btn-gold text-xs font-bold flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all min-h-[44px]"
               title="Print thermal receipt (80mm)"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -390,7 +390,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
               type="button"
               onClick={handleShareWhatsApp}
               disabled={isSharing}
-              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all disabled:opacity-50 min-h-[44px]"
               title="Share PDF receipt on WhatsApp"
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -403,7 +403,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 px-3 rounded-xl bg-white hover:bg-stone-50 border border-[#E8DEC8] hover:border-[#C99A18] text-stone-700 hover:text-stone-900 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
+              className="flex-1 py-2 px-3 rounded-xl bg-white hover:bg-stone-50 border border-[#E8DEC8] hover:border-[#C99A18] text-stone-700 hover:text-stone-900 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm min-h-[44px]"
               title="Sale is already saved safely. Start next order immediately."
             >
               <span>No Receipt — Next Customer</span>
@@ -413,7 +413,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
             <button
               type="button"
               onClick={handleDownload}
-              className="p-2 rounded-xl bg-white hover:bg-stone-100 border border-[#E8DEC8] text-stone-600 hover:text-stone-900 transition-colors shadow-sm"
+              className="p-2 rounded-xl bg-white hover:bg-stone-100 border border-[#E8DEC8] text-stone-600 hover:text-stone-900 transition-colors shadow-sm min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Download Receipt PDF"
             >
               <Download className="w-3.5 h-3.5" />

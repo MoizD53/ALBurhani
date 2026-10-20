@@ -774,7 +774,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
             <div className="lg:hidden shrink-0 pt-1">
               <button
                 onClick={() => setMobileTab('cart')}
-                className="w-full btn-gold py-2.5 px-4 rounded-xl flex items-center justify-between shadow-lg"
+                className="w-full btn-gold py-2.5 px-4 rounded-xl flex items-center justify-between shadow-lg min-h-[48px]"
               >
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-4 h-4" />
@@ -1118,7 +1118,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
             <button
               onClick={handleCheckout}
               disabled={cart.length === 0 || isCheckingOut}
-              className="w-full py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-gold shadow-md"
+              className="w-full py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-gold shadow-md min-h-[48px]"
             >
               <Receipt className="w-4 h-4" />
               <span>
