@@ -5,7 +5,7 @@ import {
   formatPhoneNumberForDisplay,
   updateOrderCustomerPhone,
 } from '../lib/phoneUtils';
-import { shareReceiptPdfWhatsApp } from '../lib/pdfReceipt';
+import { shareReceiptPdfWhatsApp, validateReceiptPdfBytes, generateReceiptPdfBytes } from '../lib/pdfReceipt';
 import { buildCartItem } from '../lib/pricing';
 import { OrderBill, Product } from '../types';
 
@@ -159,7 +159,22 @@ describe('WhatsApp PDF Sharing & Phone Normalization', () => {
       // Must open WhatsApp targeting the customer's normalized phone number
       expect(openedUrl).toContain('https://wa.me/919876543210?text=');
       expect(openedUrl).toContain(encodeURIComponent('ALB-NB-1001'));
+      // Must not falsely claim the PDF is attached when sent via desktop WhatsApp Web URL
+      expect(openedUrl).not.toContain(encodeURIComponent('Your receipt PDF is attached'));
       expect(capturedFeedback).toContain('Receipt PDF downloaded');
+      expect(capturedFeedback).toContain('attach');
+    });
+
+    it('generates and validates readable, non-empty receipt PDF bytes', () => {
+      const bytes = generateReceiptPdfBytes(mockOrder);
+      const validation = validateReceiptPdfBytes(bytes);
+
+      expect(validation.valid).toBe(true);
+      expect(bytes.byteLength).toBeGreaterThan(200);
+
+      // Verify corrupt bytes fail validation
+      const invalidBytes = new Uint8Array([1, 2, 3]);
+      expect(validateReceiptPdfBytes(invalidBytes).valid).toBe(false);
     });
 
     it('allows overriding target phone if provided explicitly', async () => {
