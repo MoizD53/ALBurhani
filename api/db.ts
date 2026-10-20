@@ -449,6 +449,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Batch Save / Backfill Products (Ensures cloud database has all 305 master products)
+    if (action === 'batch-save-products') {
+      const products = Array.isArray(payload) ? payload : payload?.products;
+      if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ success: false, error: 'Invalid products array' });
+      }
+
+      try {
+        let inserted = 0;
+        for (const p of products) {
+          if (!p || !p.id || !p.barcode || !p.name) continue;
+          await client.execute({
+            sql: `INSERT INTO products (
+              id, sku, barcode, name, category, unit, price_basis, net_weight, cost_price, selling_price,
+              stock, min_stock, shelf_life_days, batch_no, mfg_date, expiry_date, price_tiers, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+              sku=excluded.sku,
+              barcode=excluded.barcode,
+              name=excluded.name,
+              category=excluded.category,
+              unit=excluded.unit,
+              price_basis=excluded.price_basis,
+              net_weight=excluded.net_weight,
+              cost_price=excluded.cost_price,
+              selling_price=excluded.selling_price,
+              min_stock=excluded.min_stock,
+              shelf_life_days=excluded.shelf_life_days,
+              batch_no=excluded.batch_no,
+              mfg_date=excluded.mfg_date,
+              expiry_date=excluded.expiry_date,
+              price_tiers=excluded.price_tiers,
+              updated_at=CURRENT_TIMESTAMP;`,
+            args: [
+              p.id,
+              p.sku || p.barcode,
+              p.barcode,
+              p.name,
+              p.category,
+              p.unit,
+              p.priceBasis || 'Rs./pc',
+              p.netWeight || '',
+              Number(p.costPrice) || 0,
+              Number(p.sellingPrice) || 0,
+              Number(p.stock) || 0,
+              Number(p.minStock) || 0,
+              Number(p.shelfLifeDays) || 90,
+              p.batchNo || '',
+              p.mfgDate || '',
+              p.expiryDate || '',
+              p.priceTiers ? JSON.stringify(p.priceTiers) : null,
+            ],
+          });
+          inserted++;
+        }
+        return res.status(200).json({ success: true, count: inserted });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
     // Save Order (Single Sale or Modification)
     if (action === 'save-order') {
       const o = payload;

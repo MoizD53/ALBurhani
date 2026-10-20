@@ -122,11 +122,11 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 font-serif">
-            <TrendingDown className="w-5 h-5 text-red-400" />
+          <h2 className="text-lg sm:text-xl font-bold text-stone-900 flex items-center gap-2">
+            <TrendingDown className="w-5 h-5 text-rose-600" />
             <span>Store Operating Expenses</span>
           </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-stone-500 mt-0.5">
             Track daily raw materials, packaging, staff wages, and utilities
           </p>
         </div>
@@ -134,15 +134,15 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCSV}
-            className="px-3 py-2 text-xs font-semibold rounded-xl bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] border border-white/[0.08] flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-white text-stone-700 hover:text-stone-900 hover:bg-[#FAF8F5] border border-[#E8DEC8] flex items-center gap-1.5 transition-colors shadow-sm"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-stone-500" />
             <span>Export CSV</span>
           </button>
 
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="btn-gold text-xs py-2 px-3.5 flex items-center gap-1.5 font-bold"
+            className="btn-gold text-xs py-2 px-3.5 flex items-center gap-1.5 font-bold shadow-md"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Record Expense</span>
@@ -152,30 +152,30 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <div className="p-3.5 rounded-2xl bg-[#121214] border border-white/[0.08]">
-          <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Total Expenses</span>
-          <span className="text-xl font-bold font-mono text-white mt-1 block">
-            ₹{totalExpenseAmount.toLocaleString('en-IN')}
+        <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Total Expenses</span>
+          <span className="text-xl font-bold font-mono text-stone-900 mt-1 block">
+            Rs. {totalExpenseAmount.toLocaleString('en-IN')}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-[#121214] border border-white/[0.08]">
-          <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Total Entries</span>
-          <span className="text-xl font-bold font-mono text-white mt-1 block">
+        <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Total Entries</span>
+          <span className="text-xl font-bold font-mono text-stone-900 mt-1 block">
             {expenses.length} Records
           </span>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-[#121214] border border-white/[0.08]">
-          <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Largest Category</span>
-          <span className="text-xs font-bold text-[#D4AF37] mt-1 block truncate">
+        <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Largest Category</span>
+          <span className="text-xs font-bold text-[#A67D0C] mt-1 block truncate">
             {Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-[#121214] border border-white/[0.08]">
-          <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Payment Mode</span>
-          <span className="text-xs font-bold text-emerald-400 mt-1 block">
+        <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Payment Mode</span>
+          <span className="text-xs font-bold text-emerald-600 mt-1 block">
             UPI & Cash Reconciled
           </span>
         </div>
@@ -190,10 +190,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
             <button
               key={c}
               onClick={() => setCategoryFilter(c)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
                 categoryFilter === c
-                  ? 'bg-[#D4AF37] text-black shadow-sm'
-                  : 'bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06]'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                  : 'bg-white text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5] border border-[#E8DEC8]'
               }`}
             >
               {c.split(' ')[0]}
@@ -203,20 +203,20 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
         {/* Search Input */}
         <div className="relative w-full sm:w-64 shrink-0">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by title, vendor..."
             style={{ paddingLeft: '34px' }}
-            className="w-full pr-8 py-1.5 text-xs bg-black/40 border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/50 focus:outline-none"
+            className="w-full pr-8 py-2 text-xs bg-white border border-[#E8DEC8] rounded-xl text-stone-900 placeholder:text-stone-400 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -226,11 +226,11 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       </div>
 
       {/* Expenses Table */}
-      <div className="rounded-2xl bg-[#121214] border border-white/[0.08] overflow-hidden shadow-xl">
+      <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-white/[0.08] bg-[#161619] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+              <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
                 <th className="py-3 px-4">Title / Expense Item</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4">Date & Time</th>
@@ -239,38 +239,38 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 <th className="py-3 px-4 text-right">Amount (INR)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#E8DEC8]">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-zinc-500">
+                  <td colSpan={6} className="py-12 text-center text-stone-400">
                     No operating expenses recorded matching your search.
                   </td>
                 </tr>
               ) : (
                 filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3 px-4 font-semibold text-white">
+                  <tr key={e.id} className="hover:bg-[#FAF8F5] transition-colors">
+                    <td className="py-3 px-4 font-bold text-stone-900">
                       <div>{e.title}</div>
-                      {e.notes && <div className="text-[10px] text-zinc-500">{e.notes}</div>}
+                      {e.notes && <div className="text-[10px] text-stone-400">{e.notes}</div>}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/5 text-zinc-300 border border-white/10">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8] font-semibold">
                         {e.category}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-zinc-300 font-mono text-[11px] whitespace-nowrap">
+                    <td className="py-3 px-4 text-stone-600 font-mono text-[11px] whitespace-nowrap">
                       {e.date}
                     </td>
-                    <td className="py-3 px-4 text-zinc-400 whitespace-nowrap">
+                    <td className="py-3 px-4 text-stone-600 whitespace-nowrap">
                       {e.paidTo || 'Direct Store Outflow'}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/[0.04] text-zinc-300 border border-white/[0.08]">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8]">
                         {e.paymentMode}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-red-400 text-sm whitespace-nowrap">
-                      ₹{e.amount.toLocaleString('en-IN')}
+                    <td className="py-3 px-4 text-right font-mono font-bold text-rose-600 text-sm whitespace-nowrap">
+                      Rs. {e.amount.toLocaleString('en-IN')}
                     </td>
                   </tr>
                 ))
@@ -282,27 +282,27 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
       {/* Record Expense Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
-          <div className="relative w-full max-w-md rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none">
+          <div className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden flex flex-col">
             
             {/* Header */}
-            <div className="px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] flex items-center justify-between shrink-0">
-              <h3 className="font-bold text-white text-sm sm:text-base font-serif flex items-center gap-2">
-                <TrendingDown className="w-4 h-4 text-red-400" />
+            <div className="px-5 py-3.5 border-b border-[#E8DEC8] bg-[#FAF8F5] flex items-center justify-between shrink-0">
+              <h3 className="font-bold text-stone-900 text-sm sm:text-base flex items-center gap-2">
+                <TrendingDown className="w-4 h-4 text-rose-600" />
                 <span>Record Store Expense</span>
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
+                className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-200/60 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleCreateExpense} className="p-5 space-y-3.5">
+            <form onSubmit={handleCreateExpense} className="p-5 space-y-3.5 bg-white">
               <div>
-                <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                <label className="text-xs text-stone-700 font-bold block mb-1">
                   Expense Description *
                 </label>
                 <input
@@ -311,19 +311,19 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                   placeholder="e.g. Amul Pure Ghee 15kg Tin, Box Packaging Batch"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
+                  className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                  <label className="text-xs text-stone-700 font-bold block mb-1">
                     Category
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full text-xs py-2 px-2.5 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
+                    className="w-full text-xs py-2 px-2.5 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                   >
                     {EXPENSE_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
@@ -334,8 +334,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
-                    Amount (₹ INR) *
+                  <label className="text-xs text-stone-700 font-bold block mb-1">
+                    Amount (Rs. INR) *
                   </label>
                   <input
                     type="number"
@@ -343,20 +343,20 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                     required
                     value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))}
-                    className="w-full text-xs py-2 px-3 bg-black/50 border border-[#D4AF37]/40 rounded-xl text-white font-mono font-bold focus:border-[#D4AF37] focus:outline-none"
+                    className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 font-mono font-bold focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                  <label className="text-xs text-stone-700 font-bold block mb-1">
                     Payment Method
                   </label>
                   <select
                     value={paymentMode}
                     onChange={(e) => setPaymentMode(e.target.value as any)}
-                    className="w-full text-xs py-2 px-2.5 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
+                    className="w-full text-xs py-2 px-2.5 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                   >
                     <option value="UPI">UPI / QR Code</option>
                     <option value="Cash">Cash in Drawer</option>
@@ -366,7 +366,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                  <label className="text-xs text-stone-700 font-bold block mb-1">
                     Paid To / Vendor
                   </label>
                   <input
@@ -374,13 +374,13 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                     placeholder="e.g. Amul Dairy, Xprinter Supplier"
                     value={paidTo}
                     onChange={(e) => setPaidTo(e.target.value)}
-                    className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
+                    className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs text-zinc-300 font-semibold block mb-1">
+                <label className="text-xs text-stone-700 font-bold block mb-1">
                   Optional Notes / Invoice #
                 </label>
                 <input
@@ -388,22 +388,22 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                   placeholder="e.g. Bill # 4821, Paid by Counter 01"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full text-xs py-2 px-3 bg-black/50 border border-white/[0.1] rounded-xl text-white focus:border-[#D4AF37]/60 focus:outline-none"
+                  className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                 />
               </div>
 
               {/* Actions */}
-              <div className="pt-3 border-t border-white/[0.08] flex items-center justify-end gap-2.5">
+              <div className="pt-3 border-t border-[#E8DEC8] flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-xs text-zinc-400 hover:text-white transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn-gold text-xs py-2 px-4 font-bold"
+                  className="btn-gold text-xs py-2 px-4 font-bold shadow-md"
                 >
                   Save Expense Entry
                 </button>

@@ -84,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
   });
 
   return (
-    <header className="h-14 px-4 sm:px-6 bg-[#080808] border-b border-white/[0.06] flex items-center justify-between z-20 shrink-0 gap-3 select-none">
+    <header className="h-14 px-4 sm:px-6 bg-white border-b border-[#E8DEC8] flex items-center justify-between z-20 shrink-0 gap-3 select-none shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
       
       {/* Left: Collapse Button & Current Section */}
       <div className="flex items-center gap-3 min-w-0">
@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Mobile Hamburger */}
         <button
           onClick={onToggleMobileMenu}
-          className="lg:hidden p-2 rounded-xl bg-[#121214] border border-white/[0.08] text-zinc-400 hover:text-white transition-colors shrink-0"
+          className="lg:hidden p-2 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] hover:border-[#D4AF37] text-stone-600 hover:text-stone-900 transition-colors shrink-0"
           title="Open Navigation"
           aria-label="Open Navigation"
         >
@@ -103,13 +103,13 @@ export const Header: React.FC<HeaderProps> = ({
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="hidden lg:flex p-2 rounded-xl bg-[#121214] border border-white/[0.08] hover:border-[#D4AF37]/35 text-zinc-400 hover:text-white transition-colors shrink-0"
+            className="hidden lg:flex p-2 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] hover:border-[#D4AF37] text-stone-600 hover:text-stone-900 transition-colors shrink-0"
             title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
             {isSidebarCollapsed ? (
-              <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
+              <ChevronRight className="w-4 h-4 text-[#C99A18]" />
             ) : (
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 text-stone-600" />
             )}
           </button>
         )}
@@ -117,11 +117,11 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Current Tab Info (for tabs other than overview) */}
         {activeTab !== 'overview' && (
           <div className="hidden sm:flex items-center gap-2 min-w-0">
-            <h2 className="text-sm font-bold text-white tracking-tight truncate">
+            <h2 className="text-sm font-bold text-[#1C1917] tracking-tight truncate font-serif">
               {currentTabInfo.title}
             </h2>
-            <span className="text-zinc-600">·</span>
-            <span className="text-xs text-zinc-400 truncate">
+            <span className="text-[#C99A18]">·</span>
+            <span className="text-xs text-stone-500 truncate">
               {currentTabInfo.subtitle}
             </span>
           </div>
@@ -133,31 +133,31 @@ export const Header: React.FC<HeaderProps> = ({
         
         {/* Real-Time Turso Cloud Sync Pill */}
         <div 
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#121214] border border-white/[0.08] text-[11px] font-medium shadow-sm transition-all"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] text-[11px] font-medium shadow-sm transition-all"
           title={`Turso Cloud Sync Status: ${syncStatus.toUpperCase()}`}
         >
           {syncStatus === 'connected' && (
             <>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-              <span className="text-zinc-300 hidden md:inline">Cloud Synced</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)] animate-pulse" />
+              <span className="text-stone-700 font-semibold hidden md:inline">Cloud Synced</span>
             </>
           )}
           {syncStatus === 'syncing' && (
             <>
-              <RefreshCw className="w-3 h-3 text-[#D4AF37] animate-spin" />
-              <span className="text-[#D4AF37] hidden md:inline">Syncing...</span>
+              <RefreshCw className="w-3 h-3 text-[#C99A18] animate-spin" />
+              <span className="text-[#C99A18] font-semibold hidden md:inline">Syncing...</span>
             </>
           )}
           {syncStatus === 'offline' && (
             <>
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              <span className="text-amber-300 hidden md:inline">Offline Cache</span>
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-amber-800 font-semibold hidden md:inline">Offline Cache</span>
             </>
           )}
           {syncStatus === 'error' && (
             <>
-              <span className="w-2 h-2 rounded-full bg-rose-400" />
-              <span className="text-rose-300 hidden md:inline">Sync Warning</span>
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              <span className="text-rose-700 font-semibold hidden md:inline">Sync Warning</span>
             </>
           )}
         </div>
@@ -169,34 +169,34 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative" ref={notifMenuRef}>
           <button
             onClick={() => setIsNotificationsOpen((prev) => !prev)}
-            className="p-2 rounded-xl bg-[#121214] border border-white/[0.08] hover:border-[#D4AF37]/35 text-zinc-400 hover:text-white transition-colors relative"
+            className="p-2 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] hover:border-[#D4AF37] text-stone-600 hover:text-stone-900 transition-colors relative"
             title="System Notifications"
           >
             <Bell className="w-4 h-4" />
-            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.8)]" />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#C99A18] shadow-[0_0_6px_rgba(201,154,24,0.6)]" />
           </button>
 
           {/* Notifications Dropdown */}
           {isNotificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-[#121214] border border-[#D4AF37]/30 shadow-2xl p-3 z-50 animate-fade-in text-xs space-y-2">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                <span className="font-bold text-white">System Notifications</span>
-                <span className="text-[10px] text-[#D4AF37] font-semibold">1 New</span>
+            <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl p-3 z-50 animate-fade-in text-xs space-y-2">
+              <div className="flex items-center justify-between pb-2 border-b border-[#F0EBE0]">
+                <span className="font-bold text-[#1C1917]">System Notifications</span>
+                <span className="text-[10px] text-[#C99A18] font-bold">1 New</span>
               </div>
-              <div className="p-2 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-1">
-                <span className="font-semibold text-white block">304 Products Synchronized</span>
-                <p className="text-[11px] text-zinc-400">
+              <div className="p-2 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] space-y-1">
+                <span className="font-semibold text-[#1C1917] block">304 Products Synchronized</span>
+                <p className="text-[11px] text-stone-600">
                   Full stock inventory catalogue is active and ready for POS counter scanning.
                 </p>
-                <span className="text-[10px] text-zinc-500 block">Just now</span>
+                <span className="text-[10px] text-stone-400 block">Just now</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Date Pill (Matching TEN11 screenshot) */}
-        <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#121214] border border-white/[0.08] text-xs font-semibold text-white shadow-sm">
-          <Calendar className="w-3.5 h-3.5 text-[#D4AF37]" />
+        {/* Date Pill */}
+        <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] text-xs font-semibold text-stone-800 shadow-sm">
+          <Calendar className="w-3.5 h-3.5 text-[#C99A18]" />
           <span>{todayFormatted}</span>
         </div>
 
@@ -204,23 +204,23 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative" ref={profileMenuRef}>
           <button
             onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-            className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-[#121214] hover:bg-[#18181C] border border-white/[0.08] hover:border-[#D4AF37]/35 transition-all group shadow-sm"
+            className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-[#FAF8F5] hover:bg-[#F5F2EB] border border-[#E8DEC8] hover:border-[#D4AF37] transition-all group shadow-sm"
           >
-            <div className="w-5 h-5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#D4AF37] flex items-center justify-center font-bold text-xs shrink-0">
+            <div className="w-5 h-5 rounded-full bg-[#C99A18]/15 border border-[#C99A18]/40 text-[#C99A18] flex items-center justify-center font-bold text-xs shrink-0">
               <ShieldCheck className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-bold text-white group-hover:text-[#E7C75A] transition-colors">
+            <span className="text-xs font-bold text-stone-900 group-hover:text-[#A67D0C] transition-colors">
               Owner
             </span>
-            <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300" />
+            <ChevronDown className="w-3 h-3 text-stone-400 group-hover:text-stone-700" />
           </button>
 
           {/* Profile Dropdown */}
           {isProfileMenuOpen && (
-            <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-[#121214] border border-[#D4AF37]/30 shadow-2xl py-2 z-50 animate-fade-in text-xs">
-              <div className="px-3.5 py-2.5 border-b border-white/[0.06] mb-1">
-                <span className="font-bold text-white block truncate">AL-BHURANI</span>
-                <span className="text-[10px] text-[#C5A85A] font-semibold uppercase tracking-wider block mt-0.5">
+            <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl py-2 z-50 animate-fade-in text-xs">
+              <div className="px-3.5 py-2.5 border-b border-[#F0EBE0] mb-1">
+                <span className="font-bold text-[#1C1917] block truncate">AL-BHURANI</span>
+                <span className="text-[10px] text-[#A67D0C] font-semibold uppercase tracking-wider block mt-0.5">
                   Owner · Godi Road Store
                 </span>
               </div>
@@ -230,9 +230,9 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsProfileMenuOpen(false);
                   onSignOut?.();
                 }}
-                className="w-full px-3.5 py-2 text-left text-zinc-300 hover:text-white hover:bg-white/[0.06] flex items-center gap-2.5 transition-colors font-medium rounded-lg group"
+                className="w-full px-3.5 py-2 text-left text-stone-700 hover:text-stone-900 hover:bg-[#FAF8F5] flex items-center gap-2.5 transition-colors font-medium rounded-lg group"
               >
-                <LogOut className="w-3.5 h-3.5 text-[#D4AF37] group-hover:text-amber-400" />
+                <LogOut className="w-3.5 h-3.5 text-[#C99A18] group-hover:text-amber-600" />
                 <span>Sign Out</span>
               </button>
             </div>

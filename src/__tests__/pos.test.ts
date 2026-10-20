@@ -76,8 +76,8 @@ describe('AL-BHURANI POS Pricing & Quantity Calculations', () => {
     expect(formatQuantity(1.25, 'KG', 1250)).toBe('1.25 kg');
     expect(formatQuantity(5, 'PCS')).toBe('5 pcs');
 
-    expect(formatPriceWithBasis(800, 'KG')).toBe('₹800/kg');
-    expect(formatPriceWithBasis(20, 'PCS')).toBe('₹20/pc');
+    expect(formatPriceWithBasis(800, 'KG')).toBe('Rs. 800/kg');
+    expect(formatPriceWithBasis(20, 'PCS')).toBe('Rs. 20/pc');
   });
 
   // Test Requirement: Invalid, zero, negative, or excessive quantities

@@ -93,7 +93,7 @@ export function convertProductToKgPrice(product: Product): Product {
   return {
     ...product,
     unit: 'KG',
-    priceBasis: '₹/kg',
+    priceBasis: 'Rs./kg',
     netWeight: 'Per KG',
     sellingPrice: newSellingPrice,
     costPrice: newCostPrice,

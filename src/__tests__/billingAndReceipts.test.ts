@@ -141,7 +141,7 @@ describe('AL-BHURANI POS — Billing Modes, GST-Inclusive Calculations & Receipt
       expect(pdfText.startsWith('%PDF-1.4')).toBe(true);
       expect(pdfText.includes('%%EOF')).toBe(true);
       expect(pdfText.includes('ALB-INV-8891')).toBe(true);
-      expect(pdfText.includes('AL-BHURANI')).toBe(true);
+      expect(pdfText.includes('AL-BURHANI')).toBe(true);
       expect(pdfText.includes('Standard Sweet Box')).toBe(true);
       expect(pdfText.includes('TAX INVOICE \\(GST INCLUSIVE\\)')).toBe(true);
       expect(pdfText.includes('Included 5% GST')).toBe(true);

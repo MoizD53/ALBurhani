@@ -159,6 +159,31 @@ export async function saveProductToTurso(product: Product): Promise<boolean> {
 /**
  * Update stock on remote database
  */
+/**
+ * Batch save/backfill products to remote database
+ */
+export async function batchSaveProductsToTurso(products: Product[]): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'batch-save-products',
+        payload: { products },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
 export async function updateStockOnTurso(productId: string, newStock: number): Promise<boolean> {
   try {
     const res = await fetch(API_ENDPOINT, {

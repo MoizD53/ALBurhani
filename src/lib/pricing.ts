@@ -10,18 +10,18 @@ export function isWeightBasedProduct(product: { unit?: string } | null | undefin
 }
 
 /**
- * Returns the price basis label: '₹/kg' or '₹/pc'
+ * Returns the price basis label: 'Rs./kg' or 'Rs./pc'
  */
 export function getPriceBasis(product: { unit?: string } | null | undefined): string {
-  return isWeightBasedProduct(product) ? '₹/kg' : '₹/pc';
+  return isWeightBasedProduct(product) ? 'Rs./kg' : 'Rs./pc';
 }
 
 /**
- * Formats price with basis label, e.g. '₹800/kg' or '₹20/pc'
+ * Formats price with basis label, e.g. 'Rs. 800/kg' or 'Rs. 20/pc'
  */
 export function formatPriceWithBasis(price: number, unit?: string): string {
   const isWeight = unit ? (unit.toUpperCase() === 'KG' || unit.toUpperCase() === 'G') : false;
-  return isWeight ? `₹${price}/kg` : `₹${price}/pc`;
+  return isWeight ? `Rs. ${price}/kg` : `Rs. ${price}/pc`;
 }
 
 /**
@@ -66,9 +66,9 @@ export function formatStock(stock: number, unit?: string): string {
 /**
  * Calculates line total accurately using integer paise to eliminate floating-point errors.
  * Examples:
- * - ₹800/kg × 250g = ₹200.00
- * - ₹800/kg × 375g = ₹300.00
- * - ₹20/pc × 5 pcs = ₹100.00
+ * - Rs. 800/kg × 250g = Rs. 200.00
+ * - Rs. 800/kg × 375g = Rs. 300.00
+ * - Rs. 20/pc × 5 pcs = Rs. 100.00
  */
 /**
  * Resolves the effective unit price considering quantity-based pricing tiers.
@@ -98,9 +98,9 @@ export function getEffectiveUnitPrice(
  * Calculates line total accurately using integer paise to eliminate floating-point errors.
  * Respects configured quantity-based pricing tiers automatically.
  * Examples:
- * - ₹800/kg × 250g = ₹200.00
- * - ₹800/kg × 375g = ₹300.00
- * - ₹20/pc × 5 pcs = ₹100.00
+ * - Rs. 800/kg × 250g = Rs. 200.00
+ * - Rs. 800/kg × 375g = Rs. 300.00
+ * - Rs. 20/pc × 5 pcs = Rs. 100.00
  */
 export function calculateLineTotal(
   product: Product,
@@ -266,24 +266,28 @@ export function lookupProduct(products: Product[], rawInput: string): Product[] 
   const code = rawInput.trim();
   if (!code) return [];
 
-  // 1. Exact barcode match (string comparison, case-insensitive)
+  // 1. Exact barcode match (string comparison, case-insensitive, preserves leading zeros strictly)
   const exactBarcode = products.filter(
     (p) => p.barcode && p.barcode.toLowerCase() === code.toLowerCase()
   );
   if (exactBarcode.length > 0) return exactBarcode;
 
-  // 2. Exact SKU / Product code match
+  // 2. Exact SKU / Product code match (string comparison, preserves leading zeros strictly)
   const exactSku = products.filter(
     (p) => p.sku && p.sku.toLowerCase() === code.toLowerCase()
   );
   if (exactSku.length > 0) return exactSku;
 
-  // 3. Name search fallback (case-insensitive substring)
-  const nameMatches = products.filter((p) =>
-    p.name.toLowerCase().includes(code.toLowerCase())
-  );
+  // 3. Name search fallback (case-insensitive substring) - only if input is not a pure numeric barcode
+  const isNumericBarcode = /^[0-9]{4,}$/.test(code);
+  if (!isNumericBarcode) {
+    const nameMatches = products.filter((p) =>
+      p.name.toLowerCase().includes(code.toLowerCase())
+    );
+    return nameMatches;
+  }
 
-  return nameMatches;
+  return [];
 }
 
 /**
@@ -334,11 +338,11 @@ export interface OrderCalculation {
  * Critical Requirement: GST-Inclusive Pricing.
  * For "With GST" (CUSTOMER_BILL):
  * - All catalog product prices are GST-inclusive.
- * - Customer's total for a ₹60 product remains ₹60.00, not ₹63.00.
- * - Taxable Value = Net Amount / 1.05 = ₹57.14 (approx).
- * - Included GST = Net Amount - Taxable Value = ₹2.86 (approx).
- * - CGST (2.5%) = ₹1.43, SGST (2.5%) = ₹1.43.
- * - Grand Total = ₹60.00.
+ * - Customer's total for a Rs. 60 product remains Rs. 60.00, not Rs. 63.00.
+ * - Taxable Value = Net Amount / 1.05 = Rs. 57.14 (approx).
+ * - Included GST = Net Amount - Taxable Value = Rs. 2.86 (approx).
+ * - CGST (2.5%) = Rs. 1.43, SGST (2.5%) = Rs. 1.43.
+ * - Grand Total = Rs. 60.00.
  * 
  * For "Without GST" (NO_BILL):
  * - Customer pays catalog price without GST addition or calculation.

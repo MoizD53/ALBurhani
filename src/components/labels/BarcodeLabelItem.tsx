@@ -126,7 +126,7 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
             isCompact ? 'text-[8.5px]' : 'text-[10px]'
           }`}
         >
-          MRP: ₹{product.sellingPrice.toFixed(2)}
+          MRP: Rs. {product.sellingPrice.toFixed(2)}
         </span>
       </div>
 

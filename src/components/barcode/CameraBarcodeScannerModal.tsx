@@ -99,46 +99,46 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-      <div className="relative w-full max-w-lg rounded-2xl bg-[#121212] border border-[#D4AF37]/30 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-lg rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#D4AF37]/15 bg-[#171717]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8DEC8] bg-[#FAF8F5]">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-[#D4AF37]/15 text-[#D4AF37]">
+            <div className="p-2 rounded-xl bg-[#FBF7EE] text-[#A67D0C] border border-[#C99A18]/30">
               <Camera className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-white">Live Camera Barcode Scanner</h3>
-              <p className="text-xs text-[#B8B8B8]">Point product barcode inside the box</p>
+              <h3 className="font-bold text-stone-900">Live Camera Barcode Scanner</h3>
+              <p className="text-xs text-stone-500">Point product barcode inside the box</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-200/60 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Video Viewport */}
-        <div className="p-6 flex flex-col items-center">
+        <div className="p-6 flex flex-col items-center bg-white">
           
           {error ? (
-            <div className="w-full p-4 rounded-xl bg-red-950/40 border border-red-500/30 text-red-200 text-sm flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div className="w-full p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium">Camera Notice</p>
-                <p className="text-xs text-red-300/80 mt-1">{error}</p>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="font-bold">Camera Notice</p>
+                <p className="text-xs text-rose-700 mt-1">{error}</p>
+                <p className="text-xs text-stone-500 mt-2">
                   (Tip: For demo, you can also use a physical USB Barcode Gun or click any product in the Quick-Zap tray!)
                 </p>
               </div>
             </div>
           ) : (
-            <div className="relative w-full bg-black rounded-xl overflow-hidden border border-[#D4AF37]/20 flex flex-col items-center justify-center min-h-[260px]">
+            <div className="relative w-full bg-stone-900 rounded-xl overflow-hidden border border-[#E8DEC8] flex flex-col items-center justify-center min-h-[260px]">
               {isStarting && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0a0a0a] gap-2 text-sm text-[#D4AF37]">
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-stone-900/90 gap-2 text-sm text-[#D4AF37]">
                   <RefreshCw className="w-6 h-6 animate-spin text-[#D4AF37]" />
                   <span>Activating camera optical sensor...</span>
                 </div>
@@ -147,18 +147,18 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
             </div>
           )}
 
-          <div className="mt-4 flex items-center gap-2 text-xs text-[#B8B8B8] text-center">
+          <div className="mt-4 flex items-center gap-2 text-xs text-stone-600 text-center">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>Real-time continuous decoding active (EAN-13, CODE128, UPC-A, QR)</span>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[#D4AF37]/15 bg-[#161616]">
-          <span className="text-xs text-gray-400">Audio beep chime enabled</span>
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[#E8DEC8] bg-[#FAF8F5]">
+          <span className="text-xs text-stone-500">Audio beep chime enabled</span>
           <button
             onClick={onClose}
-            className="btn-dark text-xs py-1.5 px-4"
+            className="btn-dark text-xs py-1.5 px-4 font-semibold"
           >
             Close Scanner
           </button>

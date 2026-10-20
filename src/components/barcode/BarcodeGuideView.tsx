@@ -182,28 +182,28 @@ export const BarcodeGuideView: React.FC = () => {
           <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Entry-level Barcode Gun</span>
             <h5 className="font-semibold text-white text-xs truncate">Pegasus / Netum USB 1D</h5>
-            <p className="text-[11px] text-gray-400 font-mono">Price: ₹900 - ₹1,400</p>
+            <p className="text-[11px] text-gray-400 font-mono">Price: Rs. 900 - Rs. 1,400</p>
             <p className="text-[10px] text-emerald-400">Plug & play, ideal for single counter</p>
           </div>
 
           <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Heavy-duty 2D/QR Gun</span>
             <h5 className="font-semibold text-white text-xs truncate">TVS BS-C 101 Star / Honeywell</h5>
-            <p className="text-[11px] text-gray-400 font-mono">Price: ₹2,200 - ₹3,500</p>
+            <p className="text-[11px] text-gray-400 font-mono">Price: Rs. 2,200 - Rs. 3,500</p>
             <p className="text-[10px] text-emerald-400">Reads crinkled pouch barcodes</p>
           </div>
 
           <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Thermal Label Printer</span>
             <h5 className="font-semibold text-white text-xs truncate">TVS LP 46 Neo / TSC TE 244</h5>
-            <p className="text-[11px] text-gray-400 font-mono">Price: ₹7,500 - ₹9,500</p>
+            <p className="text-[11px] text-gray-400 font-mono">Price: Rs. 7,500 - Rs. 9,500</p>
             <p className="text-[10px] text-emerald-400">For Mithai box & pouch stickers</p>
           </div>
 
           <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 space-y-1">
             <span className="text-[10px] uppercase font-bold text-gray-400 block">Thermal Receipt Printer</span>
             <h5 className="font-semibold text-white text-xs truncate">Epson TM-T82 / TVS RP 3200</h5>
-            <p className="text-[11px] text-gray-400 font-mono">Price: ₹5,000 - ₹8,500</p>
+            <p className="text-[11px] text-gray-400 font-mono">Price: Rs. 5,000 - Rs. 8,500</p>
             <p className="text-[10px] text-emerald-400">High-speed customer bill printing</p>
           </div>
 

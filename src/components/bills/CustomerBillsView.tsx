@@ -103,7 +103,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         } else {
           setFeedback({
             type: 'success',
-            message: `Invoice ${targetInvoice.billNumber} (₹${targetInvoice.grandTotal.toFixed(2)}) was deleted successfully.`,
+            message: `Invoice ${targetInvoice.billNumber} (Rs. ${targetInvoice.grandTotal.toFixed(2)}) was deleted successfully.`,
           });
         }
       }
@@ -141,19 +141,19 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         />
         <BillingSummaryCard
           label="Billed Revenue"
-          value={`₹${totalBilledRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`Rs. ${totalBilledRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           accent="gold"
           icon={IndianRupee}
         />
         <BillingSummaryCard
           label="GST (5%) Collected"
-          value={`₹${totalGstCollected.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`Rs. ${totalGstCollected.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           accent="emerald"
           icon={Percent}
         />
         <BillingSummaryCard
           label="Average Bill Value"
-          value={`₹${averageBillValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          value={`Rs. ${averageBillValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           accent="purple"
           icon={Layers}
         />
@@ -178,7 +178,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
       <BillingTableContainer>
         <table className="w-full text-left text-xs">
           <thead>
-            <tr className="border-b border-white/[0.08] bg-[#161619] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+            <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
               <th className="py-3 px-4">Invoice #</th>
               <th className="py-3 px-4">Date & Time</th>
               <th className="py-3 px-4">Customer Details</th>
@@ -192,7 +192,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
               {onDeleteOrder && <th className="py-3 px-4 text-center">Delete</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-[#F0EBE0]">
             {filteredBills.length === 0 ? (
               <tr>
                 <td colSpan={11} className="p-0">
@@ -214,57 +214,57 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
               </tr>
             ) : (
               filteredBills.map((b) => (
-                <tr key={b.id} className="hover:bg-white/[0.02] transition-colors">
+                <tr key={b.id} className="hover:bg-[#FAF8F5] transition-colors">
                   {/* 1. Invoice # */}
-                  <td className="py-3 px-4 font-mono font-bold text-[#D4AF37] whitespace-nowrap">
+                  <td className="py-3 px-4 font-mono font-bold text-[#B8860B] whitespace-nowrap">
                     {b.billNumber}
                   </td>
 
                   {/* 2. Date & Time */}
-                  <td className="py-3 px-4 text-zinc-300 whitespace-nowrap font-mono text-[11px]">
+                  <td className="py-3 px-4 text-stone-500 whitespace-nowrap font-mono text-[11px]">
                     {b.createdAt}
                   </td>
 
                   {/* 3. Customer Details */}
                   <td className="py-3 px-4 whitespace-nowrap">
-                    <div className="font-semibold text-white">
+                    <div className="font-bold text-[#1C1917]">
                       {b.customerName || 'Walk-in Customer'}
                     </div>
                     {b.customerPhone && (
-                      <div className="text-[10px] text-zinc-500 font-mono">
+                      <div className="text-[10px] text-stone-500 font-mono">
                         {b.customerPhone}
                       </div>
                     )}
                   </td>
 
                   {/* 4. Items Count */}
-                  <td className="py-3 px-4 text-center font-mono text-zinc-300">
+                  <td className="py-3 px-4 text-center font-mono text-stone-700">
                     {b.items.length} item{b.items.length !== 1 ? 's' : ''}
                   </td>
 
                   {/* 5. Subtotal */}
-                  <td className="py-3 px-4 text-right font-mono text-zinc-400">
-                    ₹{b.subtotal.toFixed(2)}
+                  <td className="py-3 px-4 text-right font-mono text-stone-600">
+                    Rs. {b.subtotal.toFixed(2)}
                   </td>
 
                   {/* 6. GST (5%) */}
-                  <td className="py-3 px-4 text-right font-mono text-zinc-400">
-                    ₹{b.gstAmount.toFixed(2)}
+                  <td className="py-3 px-4 text-right font-mono text-stone-600">
+                    Rs. {b.gstAmount.toFixed(2)}
                   </td>
 
                   {/* 7. Grand Total */}
-                  <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm">
-                    ₹{b.grandTotal.toFixed(2)}
+                  <td className="py-3 px-4 text-right font-mono font-bold text-[#1C1917] text-sm">
+                    Rs. {b.grandTotal.toFixed(2)}
                   </td>
 
                   {/* 8. Payment Mode Badge */}
                   <td className="py-3 px-4 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                       b.paymentMethod === 'UPI'
-                        ? 'bg-purple-500/15 text-purple-300 border border-purple-500/25'
+                        ? 'bg-purple-500/15 text-purple-700 border border-purple-500/25'
                         : b.paymentMethod === 'CARD'
-                        ? 'bg-blue-500/15 text-blue-300 border border-blue-500/25'
-                        : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                        ? 'bg-blue-500/15 text-blue-700 border border-blue-500/25'
+                        : 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/25'
                     }`}>
                       {b.paymentMethod}
                     </span>
@@ -276,7 +276,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onModifyOrder(b)}
-                        className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
+                        className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 border border-amber-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
                         title="Add Items / Modify Bill"
                         aria-label={`Add Items or Modify Invoice ${b.billNumber}`}
                       >
@@ -290,7 +290,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setSelectedOrderForReceipt(b)}
-                      className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-[#D4AF37]/15 text-zinc-400 hover:text-[#D4AF37] border border-white/[0.08] hover:border-[#D4AF37]/30 transition-colors focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/50 cursor-pointer"
+                      className="p-1.5 rounded-lg bg-[#FAF8F5] hover:bg-[#F5F2EB] text-stone-600 hover:text-[#C99A18] border border-[#E8DEC8] hover:border-[#C99A18] transition-colors focus:outline-none focus:ring-2 focus:ring-[#C99A18]/50 cursor-pointer shadow-sm"
                       title="View & Reprint Thermal Receipt"
                       aria-label={`View & Reprint Receipt for Invoice ${b.billNumber}`}
                     >
@@ -305,9 +305,9 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                         type="button"
                         onClick={() => setPendingDeleteInvoice(b)}
                         disabled={isDeleting}
-                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/40 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         title={`Delete Invoice ${b.billNumber}`}
-                        aria-label={`Delete invoice ${b.billNumber} for amount ₹${b.grandTotal.toFixed(2)}`}
+                        aria-label={`Delete invoice ${b.billNumber} for amount Rs. ${b.grandTotal.toFixed(2)}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

@@ -872,7 +872,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                           <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono mt-0.5">
                             <span>SKU: {p.sku}</span>
                             <span>•</span>
-                            <span className="text-[#C5A85A] font-bold">₹{p.sellingPrice.toFixed(2)}</span>
+                            <span className="text-[#C5A85A] font-bold">Rs. {p.sellingPrice.toFixed(2)}</span>
                             {hasBarcode && (
                               <>
                                 <span>•</span>
@@ -961,7 +961,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                               <span>Barcode: {item.product.barcode || 'N/A'}</span>
                               <span>•</span>
                               <span className="text-[#D4AF37] font-bold">
-                                ₹{item.product.sellingPrice.toFixed(2)}
+                                Rs. {item.product.sellingPrice.toFixed(2)}
                               </span>
                             </div>
                           </div>

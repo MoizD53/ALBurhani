@@ -8,6 +8,7 @@ import {
   saveOrderToTurso, 
   batchSaveOrdersToTurso,
   saveProductToTurso,
+  batchSaveProductsToTurso,
   updateStockOnTurso,
   clearOrdersFromTurso,
   clearExpensesFromTurso,
@@ -246,13 +247,30 @@ export function App() {
       try {
         const deletedIds = getDeletedOrderIds();
 
-        // 1. Synchronize products
+        // 1. Synchronize products with safeguarding against partial catalog wipes
         const remoteProducts = await fetchProductsFromTurso();
-        if (remoteProducts && remoteProducts.length > 0) {
+        if (remoteProducts && remoteProducts.length >= 250) {
           setProducts(remoteProducts);
           try {
             localStorage.setItem('albhurani_products', JSON.stringify(remoteProducts));
           } catch {}
+        } else if (remoteProducts !== null && remoteProducts.length < 250) {
+          // Safeguard: Never allow a partial or empty cloud response (<250 items) to truncate local 305-product catalog.
+          // Instead, ensure local state is complete and backfill the master catalog to Turso.
+          setProducts((currentProducts) => {
+            const catalogToPreserve = (currentProducts && currentProducts.length >= 250)
+              ? currentProducts
+              : IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
+
+            batchSaveProductsToTurso(catalogToPreserve).catch((err) =>
+              console.error('Failed to backfill catalog to Turso:', err)
+            );
+
+            try {
+              localStorage.setItem('albhurani_products', JSON.stringify(catalogToPreserve));
+            } catch {}
+            return catalogToPreserve;
+          });
         }
 
         // 2. Synchronize orders
@@ -584,7 +602,7 @@ export function App() {
 
       return {
         success: true,
-        message: 'All test sales, customer counts, payment tenders, and expenses successfully reset to ₹0 for fresh shop opening.',
+        message: 'All test sales, customer counts, payment tenders, and expenses successfully reset to Rs. 0 for fresh shop opening.',
       };
     } catch (err: any) {
       console.error('Failed to reset store data:', err);
@@ -832,7 +850,7 @@ export function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#080808] text-[#F5F5F5] antialiased">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#FAF8F5] text-[#1C1917] antialiased">
       
       {/* Sidebar Navigation */}
       <Sidebar
@@ -847,7 +865,7 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden bg-[#080808]">
+      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden bg-[#FAF8F5]">
         
         {/* Top Header */}
         <Header 

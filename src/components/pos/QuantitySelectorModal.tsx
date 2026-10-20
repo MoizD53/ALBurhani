@@ -134,32 +134,32 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
       <div 
-        className="relative w-full max-w-md rounded-2xl bg-[#121214] border border-[#D4AF37]/30 shadow-[0_24px_64px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col"
+        className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
-        <div className="px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 border-b border-[#E8DEC8] bg-[#FAF8F5] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#FBF7EE] border border-[#C99A18]/30 flex items-center justify-center text-[#A67D0C] shrink-0">
               {isWeight ? <Scale className="w-4 h-4" /> : <PackageCheck className="w-4 h-4" />}
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-[#D4AF37] block leading-none">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#A67D0C] block leading-none">
                 {isWeight ? 'Weight Quantity (KG / Grams)' : 'Piece Quantity (Count)'}
               </span>
-              <h3 className="font-bold text-white text-sm sm:text-base truncate leading-snug mt-0.5">
+              <h3 className="font-bold text-stone-900 text-sm sm:text-base truncate leading-snug mt-0.5">
                 {product.name}
               </h3>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
+            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-200/60 transition-colors"
             title="Cancel (Esc)"
           >
             <X className="w-4 h-4" />
@@ -167,25 +167,25 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 bg-white">
           
           {/* Product Meta & Pricing Basis */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.025] border border-white/[0.06]">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8]">
             <div>
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Rate Basis</span>
-              <span className="text-base font-bold font-mono text-[#E5C158]">
+              <span className="text-[10px] text-stone-500 uppercase font-semibold tracking-wider block">Rate Basis</span>
+              <span className="text-base font-bold font-mono text-[#A67D0C]">
                 {formatPriceWithBasis(product.sellingPrice, product.unit)}
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Available Stock</span>
-              <span className={`text-xs font-mono font-semibold ${
-                product.stock <= product.minStock ? 'text-amber-400' : 'text-emerald-400'
+              <span className="text-[10px] text-stone-500 uppercase font-semibold tracking-wider block">Available Stock</span>
+              <span className={`text-xs font-mono font-bold ${
+                product.stock <= product.minStock ? 'text-amber-600' : 'text-emerald-600'
               }`}>
                 {formatStock(product.stock, product.unit)}
               </span>
               {existingCartQuantity > 0 && (
-                <span className="text-[10px] text-zinc-400 block">
+                <span className="text-[10px] text-stone-500 block">
                   ({formatQuantity(existingCartQuantity, product.unit)} in bill)
                 </span>
               )}
@@ -194,10 +194,10 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
 
           {/* Quick Presets Row */}
           <div>
-            <div className="text-[11px] font-semibold text-zinc-400 mb-1.5 flex items-center justify-between">
+            <div className="text-[11px] font-bold text-stone-700 mb-1.5 flex items-center justify-between">
               <span>Quick Select:</span>
               {isWeight && (
-                <div className="flex items-center gap-1 bg-black/60 p-0.5 rounded-lg border border-white/[0.08]">
+                <div className="flex items-center gap-1 bg-[#FAF8F5] p-0.5 rounded-lg border border-[#E8DEC8]">
                   <button
                     type="button"
                     onClick={() => {
@@ -208,8 +208,8 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                     }}
                     className={`px-2 py-0.5 text-[10px] font-bold rounded ${
                       unitMode === 'g'
-                        ? 'bg-[#D4AF37] text-black shadow-sm'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                        : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
                     Grams (g)
@@ -224,8 +224,8 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                     }}
                     className={`px-2 py-0.5 text-[10px] font-bold rounded ${
                       unitMode === 'kg'
-                        ? 'bg-[#D4AF37] text-black shadow-sm'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                        : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
                     Kg
@@ -246,8 +246,8 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                         onClick={() => handlePresetClick(grams)}
                         className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all ${
                           isSelected
-                            ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-[0_0_12px_rgba(212,175,55,0.3)]'
-                            : 'bg-white/[0.03] text-zinc-300 border-white/[0.08] hover:bg-white/[0.08] hover:text-white'
+                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-sm'
+                            : 'bg-[#FAF8F5] text-stone-700 border-[#E8DEC8] hover:bg-[#F5F2EB] hover:text-stone-900'
                         }`}
                       >
                         {label}
@@ -263,8 +263,8 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                         onClick={() => handlePresetClick(pcs)}
                         className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all ${
                           isSelected
-                            ? 'bg-[#D4AF37] text-black border-[#D4AF37] shadow-[0_0_12px_rgba(212,175,55,0.3)]'
-                            : 'bg-white/[0.03] text-zinc-300 border-white/[0.08] hover:bg-white/[0.08] hover:text-white'
+                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-sm'
+                            : 'bg-[#FAF8F5] text-stone-700 border-[#E8DEC8] hover:bg-[#F5F2EB] hover:text-stone-900'
                         }`}
                       >
                         {pcs} pc{pcs > 1 ? 's' : ''}
@@ -276,7 +276,7 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
 
           {/* Custom Input Field */}
           <div>
-            <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
+            <label className="text-[11px] font-bold text-stone-700 block mb-1">
               {isWeight ? (
                 <span>Enter Exact Weight ({unitMode === 'g' ? 'Grams' : 'Kilograms'}):</span>
               ) : (
@@ -303,21 +303,21 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                     onClose();
                   }
                 }}
-                className={`w-full py-2.5 pl-4 pr-16 text-lg font-mono font-bold bg-black/80 border rounded-xl text-white placeholder:text-zinc-600 focus:outline-none transition-colors ${
+                className={`w-full py-2.5 pl-4 pr-16 text-lg font-mono font-bold bg-[#FAF8F5] border rounded-xl text-stone-900 placeholder:text-stone-400 focus:outline-none transition-colors ${
                   !validation.isValid || error
-                    ? 'border-red-500/70 focus:border-red-500'
-                    : 'border-[#D4AF37]/50 focus:border-[#D4AF37]'
+                    ? 'border-rose-400 focus:border-rose-500'
+                    : 'border-[#E8DEC8] focus:border-[#C99A18]'
                 }`}
                 placeholder={isWeight ? (unitMode === 'g' ? 'e.g. 250, 375' : 'e.g. 0.25, 1.25') : 'e.g. 5'}
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-zinc-400 uppercase pointer-events-none">
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-stone-400 uppercase pointer-events-none">
                 {isWeight ? (unitMode === 'g' ? 'GRAMS' : 'KG') : 'PIECES'}
               </span>
             </div>
 
             {/* Error Message */}
             {(!validation.isValid || error) && (
-              <div className="flex items-center gap-1.5 text-xs text-red-400 font-medium mt-1.5 animate-fade-in">
+              <div className="flex items-center gap-1.5 text-xs text-rose-600 font-medium mt-1.5 animate-fade-in">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{error || validation.error}</span>
               </div>
@@ -325,20 +325,20 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
           </div>
 
           {/* Live Calculation Preview Banner */}
-          <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#D4AF37]/10 via-[#D4AF37]/5 to-transparent border border-[#D4AF37]/25 flex items-center justify-between">
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#FBF7EE] to-[#FAF8F5] border border-[#E8DEC8] flex items-center justify-between">
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 block leading-tight">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-500 block leading-tight">
                 Line Total Amount
               </span>
-              <span className="text-xs text-zinc-300 font-mono mt-0.5 block">
+              <span className="text-xs text-stone-600 font-mono mt-0.5 block">
                 {isWeight
                   ? `${formatQuantity(lineCalc.quantity, 'KG', lineCalc.grams)} × ${formatPriceWithBasis(lineCalc.unitPrice, 'KG')}`
                   : `${lineCalc.quantity} pcs × ${formatPriceWithBasis(lineCalc.unitPrice, 'PCS')}`}
               </span>
             </div>
             <div className="text-right">
-              <span className="text-2xl font-black font-mono text-white tracking-tight">
-                ₹{lineCalc.lineTotal.toFixed(2)}
+              <span className="text-2xl font-black font-mono text-stone-900 tracking-tight">
+                Rs. {lineCalc.lineTotal.toFixed(2)}
               </span>
             </div>
           </div>
@@ -346,11 +346,11 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="px-5 py-3.5 border-t border-white/[0.08] bg-[#161619] flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 border-t border-[#E8DEC8] bg-[#FAF8F5] flex items-center justify-between shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors"
+            className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 transition-colors"
           >
             Cancel (Esc)
           </button>

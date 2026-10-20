@@ -229,9 +229,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     const code = rawCode.trim();
     if (!code) return;
 
-    // Prevent duplicate scan within 350ms window for identical barcode
+    // Prevent duplicate scan within 400ms window for identical barcode
     const now = Date.now();
-    if (lastScanRef.current.code === code && (now - lastScanRef.current.time) < 350) {
+    if (lastScanRef.current.code === code && (now - lastScanRef.current.time) < 400) {
       return;
     }
     lastScanRef.current = { code, time: now };
@@ -240,21 +240,16 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
     if (matches.length === 1) {
       const matched = matches[0];
-      const isWeight = isWeightBasedProduct(matched);
       setBarcodeInput('');
-      if (isWeight) {
-        // Prompt weight confirmation for KG items
-        handleInitiateQuantitySelection(matched);
-      } else {
-        // Auto-add unique count/PCS products directly to cart (1 unit / increment)
-        handleConfirmQuantity(matched, 1);
-      }
+      // Auto-add unique product directly to cart (1 unit / increment) without requiring Enter or modal click
+      handleConfirmQuantity(matched, 1);
     } else if (matches.length > 1) {
       setMultipleMatchedProducts(matches);
       setBarcodeInput('');
     } else {
       playBeep('error');
       triggerScanFeedback(`Product not found for "${code}"`, true);
+      setBarcodeInput('');
       refocusBarcode();
     }
   };
@@ -269,7 +264,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     },
     enabled: true,
     minChars: 2,
-    maxIntervalMs: 85,
+    maxIntervalMs: 120,
+    noSuffixTimeoutMs: 130,
   });
 
   // Manual barcode / SKU input submission (pressing Enter)
@@ -504,24 +500,24 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   });
 
   return (
-    <div onClick={handleBackgroundClick} className="flex flex-col h-full w-full overflow-hidden bg-[#080808] text-[#F5F5F5] select-none">
+    <div onClick={handleBackgroundClick} className="flex flex-col h-full w-full overflow-hidden bg-[#FAF8F5] text-[#1C1917] select-none">
       
       {/* ─── Bill Modification Active Banner ─── */}
       {editingOrder && (
         <div className="shrink-0 bg-amber-500/15 border-b border-amber-500/30 px-3 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold font-mono shrink-0">
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 font-bold font-mono shrink-0">
               EDITING BILL {editingOrder.billNumber}
             </span>
-            <span className="text-zinc-300 truncate text-[11px]">
-              Customer: <strong>{editingOrder.customerName || 'Walk-in'}</strong> · Original: <strong>₹{(editingOrder.originalGrandTotal ?? editingOrder.grandTotal).toFixed(2)}</strong>
+            <span className="text-stone-700 truncate text-[11px]">
+              Customer: <strong>{editingOrder.customerName || 'Walk-in'}</strong> · Original: <strong>Rs. {(editingOrder.originalGrandTotal ?? editingOrder.grandTotal).toFixed(2)}</strong>
             </span>
           </div>
           {onCancelEditOrder && (
             <button
               type="button"
               onClick={onCancelEditOrder}
-              className="px-2 py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] text-zinc-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0"
+              className="px-2 py-1 rounded-lg bg-white hover:bg-stone-100 text-stone-700 hover:text-stone-900 text-[11px] font-semibold flex items-center gap-1 transition-colors shrink-0 shadow-sm border border-[#E8DEC8]"
             >
               <X className="w-3.5 h-3.5" />
               <span>Cancel / Discard</span>
@@ -531,13 +527,13 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       )}
 
       {/* ─── Mobile Segmented Toggle (< 1024px) ─── */}
-      <div className="lg:hidden shrink-0 flex items-center p-2 bg-[#121214] border-b border-white/[0.08] gap-2">
+      <div className="lg:hidden shrink-0 flex items-center p-2 bg-white border-b border-[#E8DEC8] gap-2 shadow-sm">
         <button
           onClick={() => setMobileTab('catalog')}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === 'catalog'
-              ? 'bg-[#D4AF37] text-black shadow-sm'
-              : 'text-zinc-400 bg-white/[0.04]'
+              ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+              : 'text-stone-600 bg-[#FAF8F5] border border-[#E8DEC8]'
           }`}
         >
           <Search className="w-3.5 h-3.5" />
@@ -545,17 +541,17 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         </button>
         <button
           onClick={() => setMobileTab('cart')}
-          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
             mobileTab === 'cart'
-              ? 'bg-[#D4AF37] text-black shadow-sm'
-              : 'text-zinc-400 bg-white/[0.04]'
+              ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+              : 'text-stone-600 bg-[#FAF8F5] border border-[#E8DEC8]'
           }`}
         >
           <ShoppingBag className="w-3.5 h-3.5" />
           <span>Bill ({totalCartCount})</span>
           {grandTotal > 0 && (
-            <span className="font-mono font-bold text-[11px] bg-black/30 px-1.5 py-0.5 rounded text-white">
-              ₹{grandTotal}
+            <span className="font-mono font-bold text-[11px] bg-stone-100 px-1.5 py-0.5 rounded text-[#B8860B]">
+              Rs. {grandTotal}
             </span>
           )}
         </button>
@@ -572,12 +568,12 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         }`}>
           
           {/* 1. Barcode Input & Scanner Status */}
-          <div className="shrink-0 p-2 sm:p-2.5 rounded-xl bg-[#121214] border border-white/[0.08] shadow-sm">
+          <div className="shrink-0 p-2 sm:p-2.5 rounded-xl bg-white border border-[#E8DEC8] shadow-sm">
             <div className="flex items-center gap-2">
               
               <form onSubmit={handleBarcodeSubmit} className="flex-1 min-w-0 flex items-center gap-2">
                 <div className="relative flex-1 min-w-0">
-                  <Barcode className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                  <Barcode className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
                   <input
                     ref={barcodeInputRef}
                     type="text"
@@ -591,7 +587,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                       }
                     }}
                     style={{ paddingLeft: '38px' }}
-                    className="w-full pr-8 py-2 text-xs sm:text-sm font-mono bg-black/60 border border-white/[0.1] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/70 focus:bg-black focus:outline-none transition-colors"
+                    className="w-full pr-8 py-2 text-xs sm:text-sm font-mono bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-[#1C1917] placeholder:text-stone-400 focus:border-[#C99A18] focus:bg-white focus:outline-none transition-colors shadow-sm"
                     placeholder="Scan barcode or enter SKU..."
                     autoFocus
                   />
@@ -705,13 +701,13 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                     <div
                       key={p.id}
                       onClick={() => handleInitiateQuantitySelection(p)}
-                      className={`group relative flex flex-col justify-between rounded-xl border p-2.5 transition-all duration-150 select-none bg-[#121214] border-white/[0.07] hover:border-[#D4AF37]/50 hover:bg-[#161619] cursor-pointer shadow-sm ${
-                        inCartItem ? 'border-[#D4AF37]/50 bg-[#161619] ring-1 ring-[#D4AF37]/20' : ''
+                      className={`group relative flex flex-col justify-between rounded-xl border p-2.5 transition-all duration-150 select-none bg-white border-[#E8DEC8] hover:border-[#C99A18] hover:bg-[#FAF8F5] cursor-pointer shadow-sm ${
+                        inCartItem ? 'border-[#C99A18] bg-[#FDFBF7] ring-1 ring-[#C99A18]/30' : ''
                       }`}
                     >
                       {/* In-cart indicator badge */}
                       {inCartItem && (
-                        <div className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-md bg-[#D4AF37] text-black text-[10px] font-black shadow-md">
+                        <div className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white text-[10px] font-black shadow-md">
                           {inCartItem.formattedQuantity}
                         </div>
                       )}
@@ -719,21 +715,21 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                       <div>
                         {/* Top: Category & Unit Indicator */}
                         <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold truncate">
+                          <span className="text-[10px] text-stone-500 uppercase tracking-wider font-bold truncate">
                             {p.category.split(' ')[0]}
                           </span>
-                          <span className="text-[10px] font-medium text-[#D4AF37]/80 bg-[#D4AF37]/10 px-1.5 py-0.2 rounded shrink-0">
+                          <span className="text-[10px] font-bold text-[#A67D0C] bg-[#FAF8F5] border border-[#E8DEC8] px-1.5 py-0.2 rounded shrink-0">
                             {p.unit === 'KG' ? 'Weight' : 'Piece'}
                           </span>
                         </div>
 
                         {/* Title */}
-                        <h4 className="text-xs sm:text-[13px] font-semibold text-white leading-snug line-clamp-2 h-9 group-hover:text-[#E5C158] transition-colors">
+                        <h4 className="text-xs sm:text-[13px] font-bold text-[#1C1917] leading-snug line-clamp-2 h-9 group-hover:text-[#A67D0C] transition-colors">
                           {p.name}
                         </h4>
 
                         {/* SKU & Barcode subtitle */}
-                        <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-mono mt-0.5">
+                        <div className="flex items-center gap-1 text-[10px] text-stone-500 font-mono mt-0.5">
                           <span>{p.sku}</span>
                           <span>•</span>
                           <span>{isWeightBasedProduct(p) ? 'Per KG' : 'Per Piece'}</span>
@@ -741,9 +737,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                       </div>
 
                       {/* Bottom Row: Price Basis & Action */}
-                      <div className="mt-2 pt-1.5 border-t border-white/[0.06] flex items-center justify-between gap-1">
+                      <div className="mt-2 pt-1.5 border-t border-[#F0EBE0] flex items-center justify-between gap-1">
                         <div>
-                          <span className="text-xs sm:text-sm font-bold font-mono text-white leading-none">
+                          <span className="text-xs sm:text-sm font-bold font-mono text-[#B8860B] leading-none">
                             {formatPriceWithBasis(p.sellingPrice, p.unit)}
                           </span>
                         </div>
@@ -785,7 +781,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                   <span className="font-bold text-xs">{totalCartCount} item(s) in bill</span>
                 </div>
                 <div className="flex items-center gap-1.5 font-mono font-bold text-xs">
-                  <span>₹{grandTotal}</span>
+                  <span>Rs. {grandTotal}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </div>
               </button>
@@ -799,21 +795,21 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
            ══════════════════════════════════════════ */}
         <div className={`
           w-full lg:w-[380px] xl:w-[410px] shrink-0 flex flex-col min-h-0
-          bg-[#121214] rounded-2xl border border-white/[0.08] shadow-xl overflow-hidden
+          bg-white rounded-2xl border border-[#E8DEC8] shadow-sm overflow-hidden
           ${mobileTab === 'catalog' ? 'hidden lg:flex' : 'flex'}
         `}>
           
           {/* Bill Mode Tabs: "With GST" vs "Without GST" (2 clean headings) */}
-          <div className="p-2 sm:p-2.5 border-b border-white/[0.08] bg-[#161619] shrink-0">
+          <div className="p-2 sm:p-2.5 border-b border-[#E8DEC8] bg-[#FAF8F5] shrink-0">
             <div className="flex items-center gap-2">
-              <div className="grid grid-cols-2 flex-1 p-0.5 bg-black/60 rounded-xl border border-white/[0.08]">
+              <div className="grid grid-cols-2 flex-1 p-0.5 bg-white rounded-xl border border-[#E8DEC8] shadow-sm">
                 <button
                   type="button"
                   onClick={() => setTransactionType('CUSTOMER_BILL')}
                   className={`py-2 px-3 rounded-lg text-xs font-bold tracking-wide flex items-center justify-center gap-1.5 transition-all ${
                     transactionType === 'CUSTOMER_BILL'
-                      ? 'bg-[#D4AF37] text-black shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
@@ -825,8 +821,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                   onClick={() => setTransactionType('NO_BILL')}
                   className={`py-2 px-3 rounded-lg text-xs font-bold tracking-wide flex items-center justify-center gap-1.5 transition-all ${
                     transactionType === 'NO_BILL'
-                      ? 'bg-[#D4AF37] text-black shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
                   }`}
                 >
                   <ReceiptText className="w-3.5 h-3.5" />
@@ -839,7 +835,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 <button
                   type="button"
                   onClick={handleScrollUp}
-                  className="p-1.5 text-zinc-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg transition-all"
+                  className="p-1.5 text-stone-500 hover:text-stone-800 bg-[#FAF8F5] hover:bg-stone-100 border border-[#E8DEC8] rounded-lg transition-all"
                   title="Scroll cart up"
                 >
                   <ChevronUp className="w-3.5 h-3.5" />
@@ -847,7 +843,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 <button
                   type="button"
                   onClick={handleScrollDown}
-                  className="p-1.5 text-[#D4AF37] hover:text-white bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 border border-[#D4AF37]/30 rounded-lg transition-all"
+                  className="p-1.5 text-[#B8860B] hover:text-[#A67D0C] bg-[#FAF8F5] hover:bg-stone-100 border border-[#E8DEC8] rounded-lg transition-all"
                   title="Scroll down to Complete Sale"
                 >
                   <ChevronDown className="w-3.5 h-3.5" />
@@ -858,7 +854,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setCart([])}
-                  className="px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-red-400 bg-white/[0.04] hover:bg-red-500/10 border border-white/[0.08] hover:border-red-500/30 rounded-xl transition-all shrink-0"
+                  className="px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:text-rose-600 bg-[#FAF8F5] hover:bg-rose-50 border border-[#E8DEC8] hover:border-rose-200 rounded-xl transition-all shrink-0"
                   title="Clear all cart items"
                 >
                   Clear
@@ -871,12 +867,12 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
           <div 
             ref={rightPanelScrollRef} 
             onScroll={checkRightPanelScroll} 
-            className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col relative"
+            className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col relative bg-white"
           >
 
           {/* Customer Details Inputs (only for Customer Bill) */}
           {transactionType === 'CUSTOMER_BILL' && (
-            <div className="px-3 py-1.5 border-b border-white/[0.05] bg-white/[0.015] grid grid-cols-2 gap-2 shrink-0">
+            <div className="px-3 py-2 border-b border-[#E8DEC8] bg-[#FAF8F5] grid grid-cols-2 gap-2 shrink-0">
               <input
                 type="text"
                 placeholder="Customer Name (optional)"
@@ -885,7 +881,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.preventDefault();
                 }}
-                className="text-xs py-1 px-2 bg-black/40 border border-white/[0.07] rounded-lg text-white placeholder:text-zinc-600 focus:border-[#D4AF37]/50 focus:outline-none"
+                className="text-xs py-1.5 px-2.5 bg-white border border-[#E8DEC8] rounded-lg text-stone-900 placeholder:text-stone-400 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
               />
               <input
                 type="tel"
@@ -906,18 +902,18 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.preventDefault();
                 }}
-                className="text-xs py-1 px-2 bg-black/40 border border-white/[0.07] rounded-lg text-white font-mono placeholder:text-zinc-600 focus:border-[#D4AF37]/50 focus:outline-none"
+                className="text-xs py-1.5 px-2.5 bg-white border border-[#E8DEC8] rounded-lg text-stone-900 font-mono placeholder:text-stone-400 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
               />
             </div>
           )}
 
           {/* Cart Items List */}
-          <div className="flex-1 min-h-[140px] overflow-y-auto px-3 py-2 space-y-1.5 custom-scrollbar">
+          <div className="flex-1 min-h-[140px] overflow-y-auto px-3 py-2 space-y-1.5 custom-scrollbar bg-white">
             {cart.length === 0 ? (
-              <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-6 text-zinc-500">
-                <Barcode className="w-9 h-9 text-zinc-700 mb-2 stroke-1" />
-                <p className="text-xs font-semibold text-zinc-400">Cart is empty</p>
-                <p className="text-[11px] text-zinc-600 mt-0.5">
+              <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-6 text-stone-400">
+                <Barcode className="w-9 h-9 text-stone-300 mb-2 stroke-1" />
+                <p className="text-xs font-semibold text-stone-600">Cart is empty</p>
+                <p className="text-[11px] text-stone-400 mt-0.5">
                   Scan barcode with gun or click products to bill
                 </p>
               </div>
@@ -925,34 +921,34 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               cart.map((item) => (
                 <div
                   key={item.product.id}
-                  className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.025] hover:bg-white/[0.04] border border-white/[0.04] transition-colors"
+                  className="flex items-center gap-2 p-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F5F2EB] border border-[#E8DEC8] transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <h5 className="text-xs font-semibold text-white truncate leading-tight">
+                    <h5 className="text-xs font-bold text-stone-900 truncate leading-tight">
                       {item.product.name}
                     </h5>
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-zinc-400 font-mono">
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-stone-500 font-mono">
                       <span>{item.formattedRate}</span>
                       <span>·</span>
-                      <span className="text-[#D4AF37] font-semibold">{item.formattedQuantity}</span>
+                      <span className="text-[#B8860B] font-bold">{item.formattedQuantity}</span>
                     </div>
                   </div>
 
                   {/* Quantity Controls */}
-                  <div className="flex items-center gap-1 shrink-0 bg-black/40 border border-white/[0.08] rounded-lg p-0.5">
+                  <div className="flex items-center gap-1 shrink-0 bg-white border border-[#E8DEC8] rounded-lg p-0.5 shadow-sm">
                     <button
                       onClick={() => updateQuantity(item.product.id, -1)}
-                      className="w-5 h-5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                      className="w-5 h-5 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center transition-colors"
                       title="Decrease quantity"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <span className="w-12 text-center text-[11px] font-bold text-white font-mono truncate px-0.5">
+                    <span className="w-12 text-center text-[11px] font-bold text-stone-900 font-mono truncate px-0.5">
                       {item.formattedQuantity}
                     </span>
                     <button
                       onClick={() => updateQuantity(item.product.id, 1)}
-                      className="w-5 h-5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                      className="w-5 h-5 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center transition-colors"
                       title="Increase quantity"
                     >
                       <Plus className="w-3 h-3" />
@@ -961,12 +957,12 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
                   {/* Line Total & Remove */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-xs font-bold text-white font-mono w-14 text-right">
-                      ₹{item.lineTotal.toFixed(2)}
+                    <span className="text-xs font-bold text-stone-900 font-mono w-14 text-right">
+                      Rs. {item.lineTotal.toFixed(2)}
                     </span>
                     <button
                       onClick={() => removeFromCart(item.product.id)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors p-1 rounded"
+                      className="text-stone-400 hover:text-rose-600 transition-colors p-1 rounded"
                       title="Remove item"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -978,18 +974,18 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
           </div>
 
           {/* Anchored Financial Summary & Checkout */}
-          <div className="shrink-0 border-t border-white/[0.08] p-3 space-y-2.5 bg-[#161619]">
+          <div className="shrink-0 border-t border-[#E8DEC8] p-3 space-y-2.5 bg-[#FAF8F5]">
             
             {/* Subtotal & Discount & Tax */}
             <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between text-zinc-400">
+              <div className="flex justify-between text-stone-600">
                 <span>Subtotal ({totalCartCount} items)</span>
-                <span className="font-mono text-zinc-200">₹{subtotal.toFixed(2)}</span>
+                <span className="font-mono font-medium text-stone-900">Rs. {subtotal.toFixed(2)}</span>
               </div>
 
               {/* Discount selection */}
               <div className="flex items-center justify-between">
-                <span className="text-zinc-400">Discount</span>
+                <span className="text-stone-600">Discount</span>
                 <div className="flex items-center gap-1">
                   {[0, 5, 10].map((d) => (
                     <button
@@ -997,8 +993,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                       onClick={() => setDiscountPercent(d)}
                       className={`px-2 py-0.5 text-[10px] rounded font-semibold transition-colors ${
                         discountPercent === d
-                          ? 'bg-[#D4AF37] text-black font-bold'
-                          : 'bg-white/[0.04] text-zinc-400 hover:text-white'
+                          ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                          : 'bg-white border border-[#E8DEC8] text-stone-600 hover:text-stone-900'
                       }`}
                     >
                       {d}%
@@ -1008,32 +1004,32 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               </div>
 
               {discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-400 text-xs font-medium">
+                <div className="flex justify-between text-emerald-600 text-xs font-medium">
                   <span>Discount Savings</span>
-                  <span className="font-mono">−₹{discountAmount.toFixed(2)}</span>
+                  <span className="font-mono font-bold">−Rs. {discountAmount.toFixed(2)}</span>
                 </div>
               )}
 
               {transactionType === 'CUSTOMER_BILL' && (
-                <div className="flex justify-between text-zinc-400 text-[11px]">
+                <div className="flex justify-between text-stone-600 text-[11px]">
                   <span>Included GST (5%):</span>
-                  <span className="font-mono text-zinc-200">₹{gstAmount.toFixed(2)}</span>
+                  <span className="font-mono font-medium text-stone-900">Rs. {gstAmount.toFixed(2)}</span>
                 </div>
               )}
             </div>
 
             {/* Total Due Display */}
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.025] border border-white/[0.07]">
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-[#E8DEC8] shadow-sm">
               <div>
-                <span className="text-[10px] uppercase tracking-wider text-[#D4AF37] font-bold block">
+                <span className="text-[10px] uppercase tracking-wider text-[#B8860B] font-bold block">
                   Total Payable
                 </span>
-                <span className="text-[10px] text-zinc-500">
+                <span className="text-[10px] text-stone-500">
                   {transactionType === 'CUSTOMER_BILL' ? 'catalog price incl. 5% GST' : 'no tax (0% GST)'}
                 </span>
               </div>
-              <span className="text-2xl font-black text-white font-mono tracking-tight">
-                ₹{grandTotal}
+              <span className="text-2xl font-black text-stone-900 font-mono tracking-tight">
+                Rs. {grandTotal}
               </span>
             </div>
 
@@ -1048,8 +1044,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                     onClick={() => setPaymentMethod(key as PaymentMethod)}
                     className={`py-1.5 px-2 rounded-lg border flex flex-col items-center gap-0.5 transition-all text-xs font-semibold ${
                       isSelected
-                        ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#D4AF37]'
-                        : 'border-white/[0.06] bg-white/[0.02] text-zinc-400 hover:text-white'
+                        ? 'border-[#C99A18] bg-[#FBF7EE] text-[#A67D0C] shadow-sm'
+                        : 'border-[#E8DEC8] bg-white text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -1061,40 +1057,40 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
             {/* Cash Tender Calculation */}
             {paymentMethod === 'CASH' && grandTotal > 0 && (
-              <div className="p-2 rounded-lg bg-black/40 border border-white/[0.06] space-y-1.5">
+              <div className="p-2 rounded-lg bg-white border border-[#E8DEC8] space-y-1.5 shadow-sm">
                 <div className="flex gap-1">
                   {[100, 200, 500, 2000].map((val) => (
                     <button
                       key={val}
                       onClick={() => setAmountReceived(val.toString())}
-                      className="flex-1 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.08] text-[10px] font-mono text-zinc-400 hover:text-white transition-colors"
+                      className="flex-1 py-0.5 rounded bg-[#FAF8F5] hover:bg-stone-100 border border-[#E8DEC8] text-[10px] font-mono text-stone-700 hover:text-stone-900 transition-colors"
                     >
-                      ₹{val}
+                      Rs. {val}
                     </button>
                   ))}
                   <button
                     onClick={() => setAmountReceived(grandTotal.toString())}
-                    className="flex-1 py-0.5 rounded bg-[#D4AF37]/20 text-[#D4AF37] text-[10px] font-mono font-bold"
+                    className="flex-1 py-0.5 rounded bg-[#FBF7EE] border border-[#C99A18]/40 text-[#A67D0C] text-[10px] font-mono font-bold"
                   >
                     Exact
                   </button>
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-400">Cash Received:</span>
+                  <span className="text-stone-600 font-medium">Cash Received:</span>
                   <input
                     type="number"
                     value={amountReceived}
                     onChange={(e) => setAmountReceived(e.target.value)}
-                    placeholder={`₹${grandTotal}`}
-                    className="w-24 text-right py-1 px-2 text-xs bg-black border border-white/[0.1] rounded font-mono text-white focus:border-[#D4AF37]/60 focus:outline-none"
+                    placeholder={`Rs. ${grandTotal}`}
+                    className="w-24 text-right py-1 px-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded font-mono text-stone-900 focus:border-[#C99A18] focus:outline-none"
                   />
                 </div>
 
                 {receivedNum >= grandTotal && amountReceived && (
-                  <div className="flex items-center justify-between text-xs font-bold text-emerald-400 pt-1 border-t border-white/[0.05]">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-600 pt-1 border-t border-[#E8DEC8]">
                     <span>Change to Return:</span>
-                    <span className="font-mono text-sm">₹{changeGiven.toFixed(2)}</span>
+                    <span className="font-mono text-sm">Rs. {changeGiven.toFixed(2)}</span>
                   </div>
                 )}
               </div>
@@ -1102,18 +1098,18 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
             {/* Bill Modification Reconciliation Card */}
             {editingOrder && (
-              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1 font-mono">
-                <div className="flex justify-between text-zinc-400 text-[11px]">
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-1 font-mono">
+                <div className="flex justify-between text-stone-600 text-[11px]">
                   <span>Original Paid:</span>
-                  <span>₹{(editingOrder.originalGrandTotal ?? editingOrder.grandTotal).toFixed(2)}</span>
+                  <span>Rs. {(editingOrder.originalGrandTotal ?? editingOrder.grandTotal).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-zinc-300 text-[11px]">
+                <div className="flex justify-between text-stone-700 text-[11px]">
                   <span>Updated Total:</span>
-                  <span className="font-bold text-white">₹{grandTotal.toFixed(2)}</span>
+                  <span className="font-bold text-stone-900">Rs. {grandTotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-amber-400 border-t border-amber-500/20 pt-1 text-xs">
+                <div className="flex justify-between font-bold text-amber-700 border-t border-amber-200 pt-1 text-xs">
                   <span>Additional Due:</span>
-                  <span className="text-sm">₹{Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)).toFixed(2)}</span>
+                  <span className="text-sm">Rs. {Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)).toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -1122,17 +1118,17 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
             <button
               onClick={handleCheckout}
               disabled={cart.length === 0 || isCheckingOut}
-              className="w-full py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all btn-gold shadow-[0_4px_16px_rgba(212,175,55,0.2)]"
+              className="w-full py-2.5 text-xs font-bold tracking-wide flex items-center justify-center gap-2 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all btn-gold shadow-md"
             >
               <Receipt className="w-4 h-4" />
               <span>
                 {isCheckingOut 
                   ? 'Saving Changes...' 
                   : editingOrder
-                    ? `Save Bill Changes (${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)) > 0 ? `Collect ₹${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)).toFixed(2)}` : 'No Extra Due'})`
+                    ? `Save Bill Changes (${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)) > 0 ? `Collect Rs. ${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)).toFixed(2)}` : 'No Extra Due'})`
                     : transactionType === 'CUSTOMER_BILL' 
-                      ? `Complete Sale (With GST — ₹${grandTotal})` 
-                      : `Complete Sale (Without GST — ₹${grandTotal})`}
+                      ? `Complete Sale (With GST — Rs. ${grandTotal})` 
+                      : `Complete Sale (Without GST — Rs. ${grandTotal})`}
               </span>
             </button>
 

@@ -98,7 +98,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         `"${o.cashierName}"`,
       ]);
     } else if (reportType === 'product-sales') {
-      headers = ['SKU', 'Barcode', 'Product Name', 'Category', 'Unit', 'Units/Weight Sold', 'Revenue (INR)'];
+      headers = ['SKU', 'Barcode', 'Product Name', 'Category', 'Unit Basis', 'Quantity / Weight Sold', 'Total Revenue (INR)'];
       rows = productSalesList.map((item) => [
         `="${item.product.sku}"`,
         `="${item.product.barcode}"`,
@@ -109,14 +109,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         item.totalRevenue,
       ]);
     } else if (reportType === 'category-sales') {
-      headers = ['Category', 'Items Quantity Sold', 'Total Revenue (INR)'];
+      headers = ['Category', 'Items Sold Count', 'Total Revenue (INR)'];
       rows = categorySalesList.map((c) => [
         `"${c.category}"`,
         c.itemsSold,
         c.totalRevenue,
       ]);
+    } else if (reportType === 'payment-reconciliation') {
+      headers = ['Payment Mode', 'Total Amount (INR)', 'Bills Count'];
+      rows = [
+        ['CASH', cashTotal, filteredOrders.filter((o) => o.paymentMethod === 'CASH').length],
+        ['UPI / QR', upiTotal, filteredOrders.filter((o) => o.paymentMethod === 'UPI').length],
+        ['CARD', cardTotal, filteredOrders.filter((o) => o.paymentMethod === 'CARD').length],
+      ];
     } else if (reportType === 'expenses') {
-      headers = ['Title', 'Category', 'Amount (INR)', 'Date', 'Payment Mode', 'Paid To / Vendor'];
+      headers = ['Title', 'Category', 'Amount (INR)', 'Date & Time', 'Payment Mode', 'Paid To / Vendor'];
       rows = expenses.map((e) => [
         `"${e.title.replace(/"/g, '""')}"`,
         `"${e.category}"`,
@@ -133,7 +140,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         `"${p.name.replace(/"/g, '""')}"`,
         `"${p.category}"`,
         p.unit,
-        p.priceBasis || '₹/pc',
+        p.priceBasis || 'Rs./pc',
         p.costPrice,
         p.sellingPrice,
         p.stock,
@@ -157,18 +164,18 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Header & Export */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 font-serif">
-            <BarChart3 className="w-5 h-5 text-[#D4AF37]" />
+          <h2 className="text-lg sm:text-xl font-bold text-stone-900 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-[#B8860B]" />
             <span>Store Reports & Export Engine</span>
           </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-stone-500 mt-0.5">
             Real data reconciliation with Excel (.xlsx) and CSV exports preserving leading zeroes
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Date Range Selector */}
-          <div className="flex items-center gap-1 bg-[#0E0E12] p-1 rounded-xl border border-white/[0.08]">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8DEC8] shadow-sm">
             {[
               ['all', 'All Time'],
               ['today', 'Today'],
@@ -178,10 +185,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <button
                 key={key}
                 onClick={() => setDateRange(key as any)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
                   dateRange === key
-                    ? 'bg-[#D4AF37] text-black shadow-sm'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
                 {label}
@@ -191,7 +198,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
           <button
             onClick={handleExportCurrentReport}
-            className="btn-gold text-xs py-2 px-3.5 flex items-center gap-1.5 font-bold"
+            className="btn-gold text-xs py-2 px-3.5 flex items-center gap-1.5 font-bold shadow-md"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export Report</span>
@@ -200,7 +207,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       </div>
 
       {/* Report Type Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-white/[0.08]">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-[#E8DEC8]">
         {[
           { id: 'combined-sales', label: 'Combined Sales Summary' },
           { id: 'customer-bills', label: 'Customer Bills' },
@@ -216,10 +223,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <button
               key={tab.id}
               onClick={() => setReportType(tab.id as ReportType)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
                 isSelected
-                  ? 'bg-[#D4AF37]/15 text-[#D4AF37] border-b-2 border-[#D4AF37]'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-[#FBF7EE] text-[#A67D0C] border-b-2 border-[#C99A18]'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
               }`}
             >
               {tab.label}
@@ -232,11 +239,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* 1. Combined Sales, Customer Bills, or No-Bill Sales Table */}
       {(reportType === 'combined-sales' || reportType === 'customer-bills' || reportType === 'no-bill-sales') && (
-        <div className="rounded-2xl bg-[#0C0C0F] border border-white/[0.08] overflow-hidden shadow-xl">
+        <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-white/[0.08] bg-[#121216] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+                <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
                   <th className="py-3 px-4">Bill #</th>
                   <th className="py-3 px-4">Transaction Type</th>
                   <th className="py-3 px-4">Date & Time</th>
@@ -248,7 +255,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <th className="py-3 px-4 text-center">Payment</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-[#E8DEC8]">
                 {filteredOrders
                   .filter((o) => {
                     if (reportType === 'customer-bills') return o.transactionType === 'CUSTOMER_BILL' || !o.transactionType;
@@ -256,39 +263,39 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     return true;
                   })
                   .map((o) => (
-                    <tr key={o.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-[#D4AF37] whitespace-nowrap">
+                    <tr key={o.id} className="hover:bg-[#FAF8F5] transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-[#A67D0C] whitespace-nowrap">
                         {o.billNumber}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           o.transactionType === 'NO_BILL'
-                            ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                            : 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                         }`}>
                           {o.transactionType === 'NO_BILL' ? 'NO-BILL SALE' : 'CUSTOMER BILL'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-zinc-300 text-[11px] whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-stone-600 text-[11px] whitespace-nowrap">
                         {o.createdAt}
                       </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
+                      <td className="py-3 px-4 whitespace-nowrap text-stone-800 font-medium">
                         {o.customerName || 'Walk-in'}
                       </td>
-                      <td className="py-3 px-4 text-center font-mono text-zinc-300">
+                      <td className="py-3 px-4 text-center font-mono text-stone-700">
                         {o.items.length}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-zinc-400">
-                        ₹{o.subtotal.toFixed(2)}
+                      <td className="py-3 px-4 text-right font-mono text-stone-600">
+                        Rs. {o.subtotal.toFixed(2)}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-zinc-400">
-                        ₹{o.gstAmount.toFixed(2)}
+                      <td className="py-3 px-4 text-right font-mono text-stone-600">
+                        Rs. {o.gstAmount.toFixed(2)}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm">
-                        ₹{o.grandTotal.toFixed(2)}
+                      <td className="py-3 px-4 text-right font-mono font-bold text-stone-900 text-sm">
+                        Rs. {o.grandTotal.toFixed(2)}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="font-bold text-[10px] px-2 py-0.5 rounded bg-white/[0.04] text-zinc-300">
+                        <span className="font-bold text-[10px] px-2 py-0.5 rounded bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8]">
                           {o.paymentMethod}
                         </span>
                       </td>
@@ -302,11 +309,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* 2. Product-Wise Sales Report */}
       {reportType === 'product-sales' && (
-        <div className="rounded-2xl bg-[#0C0C0F] border border-white/[0.08] overflow-hidden shadow-xl">
+        <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-white/[0.08] bg-[#121216] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+                <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
                   <th className="py-3 px-4">SKU / Code</th>
                   <th className="py-3 px-4">Barcode</th>
                   <th className="py-3 px-4">Product Name</th>
@@ -316,36 +323,36 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <th className="py-3 px-4 text-right">Total Revenue (INR)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-[#E8DEC8]">
                 {productSalesList.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-zinc-500">
+                    <td colSpan={7} className="py-12 text-center text-stone-400">
                       No sales recorded for any product in this period.
                     </td>
                   </tr>
                 ) : (
                   productSalesList.map((item) => (
-                    <tr key={item.product.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-[#D4AF37]">
+                    <tr key={item.product.id} className="hover:bg-[#FAF8F5] transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-[#A67D0C]">
                         {item.product.sku}
                       </td>
-                      <td className="py-3 px-4 font-mono text-zinc-400">
+                      <td className="py-3 px-4 font-mono text-stone-600">
                         {item.product.barcode}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-white">
+                      <td className="py-3 px-4 font-bold text-stone-900">
                         {item.product.name}
                       </td>
-                      <td className="py-3 px-4 text-zinc-400">
+                      <td className="py-3 px-4 text-stone-600">
                         {item.product.category}
                       </td>
-                      <td className="py-3 px-4 text-center font-bold text-zinc-300">
+                      <td className="py-3 px-4 text-center font-bold text-stone-700">
                         {item.product.unit}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                      <td className="py-3 px-4 text-right font-mono font-bold text-stone-900">
                         {formatStock(item.totalQty, item.product.unit)}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-[#E5C158] text-sm">
-                        ₹{item.totalRevenue.toFixed(2)}
+                      <td className="py-3 px-4 text-right font-mono font-bold text-[#A67D0C] text-sm">
+                        Rs. {item.totalRevenue.toFixed(2)}
                       </td>
                     </tr>
                   ))
@@ -359,32 +366,32 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* 3. Payment Reconciliation */}
       {reportType === 'payment-reconciliation' && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <div className="p-5 rounded-2xl bg-[#0C0C0F] border border-white/[0.08] space-y-2">
-            <span className="text-xs uppercase font-bold text-zinc-400 block">Cash Settlements</span>
-            <span className="text-2xl font-black font-mono text-emerald-400 block">
-              ₹{cashTotal.toLocaleString('en-IN')}
+          <div className="p-5 rounded-2xl bg-white border border-[#E8DEC8] space-y-2 shadow-sm">
+            <span className="text-xs uppercase font-bold text-stone-500 block">Cash Settlements</span>
+            <span className="text-2xl font-black font-mono text-emerald-600 block">
+              Rs. {cashTotal.toLocaleString('en-IN')}
             </span>
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[11px] text-stone-500">
               {filteredOrders.filter((o) => o.paymentMethod === 'CASH').length} Cash bills completed
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-[#0C0C0F] border border-white/[0.08] space-y-2">
-            <span className="text-xs uppercase font-bold text-zinc-400 block">UPI Bank Settlements</span>
-            <span className="text-2xl font-black font-mono text-purple-400 block">
-              ₹{upiTotal.toLocaleString('en-IN')}
+          <div className="p-5 rounded-2xl bg-white border border-[#E8DEC8] space-y-2 shadow-sm">
+            <span className="text-xs uppercase font-bold text-stone-500 block">UPI Bank Settlements</span>
+            <span className="text-2xl font-black font-mono text-purple-600 block">
+              Rs. {upiTotal.toLocaleString('en-IN')}
             </span>
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[11px] text-stone-500">
               {filteredOrders.filter((o) => o.paymentMethod === 'UPI').length} UPI / QR bills completed
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-[#0C0C0F] border border-white/[0.08] space-y-2">
-            <span className="text-xs uppercase font-bold text-zinc-400 block">Card Swipes</span>
-            <span className="text-2xl font-black font-mono text-blue-400 block">
-              ₹{cardTotal.toLocaleString('en-IN')}
+          <div className="p-5 rounded-2xl bg-white border border-[#E8DEC8] space-y-2 shadow-sm">
+            <span className="text-xs uppercase font-bold text-stone-500 block">Card Swipes</span>
+            <span className="text-2xl font-black font-mono text-blue-600 block">
+              Rs. {cardTotal.toLocaleString('en-IN')}
             </span>
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[11px] text-stone-500">
               {filteredOrders.filter((o) => o.paymentMethod === 'CARD').length} Card swipe bills completed
             </p>
           </div>
@@ -393,26 +400,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* 4. Category-Wise Sales */}
       {reportType === 'category-sales' && (
-        <div className="rounded-2xl bg-[#0C0C0F] border border-white/[0.08] overflow-hidden shadow-xl">
+        <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-white/[0.08] bg-[#121216] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+              <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4 text-center">Items Count</th>
                 <th className="py-3 px-4 text-right">Total Revenue (INR)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#E8DEC8]">
               {categorySalesList.map((c) => (
-                <tr key={c.category} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="py-3 px-4 font-semibold text-white">
+                <tr key={c.category} className="hover:bg-[#FAF8F5] transition-colors">
+                  <td className="py-3 px-4 font-bold text-stone-900">
                     {c.category}
                   </td>
-                  <td className="py-3 px-4 text-center font-mono text-zinc-300">
+                  <td className="py-3 px-4 text-center font-mono text-stone-700">
                     {c.itemsSold}
                   </td>
-                  <td className="py-3 px-4 text-right font-mono font-bold text-[#E5C158] text-sm">
-                    ₹{c.totalRevenue.toFixed(2)}
+                  <td className="py-3 px-4 text-right font-mono font-bold text-[#A67D0C] text-sm">
+                    Rs. {c.totalRevenue.toFixed(2)}
                   </td>
                 </tr>
               ))}
@@ -423,32 +430,32 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* 5. Inventory Stock Valuation Report */}
       {reportType === 'inventory-stock' && (
-        <div className="rounded-2xl bg-[#0C0C0F] border border-white/[0.08] overflow-hidden shadow-xl">
+        <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-white/[0.08] bg-[#121216] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+              <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
                 <th className="py-3 px-4">SKU</th>
                 <th className="py-3 px-4">Barcode</th>
                 <th className="py-3 px-4">Product Name</th>
-                <th className="py-3 px-4">Unit Basis</th>
+                <th className="py-3 px-4 text-center">Unit Basis</th>
                 <th className="py-3 px-4 text-right">Cost Price</th>
                 <th className="py-3 px-4 text-right">Selling Price</th>
                 <th className="py-3 px-4 text-center">Current Stock</th>
                 <th className="py-3 px-4 text-right">Stock Valuation</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#E8DEC8]">
               {products.map((p) => (
-                <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="py-3 px-4 font-mono font-bold text-[#D4AF37]">{p.sku}</td>
-                  <td className="py-3 px-4 font-mono text-zinc-400">{p.barcode}</td>
-                  <td className="py-3 px-4 font-semibold text-white">{p.name}</td>
-                  <td className="py-3 px-4 text-center font-bold text-zinc-300">{p.unit}</td>
-                  <td className="py-3 px-4 text-right font-mono text-zinc-400">₹{p.costPrice}</td>
-                  <td className="py-3 px-4 text-right font-mono text-white">₹{p.sellingPrice}</td>
-                  <td className="py-3 px-4 text-center font-mono font-bold text-emerald-400">{formatStock(p.stock, p.unit)}</td>
-                  <td className="py-3 px-4 text-right font-mono font-bold text-[#E5C158]">
-                    ₹{(p.stock * p.sellingPrice).toFixed(2)}
+                <tr key={p.id} className="hover:bg-[#FAF8F5] transition-colors">
+                  <td className="py-3 px-4 font-mono font-bold text-[#A67D0C]">{p.sku}</td>
+                  <td className="py-3 px-4 font-mono text-stone-600">{p.barcode}</td>
+                  <td className="py-3 px-4 font-bold text-stone-900">{p.name}</td>
+                  <td className="py-3 px-4 text-center font-bold text-stone-700">{p.unit}</td>
+                  <td className="py-3 px-4 text-right font-mono text-stone-500">Rs. {p.costPrice}</td>
+                  <td className="py-3 px-4 text-right font-mono text-stone-900">Rs. {p.sellingPrice}</td>
+                  <td className="py-3 px-4 text-center font-mono font-bold text-emerald-600">{formatStock(p.stock, p.unit)}</td>
+                  <td className="py-3 px-4 text-right font-mono font-bold text-[#A67D0C]">
+                    Rs. {(p.stock * p.sellingPrice).toFixed(2)}
                   </td>
                 </tr>
               ))}
@@ -459,10 +466,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* 6. Expenses Audit Report */}
       {reportType === 'expenses' && (
-        <div className="rounded-2xl bg-[#0C0C0F] border border-white/[0.08] overflow-hidden shadow-xl">
+        <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-white/[0.08] bg-[#121216] text-zinc-400 uppercase tracking-wider font-semibold text-[10px]">
+              <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
                 <th className="py-3 px-4">Title</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4">Date & Time</th>
@@ -471,17 +478,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <th className="py-3 px-4 text-right">Amount (INR)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#E8DEC8]">
               {expenses.map((e) => (
-                <tr key={e.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="py-3 px-4 font-semibold text-white">{e.title}</td>
-                  <td className="py-3 px-4 text-zinc-400">{e.category}</td>
-                  <td className="py-3 px-4 text-zinc-300 font-mono text-[11px]">{e.date}</td>
-                  <td className="py-3 px-4 text-zinc-400">{e.paidTo || 'Direct'}</td>
+                <tr key={e.id} className="hover:bg-[#FAF8F5] transition-colors">
+                  <td className="py-3 px-4 font-bold text-stone-900">{e.title}</td>
+                  <td className="py-3 px-4 text-stone-600">{e.category}</td>
+                  <td className="py-3 px-4 text-stone-600 font-mono text-[11px]">{e.date}</td>
+                  <td className="py-3 px-4 text-stone-600">{e.paidTo || 'Direct'}</td>
                   <td className="py-3 px-4 text-center">
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-white/[0.04] text-zinc-300">{e.paymentMode}</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8]">{e.paymentMode}</span>
                   </td>
-                  <td className="py-3 px-4 text-right font-mono font-bold text-red-400">₹{e.amount.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-right font-mono font-bold text-rose-600">Rs. {e.amount.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>

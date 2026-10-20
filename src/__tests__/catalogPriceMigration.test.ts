@@ -42,7 +42,7 @@ describe('AL-BHURANI POS — Catalog KG Price Unit Conversion Audit', () => {
       const converted = convertProductToKgPrice(jiniSevOld);
       expect(converted.sellingPrice).toBe(320);
       expect(converted.unit).toBe('KG');
-      expect(converted.priceBasis).toBe('₹/kg');
+      expect(converted.priceBasis).toBe('Rs./kg');
       expect(converted.netWeight).toBe('Per KG');
       expect(converted.barcode).toBe('50470789537');
     });
@@ -67,7 +67,7 @@ describe('AL-BHURANI POS — Catalog KG Price Unit Conversion Audit', () => {
       const converted = convertProductToKgPrice(mohanThaalOld);
       expect(converted.sellingPrice).toBe(500);
       expect(converted.unit).toBe('KG');
-      expect(converted.priceBasis).toBe('₹/kg');
+      expect(converted.priceBasis).toBe('Rs./kg');
     });
 
     it('converts all 41 approved products accurately in the base catalog', () => {
@@ -179,7 +179,7 @@ describe('AL-BHURANI POS — Catalog KG Price Unit Conversion Audit', () => {
       const { products: sanitized } = migrateCatalogPrices([staleRemoteProduct]);
       expect(sanitized[0].sellingPrice).toBe(320);
       expect(sanitized[0].unit).toBe('KG');
-      expect(sanitized[0].priceBasis).toBe('₹/kg');
+      expect(sanitized[0].priceBasis).toBe('Rs./kg');
     });
   });
 

@@ -9,7 +9,7 @@ export interface Product {
   name: string;
   category: ProductCategory;
   unit: SellingUnit | string; // 'KG' | 'PCS' etc.
-  priceBasis?: string; // '₹/kg' or '₹/pc'
+  priceBasis?: string; // 'Rs./kg' or 'Rs./pc'
   netWeight?: string;
   costPrice: number;
   sellingPrice: number; // Price per KG or price per piece
@@ -34,7 +34,7 @@ export interface CartItem {
   lineTotal: number; // paise-safe line total in INR
   discountPercent: number;
   formattedQuantity: string; // '250 g', '1.250 kg', '5 pcs'
-  formattedRate: string; // '₹800/kg', '₹20/pc'
+  formattedRate: string; // 'Rs. 800/kg', 'Rs. 20/pc'
 }
 
 export type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT';

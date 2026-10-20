@@ -6,46 +6,46 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
 
-    /* === TEN11 LUXURY BLACK & GOLD PALETTE === */
-    --background: 0, 0%, 3.1%; /* #080808 */
-    --secondary: 0, 0%, 4.3%;  /* #0B0B0D */
-    --card: 0, 0%, 7.1%;       /* #121214 */
-    --sidebar: 0, 0%, 4.3%;    /* #0B0B0D */
-    --sidebar-border: 43, 72%, 24%;
-    --border: 43, 72%, 52%;
+    /* === AL-BHURANI LUXURY GOLD & WHITE PALETTE === */
+    --background: 40, 25%, 98%;     /* #FAF8F5 Warm luxury off-white */
+    --secondary: 40, 30%, 96%;      /* #F5F2EB Subtle ivory/cream */
+    --card: 0, 0%, 100%;            /* #FFFFFF Pure crisp white */
+    --sidebar: 0, 0%, 100%;         /* #FFFFFF Pure white rail */
+    --sidebar-border: 43, 40%, 88%; /* #E8DEC8 Warm soft gold border */
+    --border: 43, 35%, 85%;
 
-    --foreground: 0, 0%, 96%;   /* #F5F5F5 */
-    --text: 0, 0%, 96%;
-    --secondary-foreground: 240, 5%, 65%; /* #A1A1AA */
+    --foreground: 24, 10%, 10%;     /* #1C1917 Deep charcoal/near-black */
+    --text: 24, 10%, 10%;
+    --secondary-foreground: 24, 5%, 38%; /* #57534E */
 
-    /* Luxury Gold: #D4AF37 */
-    --primary: 43, 72%, 52%;
-    --primary-foreground: 0, 0%, 4%;
-    --primary-hover: 45, 74%, 62%;
+    /* Royal Brand Gold */
+    --primary: 43, 72%, 46%;        /* #C99A18 Rich luxury gold */
+    --primary-foreground: 0, 0%, 100%;
+    --primary-hover: 43, 75%, 40%;
 
-    --accent: 43, 72%, 52%;
+    --accent: 43, 72%, 46%;
     --accent-foreground: 0, 0%, 100%;
-    --muted: 0, 0%, 7.1%;
-    --muted-foreground: 0, 0%, 47%; /* #777777 */
+    --muted: 40, 25%, 95%;          /* #F5F1E8 */
+    --muted-foreground: 24, 5%, 45%;
 
-    --success: 152, 69%, 40%;
-    --warning: 38, 92%, 50%;
-    --danger: 0, 84%, 60%;
+    --success: 152, 69%, 36%;
+    --warning: 38, 92%, 45%;
+    --danger: 0, 84%, 55%;
 
-    --gold: #D4AF37;
-    --gold-light: #E7C75A;
-    --gold-dark: #C9A227;
-    --gold-muted: #C5A85A;
-    --gold-border: rgba(212, 175, 55, 0.16);
+    --gold: #C99A18;
+    --gold-light: #DFB738;
+    --gold-dark: #A67D0C;
+    --gold-muted: #B8962E;
+    --gold-border: rgba(201, 154, 24, 0.24);
   }
 
   body {
     @apply antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #080808;
-    color: #F5F5F5;
+    background-color: #FAF8F5;
+    color: #1C1917;
     min-height: 100vh;
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -55,14 +55,14 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #080808;
+    background: #FAF8F5;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.2);
+    background: rgba(201, 154, 24, 0.28);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(212, 175, 55, 0.4);
+    background: rgba(201, 154, 24, 0.5);
   }
 
   :where(input[type="text"],
@@ -72,77 +72,79 @@
   select,
   textarea) {
     @apply w-full rounded-xl transition-all duration-200 py-2 px-3.5;
-    background: #121212;
-    border: 1px solid rgba(212, 175, 55, 0.18);
-    color: #EAEAEA;
+    background: #FFFFFF;
+    border: 1px solid rgba(201, 154, 24, 0.28);
+    color: #1C1917;
   }
   input:focus,
   select:focus,
   textarea:focus {
     outline: none;
-    border-color: rgba(212, 175, 55, 0.6);
-    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
-    background: #171717;
+    border-color: #C99A18;
+    box-shadow: 0 0 0 3px rgba(201, 154, 24, 0.16);
+    background: #FFFFFF;
   }
   input::placeholder,
   textarea::placeholder {
-    color: rgba(184, 184, 184, 0.45);
+    color: #A8A29E;
   }
 }
 
 @layer utilities {
   .liquid-glass {
-    background: rgba(18, 18, 18, 0.82);
+    background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(212, 175, 55, 0.12);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(212, 175, 55, 0.05) inset;
+    border: 1px solid rgba(201, 154, 24, 0.22);
+    box-shadow: 0 10px 30px rgba(201, 154, 24, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03);
   }
 
   .ten-card {
-    background: #121214;
-    border: 1px solid rgba(212, 175, 55, 0.12);
-    border-radius: 0.875rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    background: #FFFFFF;
+    border: 1px solid rgba(201, 154, 24, 0.22);
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
   }
 
   .ten-card-hover {
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .ten-card-hover:hover {
-    border-color: rgba(212, 175, 55, 0.35);
-    background: #151518;
+    border-color: rgba(201, 154, 24, 0.45);
+    background: #FDFBF7;
+    box-shadow: 0 8px 24px rgba(201, 154, 24, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
   }
 
   .ten-elevated {
-    background: #171717;
-    border: 1px solid rgba(212, 175, 55, 0.14);
+    background: #FFFFFF;
+    border: 1px solid rgba(201, 154, 24, 0.25);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
   }
 
   .glass-card {
-    background: #121214;
-    border: 1px solid rgba(212, 175, 55, 0.14);
-    border-radius: 0.875rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    background: #FFFFFF;
+    border: 1px solid rgba(201, 154, 24, 0.2);
+    border-radius: 1rem;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
   }
 
   .glass-card-hover {
     transition: all 0.25s ease;
   }
   .glass-card-hover:hover {
-    background: #161619;
-    border-color: rgba(212, 175, 55, 0.35);
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.08);
+    background: #FDFBF7;
+    border-color: rgba(201, 154, 24, 0.45);
+    box-shadow: 0 12px 30px rgba(201, 154, 24, 0.12), 0 0 16px rgba(201, 154, 24, 0.06);
   }
 
   .glass-sidebar {
-    background: rgba(10, 10, 10, 0.97);
-    backdrop-filter: blur(32px);
-    border-right: 1px solid rgba(212, 175, 55, 0.1);
+    background: #FFFFFF;
+    border-right: 1px solid rgba(201, 154, 24, 0.18);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.03);
   }
 
   .gold-gradient-text {
-    background: linear-gradient(135deg, #F3E7C4 0%, #D4AF37 50%, #AA820A 100%);
+    background: linear-gradient(135deg, #B8860B 0%, #D4AF37 50%, #8C6207 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -153,19 +155,20 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.625rem 1.25rem;
-    background: linear-gradient(135deg, #E5C158, #C9A227);
-    color: #0A0A0A;
-    font-weight: 600;
+    background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
+    color: #FFFFFF !important;
+    font-weight: 700;
     font-size: 0.875rem;
     border-radius: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 14px rgba(184, 134, 11, 0.3);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     transition: all 0.2s ease;
     cursor: pointer;
   }
   .btn-gold:hover {
-    background: linear-gradient(135deg, #F0CF6F, #D4AF37);
-    box-shadow: 0 6px 22px rgba(212, 175, 55, 0.4);
+    background: linear-gradient(135deg, #DFB738 0%, #C99A18 100%);
+    box-shadow: 0 6px 20px rgba(184, 134, 11, 0.45);
     transform: translateY(-1px);
   }
   .btn-gold:active {
@@ -178,22 +181,60 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.625rem 1.25rem;
-    background: rgba(255, 255, 255, 0.04);
-    color: #EAEAEA;
-    font-weight: 500;
+    background: #FFFFFF;
+    color: #1C1917 !important;
+    font-weight: 600;
     font-size: 0.875rem;
     border-radius: 0.75rem;
-    border: 1px solid rgba(212, 175, 55, 0.15);
+    border: 1px solid rgba(201, 154, 24, 0.25);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
     transition: all 0.2s ease;
     cursor: pointer;
   }
   .btn-dark:hover {
-    background: rgba(212, 175, 55, 0.08);
-    border-color: rgba(212, 175, 55, 0.35);
-    color: #FFFFFF;
+    background: #FDFBF7;
+    border-color: #C99A18;
+    color: #A67D0C !important;
   }
 
-  /* Thermal & Sticker print styling */
+  /* Universal Dark-to-Gold/White Conversion Classes */
+  .bg-\[\#080808\] {
+    background-color: #FAF8F5 !important;
+  }
+  .bg-\[\#0B0B0D\] {
+    background-color: #FFFFFF !important;
+  }
+  .bg-\[\#121214\] {
+    background-color: #FFFFFF !important;
+    border-color: rgba(201, 154, 24, 0.2) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03) !important;
+  }
+  .bg-\[\#18181C\], .bg-\[\#171717\] {
+    background-color: #FDFBF7 !important;
+  }
+  .bg-\[\#151518\] {
+    background-color: #F5F2EB !important;
+  }
+  .bg-black\/50, .bg-black\/60, .bg-black\/70, .bg-black\/80 {
+    background-color: rgba(28, 25, 23, 0.45) !important;
+  }
+  .border-white\/\[0\.08\], .border-white\/\[0\.06\], .border-white\/\[0\.1\], .border-white\/\[0\.12\], .border-white\/\[0\.14\] {
+    border-color: rgba(201, 154, 24, 0.2) !important;
+  }
+  .text-white:not(.btn-gold, .btn-gold *, .bg-emerald-500 *, .bg-rose-500 *, .bg-amber-500 *) {
+    color: #1C1917 !important;
+  }
+  .text-zinc-400, .text-zinc-500 {
+    color: #57534E !important;
+  }
+  .text-zinc-300 {
+    color: #292524 !important;
+  }
+  .text-zinc-600 {
+    color: #78716C !important;
+  }
+
+  /* Thermal & Sticker print styling (Pure black on white) */
   @media print {
     @page {
       margin: 0;
@@ -354,19 +395,19 @@
     animation: fade-in 0.2s ease forwards;
   }
 
-  /* Custom scrollbar (keeping the gold style) */
+  /* Custom scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 5px;
+    height: 5px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.15);
+    background: rgba(201, 154, 24, 0.22);
     border-radius: 9999px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(212, 175, 55, 0.3);
+    background: rgba(201, 154, 24, 0.45);
   }
 }

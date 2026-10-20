@@ -93,7 +93,7 @@ export function generateReceiptPdfBytes(order: OrderBill): Uint8Array {
   let curY = heightPt - 22;
 
   // 1. Store Header Branding
-  writeCentered('AL-BHURANI', curY, 'F2', 13);
+  writeCentered('AL-BURHANI', curY, 'F2', 13);
   curY -= 12;
   writeCentered('SWEETS & DRY ITEMS FRANCHISE', curY, 'F2', 7.5);
   curY -= 10;
@@ -235,7 +235,7 @@ export function generateReceiptPdfBytes(order: OrderBill): Uint8Array {
   curY -= 11;
 
   // 6. Footer Greeting
-  writeCentered('*** Thank You For Visiting AL-BHURANI! ***', curY, 'F1', 6.5);
+  writeCentered('*** Thank You For Visiting AL-BURHANI! ***', curY, 'F1', 6.5);
 
   // Assemble Complete Standard PDF 1.4 Binary Structure
   const encoder = new TextEncoder();
@@ -322,7 +322,7 @@ export async function shareReceiptPdfWhatsApp(
 
   // Prepared friendly customer message
   const custName = order.customerName ? order.customerName.trim() : 'Valued Customer';
-  const messageText = `*AL-BHURANI Sweets & Dry Items*\nDear ${custName}, thank you for your purchase!\nBill No: *${order.billNumber}*\nDate: ${order.createdAt}\nTotal Amount: *Rs. ${order.grandTotal.toFixed(2)}*\n\nYour receipt PDF is attached. We look forward to serving you again!`;
+  const messageText = `*AL-BURHANI Sweets & Dry Items*\nDear ${custName}, thank you for your purchase!\nBill No: *${order.billNumber}*\nDate: ${order.createdAt}\nTotal Amount: *Rs. ${order.grandTotal.toFixed(2)}*\n\nYour receipt PDF is attached. We look forward to serving you again!`;
 
   // Try Native File Sharing if supported by device/browser
   if (

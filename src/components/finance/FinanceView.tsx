@@ -102,7 +102,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
-            ₹{totalRevenue.toLocaleString('en-IN')}
+            Rs. {totalRevenue.toLocaleString('en-IN')}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-emerald-400 mt-1">
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -119,7 +119,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
-            ₹{upiTotal.toLocaleString('en-IN')}
+            Rs. {upiTotal.toLocaleString('en-IN')}
           </div>
           <div className="text-xs text-gray-400 mt-1">
             Instant Bank Settlement
@@ -135,7 +135,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
-            ₹{cashTotal.toLocaleString('en-IN')}
+            Rs. {cashTotal.toLocaleString('en-IN')}
           </div>
           <div className="text-xs text-gray-400 mt-1">
             Physical Cash to Deposit
@@ -151,7 +151,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-black text-white mt-2 font-mono">
-            ₹{cardTotal.toLocaleString('en-IN')}
+            Rs. {cardTotal.toLocaleString('en-IN')}
           </div>
           <div className="text-xs text-gray-400 mt-1">
             POS Terminal Batch
@@ -204,7 +204,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
                   <div className="text-right shrink-0 flex items-center gap-2 sm:gap-3">
                     <div>
                       <div className="font-mono font-bold text-white text-sm">
-                        ₹{order.grandTotal}
+                        Rs. {order.grandTotal}
                       </div>
                       <div className="text-[10px] text-emerald-400 font-medium">Paid ✓</div>
                     </div>
@@ -227,7 +227,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <h3 className="font-semibold text-white text-sm">Today's Store Outflows</h3>
             <span className="text-xs font-mono font-bold text-red-400">
-              -₹{totalExpenses.toLocaleString('en-IN')}
+              -Rs. {totalExpenses.toLocaleString('en-IN')}
             </span>
           </div>
 
@@ -251,7 +251,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
 
                 <div className="text-right shrink-0">
                   <span className="text-sm font-bold font-mono text-red-400">
-                    -₹{exp.amount.toLocaleString('en-IN')}
+                    -Rs. {exp.amount.toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>
@@ -314,7 +314,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-300 font-semibold block mb-1">
-                    Amount (₹)
+                    Amount (Rs. )
                   </label>
                   <input
                     type="number"

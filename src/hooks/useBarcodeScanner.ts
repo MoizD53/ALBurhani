@@ -31,12 +31,15 @@ export interface UseBarcodeScannerProps {
 export function useBarcodeScanner({
   onScan,
   minChars = 2,
-  maxIntervalMs = 85,
+  maxIntervalMs = 120,
   enabled = true,
   supportTabSuffix = true,
   supportNoSuffix = true,
-  noSuffixTimeoutMs = 100,
+  noSuffixTimeoutMs = 130,
 }: UseBarcodeScannerProps) {
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
+
   const buffer = useRef<string>('');
   const timestamps = useRef<number[]>([]);
   const lastKeyTime = useRef<number>(0);
@@ -60,7 +63,7 @@ export function useBarcodeScanner({
         const elapsedMs = times.length > 1 ? times[times.length - 1] - times[0] : 0;
         const avgIntervalMs = times.length > 1 ? Math.round(elapsedMs / (times.length - 1)) : 0;
 
-        onScan(trimmed, {
+        onScanRef.current(trimmed, {
           barcode: trimmed,
           suffix,
           elapsedMs,
@@ -154,5 +157,5 @@ export function useBarcodeScanner({
       window.removeEventListener('keydown', handleKeyDown);
       clearSuffixTimeout();
     };
-  }, [onScan, minChars, maxIntervalMs, enabled, supportTabSuffix, supportNoSuffix, noSuffixTimeoutMs]);
+  }, [minChars, maxIntervalMs, enabled, supportTabSuffix, supportNoSuffix, noSuffixTimeoutMs]);
 }

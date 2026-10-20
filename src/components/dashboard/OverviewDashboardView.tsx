@@ -102,8 +102,8 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
 
   // Helper for masking numbers
   const formatAmount = (val: number) => {
-    if (isMasked) return '₹ * * , * * *';
-    return `₹${val.toLocaleString('en-IN')}`;
+    if (isMasked) return 'Rs. * * , * * *';
+    return `Rs. ${val.toLocaleString('en-IN')}`;
   };
 
   const formatNumber = (val: number) => {
@@ -117,16 +117,16 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
       {/* 1. Header: Dashboard Title & Uppercase Gold Subtitle */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-normal text-white tracking-tight font-sans">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#1C1917] tracking-tight font-serif">
             Dashboard
           </h1>
-          <p className="text-[11px] font-bold tracking-[0.22em] text-[#C5A85A] uppercase mt-1">
+          <p className="text-[11px] font-bold tracking-[0.22em] text-[#A67D0C] uppercase mt-1">
             EXECUTIVE OVERVIEW • {todayFormatted}
           </p>
         </div>
 
         {/* Date Filters */}
-        <div className="flex items-center gap-1 bg-[#121214] p-1 rounded-xl border border-white/[0.08] shadow-sm">
+        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8DEC8] shadow-sm">
           {[
             ['today', 'Today'],
             ['7days', '7 Days'],
@@ -136,10 +136,10 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             <button
               key={key}
               onClick={() => setDateFilter(key as any)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                 dateFilter === key
-                  ? 'bg-[#D4AF37] text-black shadow-sm'
-                  : 'text-[#A1A1AA] hover:text-white'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
               }`}
             >
               {label}
@@ -152,15 +152,15 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         
         {/* Card 1: TODAY'S REVENUE */}
-        <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/35 transition-all group">
+        <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/60 transition-all group bg-white border border-[#E8DEC8] shadow-sm">
           <div>
             <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-full bg-[#1C1A14] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] group-hover:border-[#D4AF37]/60 transition-colors">
+              <div className="w-10 h-10 rounded-full bg-[#FAF8F5] border border-[#C99A18]/30 flex items-center justify-center text-[#C99A18] group-hover:border-[#C99A18] transition-colors shadow-sm">
                 <IndianRupee className="w-4 h-4" />
               </div>
               <button 
                 onClick={() => setIsMasked((prev) => !prev)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
+                className="text-stone-400 hover:text-stone-700 transition-colors p-1"
                 title={isMasked ? "Show figures" : "Hide figures"}
               >
                 {isMasked ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -168,56 +168,56 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             </div>
 
             <div className="mt-4">
-              <span className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase block">
+              <span className="text-[11px] font-bold tracking-wider text-stone-500 uppercase block">
                 Today's Revenue
               </span>
-              <div className="text-2xl sm:text-3xl font-normal text-white mt-1 font-mono tracking-tight">
+              <div className="text-2xl sm:text-3xl font-bold text-[#1C1917] mt-1 font-mono tracking-tight">
                 {formatAmount(todayRevenue)}
               </div>
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
-            <span className="uppercase tracking-wider font-sans text-zinc-500 text-[10px]">Lifetime</span>
-            <span className="text-zinc-400 font-semibold">{formatAmount(lifetimeRevenue)}</span>
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
+            <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Lifetime</span>
+            <span className="text-[#A67D0C] font-bold">{formatAmount(lifetimeRevenue)}</span>
           </div>
         </div>
 
         {/* Card 2: CUSTOMERS (TODAY) */}
-        <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/35 transition-all group">
+        <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/60 transition-all group bg-white border border-[#E8DEC8] shadow-sm">
           <div>
             <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-full bg-[#1C1A14] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] group-hover:border-[#D4AF37]/60 transition-colors">
+              <div className="w-10 h-10 rounded-full bg-[#FAF8F5] border border-[#C99A18]/30 flex items-center justify-center text-[#C99A18] group-hover:border-[#C99A18] transition-colors shadow-sm">
                 <Users className="w-4 h-4" />
               </div>
             </div>
 
             <div className="mt-4">
-              <span className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase block">
+              <span className="text-[11px] font-bold tracking-wider text-stone-500 uppercase block">
                 Customers (Today)
               </span>
-              <div className="text-2xl sm:text-3xl font-normal text-white mt-1 font-mono tracking-tight">
+              <div className="text-2xl sm:text-3xl font-bold text-[#1C1917] mt-1 font-mono tracking-tight">
                 {formatNumber(todayCustomersCount)}
               </div>
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
-            <span className="uppercase tracking-wider font-sans text-zinc-500 text-[10px]">Total Customers</span>
-            <span className="text-zinc-400 font-semibold">{formatNumber(lifetimeCustomersCount)}</span>
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
+            <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Total Customers</span>
+            <span className="text-stone-700 font-bold">{formatNumber(lifetimeCustomersCount)}</span>
           </div>
         </div>
 
         {/* Card 3: TODAY'S EXPENSES */}
-        <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/35 transition-all group">
+        <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/60 transition-all group bg-white border border-[#E8DEC8] shadow-sm">
           <div>
             <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-full bg-[#1C1A14] border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] group-hover:border-[#D4AF37]/60 transition-colors">
+              <div className="w-10 h-10 rounded-full bg-[#FAF8F5] border border-[#C99A18]/30 flex items-center justify-center text-[#C99A18] group-hover:border-[#C99A18] transition-colors shadow-sm">
                 <Receipt className="w-4 h-4" />
               </div>
               <button 
                 onClick={() => setIsMasked((prev) => !prev)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
+                className="text-stone-400 hover:text-stone-700 transition-colors p-1"
                 title={isMasked ? "Show figures" : "Hide figures"}
               >
                 {isMasked ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -225,18 +225,18 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             </div>
 
             <div className="mt-4">
-              <span className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase block">
+              <span className="text-[11px] font-bold tracking-wider text-stone-500 uppercase block">
                 Today's Expenses
               </span>
-              <div className="text-2xl sm:text-3xl font-normal text-white mt-1 font-mono tracking-tight">
+              <div className="text-2xl sm:text-3xl font-bold text-[#1C1917] mt-1 font-mono tracking-tight">
                 {formatAmount(todayExpenses)}
               </div>
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
-            <span className="uppercase tracking-wider font-sans text-zinc-500 text-[10px]">Total Expenses</span>
-            <span className="text-zinc-400 font-semibold">{formatAmount(lifetimeExpenses)}</span>
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
+            <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Total Expenses</span>
+            <span className="text-stone-700 font-bold">{formatAmount(lifetimeExpenses)}</span>
           </div>
         </div>
 
@@ -247,61 +247,61 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
         
         {/* Left: Payment Method Reconciliation */}
-        <div className="ten-card p-5 rounded-2xl space-y-4">
+        <div className="ten-card p-5 rounded-2xl space-y-4 bg-white border border-[#E8DEC8] shadow-sm">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Banknote className="w-4 h-4 text-[#D4AF37]" />
+            <h3 className="text-sm font-bold text-[#1C1917] flex items-center gap-2">
+              <Banknote className="w-4 h-4 text-[#C99A18]" />
               <span>Payment Tender Breakdown</span>
             </h3>
-            <span className="text-[10px] text-[#C5A85A] font-semibold uppercase">Live Audit</span>
+            <span className="text-[10px] text-[#A67D0C] font-bold uppercase">Live Audit</span>
           </div>
 
           <div className="space-y-3">
             {/* Cash */}
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between">
+            <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-600 flex items-center justify-center">
                   <Banknote className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-xs font-semibold text-white block">Cash Tender</span>
-                  <span className="text-[10px] text-zinc-500">In Register Drawer</span>
+                  <span className="text-xs font-bold text-[#1C1917] block">Cash Tender</span>
+                  <span className="text-[10px] text-stone-500">In Register Drawer</span>
                 </div>
               </div>
-              <span className="text-sm font-bold font-mono text-white">
-                ₹{cashTotal.toLocaleString('en-IN')}
+              <span className="text-sm font-bold font-mono text-[#1C1917]">
+                Rs. {cashTotal.toLocaleString('en-IN')}
               </span>
             </div>
 
             {/* UPI */}
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between">
+            <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/25 text-purple-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/15 border border-purple-500/25 text-purple-600 flex items-center justify-center">
                   <QrCode className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-xs font-semibold text-white block">UPI / QR Scan</span>
-                  <span className="text-[10px] text-zinc-500">Direct Bank Credit</span>
+                  <span className="text-xs font-bold text-[#1C1917] block">UPI / QR Scan</span>
+                  <span className="text-[10px] text-stone-500">Direct Bank Credit</span>
                 </div>
               </div>
-              <span className="text-sm font-bold font-mono text-white">
-                ₹{upiTotal.toLocaleString('en-IN')}
+              <span className="text-sm font-bold font-mono text-[#1C1917]">
+                Rs. {upiTotal.toLocaleString('en-IN')}
               </span>
             </div>
 
             {/* Card */}
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between">
+            <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/25 text-blue-400 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/25 text-blue-600 flex items-center justify-center">
                   <CreditCard className="w-4 h-4" />
                 </div>
                 <div>
-                  <span className="text-xs font-semibold text-white block">Card Swipes</span>
-                  <span className="text-[10px] text-zinc-500">POS Machine Settlement</span>
+                  <span className="text-xs font-bold text-[#1C1917] block">Card Swipes</span>
+                  <span className="text-[10px] text-stone-500">POS Machine Settlement</span>
                 </div>
               </div>
-              <span className="text-sm font-bold font-mono text-white">
-                ₹{cardTotal.toLocaleString('en-IN')}
+              <span className="text-sm font-bold font-mono text-[#1C1917]">
+                Rs. {cardTotal.toLocaleString('en-IN')}
               </span>
             </div>
           </div>
@@ -318,15 +318,15 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
         </div>
 
         {/* Right: Recent Sales Transactions Feed (Span 2 cols) */}
-        <div className="ten-card p-5 rounded-2xl lg:col-span-2 space-y-4">
+        <div className="ten-card p-5 rounded-2xl lg:col-span-2 space-y-4 bg-white border border-[#E8DEC8] shadow-sm">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#D4AF37]" />
+            <h3 className="text-sm font-bold text-[#1C1917] flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#C99A18]" />
               <span>Recent Billing Activity</span>
             </h3>
             <button
               onClick={() => onNavigateToTab('customer-bills')}
-              className="text-xs font-semibold text-[#D4AF37] hover:text-[#E7C75A] flex items-center gap-1 transition-colors"
+              className="text-xs font-bold text-[#C99A18] hover:text-[#A67D0C] flex items-center gap-1 transition-colors"
             >
               <span>View All Bills</span>
               <ChevronRight className="w-3.5 h-3.5" />
@@ -334,58 +334,58 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
           </div>
 
           {orders.length === 0 ? (
-            <div className="h-48 flex flex-col items-center justify-center text-center p-6 bg-white/[0.01] rounded-xl border border-white/[0.04]">
-              <Receipt className="w-8 h-8 text-zinc-600 mb-2 stroke-1" />
-              <p className="text-xs font-semibold text-zinc-300">No transactions recorded yet</p>
-              <p className="text-[11px] text-zinc-500 mt-0.5">Start billing to view live transaction history</p>
+            <div className="h-48 flex flex-col items-center justify-center text-center p-6 bg-[#FAF8F5] rounded-xl border border-[#E8DEC8]">
+              <Receipt className="w-8 h-8 text-stone-400 mb-2 stroke-1" />
+              <p className="text-xs font-bold text-stone-700">No transactions recorded yet</p>
+              <p className="text-[11px] text-stone-500 mt-0.5">Start billing to view live transaction history</p>
             </div>
           ) : (
             <div className="space-y-2 overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-white/[0.06] pb-2">
-                    <th className="pb-2 font-normal">Sale Description</th>
-                    <th className="pb-2 font-normal">Date & Time</th>
-                    <th className="pb-2 font-normal">Tender</th>
-                    <th className="pb-2 text-right font-normal">Amount</th>
-                    <th className="pb-2 text-right font-normal">Actions</th>
+                  <tr className="text-[10px] font-bold text-stone-500 uppercase tracking-wider border-b border-[#F0EBE0] pb-2">
+                    <th className="pb-2 font-semibold">Sale Description</th>
+                    <th className="pb-2 font-semibold">Date & Time</th>
+                    <th className="pb-2 font-semibold">Tender</th>
+                    <th className="pb-2 text-right font-semibold">Amount</th>
+                    <th className="pb-2 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.04]">
+                <tbody className="divide-y divide-[#F0EBE0]">
                   {orders.slice(0, 5).map((order) => {
                     const primaryItem = order.items[0]?.product.name || 'Counter Sale';
                     const moreCount = order.items.length - 1;
                     const itemsSummary = moreCount > 0 ? `${primaryItem} +${moreCount} more` : primaryItem;
 
                     return (
-                      <tr key={order.id} className="hover:bg-white/[0.02] transition-colors">
+                      <tr key={order.id} className="hover:bg-[#FAF8F5] transition-colors">
                         <td className="py-2.5">
-                          <div className="font-semibold text-white truncate max-w-[220px]" title={itemsSummary}>
+                          <div className="font-bold text-[#1C1917] truncate max-w-[220px]" title={itemsSummary}>
                             {itemsSummary}
                           </div>
-                          <div className="text-[10px] text-zinc-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${
+                          <div className="text-[10px] text-stone-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                               order.transactionType === 'NO_BILL'
-                                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
-                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                                ? 'bg-amber-500/15 text-amber-800 border border-amber-500/30'
+                                : 'bg-emerald-500/15 text-emerald-800 border border-emerald-500/30'
                             }`}>
                               {order.transactionType === 'NO_BILL' ? 'No-Bill' : 'Tax Invoice'}
                             </span>
                             {order.customerName && (
-                              <span className="text-zinc-500 truncate max-w-[130px]">
+                              <span className="text-stone-500 truncate max-w-[130px]">
                                 • {order.customerName}
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-2.5 text-zinc-400 font-mono text-[11px] whitespace-nowrap">
+                        <td className="py-2.5 text-stone-500 font-mono text-[11px] whitespace-nowrap">
                           {order.createdAt}
                         </td>
-                        <td className="py-2.5 font-mono text-zinc-300">
+                        <td className="py-2.5 font-mono text-stone-700 font-semibold">
                           {order.paymentMethod}
                         </td>
-                        <td className="py-2.5 text-right font-mono font-bold text-[#E7C75A]">
-                          ₹{order.grandTotal.toFixed(2)}
+                        <td className="py-2.5 text-right font-mono font-bold text-[#B8860B]">
+                          Rs. {order.grandTotal.toFixed(2)}
                         </td>
                         <td className="py-2.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1">
@@ -393,7 +393,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onModifyOrder(order)}
-                                className="p-1 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                                className="p-1 rounded-lg text-stone-400 hover:text-amber-700 hover:bg-amber-500/10 transition-colors"
                                 title="Add Items / Modify Bill"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
@@ -401,7 +401,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
                             )}
                             <button
                               onClick={() => setSelectedReceiptOrder(order)}
-                              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                              className="p-1 rounded-lg text-stone-400 hover:text-stone-800 hover:bg-stone-100 transition-colors"
                               title="Reprint / View Receipt"
                             >
                               <Printer className="w-3.5 h-3.5" />
@@ -410,13 +410,13 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (window.confirm(`Delete this sales entry ${order.billNumber} (₹${order.grandTotal.toFixed(2)})?`)) {
+                                  if (window.confirm(`Delete this sales entry ${order.billNumber} (Rs. ${order.grandTotal.toFixed(2)})?`)) {
                                     onDeleteOrder(order.id);
                                   }
                                 }}
-                                className="p-1 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                                className="p-1 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
                                 title="Delete Entry"
-                                aria-label={`Delete sales entry ${order.billNumber} for ₹${order.grandTotal.toFixed(2)}`}
+                                aria-label={`Delete sales entry ${order.billNumber} for Rs. ${order.grandTotal.toFixed(2)}`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -433,6 +433,15 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
         </div>
 
       </div>
+
+      {/* Thermal Receipt Preview Modal */}
+      {selectedReceiptOrder && (
+        <ReceiptModal
+          order={selectedReceiptOrder}
+          onClose={() => setSelectedReceiptOrder(null)}
+          onModifyOrder={onModifyOrder}
+        />
+      )}
 
 
       {/* Thermal Receipt Preview Modal */}

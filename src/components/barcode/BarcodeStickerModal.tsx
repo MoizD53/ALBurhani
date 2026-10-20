@@ -39,41 +39,41 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none print:p-0 print:bg-white print:static print:block">
-      <div className="relative w-full max-w-md rounded-2xl bg-[#121214] border border-[#D4AF37]/35 shadow-[0_24px_70px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:bg-white print:overflow-visible">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none print:p-0 print:bg-white print:static print:block">
+      <div className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:bg-white print:overflow-visible">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#161619] shrink-0 print:hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#E8DEC8] bg-[#FAF8F5] shrink-0 print:hidden">
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 shrink-0">
+            <div className="p-1.5 rounded-lg bg-[#FBF7EE] text-[#A67D0C] border border-[#C99A18]/30 shrink-0">
               <Tag className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-semibold text-white text-sm font-serif">Thermal Barcode Sticker</h3>
-              <p className="text-[10px] text-zinc-400">50mm × 35mm Label (CODE128)</p>
+              <h3 className="font-bold text-stone-900 text-sm">Thermal Barcode Sticker</h3>
+              <p className="text-[10px] text-stone-500">50mm × 35mm Label (CODE128)</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
+            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-200/60 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Sticker Preview Body */}
-        <div className="p-4 sm:p-6 flex flex-col items-center overflow-y-auto custom-scrollbar flex-1">
+        <div className="p-4 sm:p-6 flex flex-col items-center overflow-y-auto custom-scrollbar flex-1 bg-stone-50">
           
           <div 
             id="barcode-sticker-print"
-            className="w-[300px] bg-white text-black p-3.5 rounded-xl shadow-lg border border-gray-300 flex flex-col items-center select-none"
+            className="w-[300px] bg-white text-black p-3.5 rounded-xl shadow-md border border-stone-300 flex flex-col items-center select-none"
           >
             {/* Store Branding */}
             <div className="text-center border-b border-dashed border-gray-400 pb-1 w-full">
               <span className="font-extrabold text-xs tracking-wider text-black block uppercase font-serif">
                 AL-BHURANI SWEETS & DRY ITEMS
               </span>
-              <span className="text-[9px] text-gray-600 block">
+              <span className="text-[9px] text-gray-600 block font-medium">
                 Pure Ghee Mithai · Fresh Namkeen · Dry Fruits
               </span>
             </div>
@@ -103,7 +103,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
             {/* Product Code & Price */}
             <div className="w-full flex justify-between items-center border-t border-dashed border-gray-400 pt-1">
               <div>
-                <span className="text-[9px] font-mono text-gray-600 block leading-tight">Code: {product.sku}</span>
+                <span className="text-[9px] font-mono text-gray-600 block leading-tight font-bold">Code: {product.sku}</span>
                 <span className="text-[9px] text-gray-700 font-semibold">MRP (Incl. All Taxes)</span>
               </div>
               <span className="text-base font-black font-mono text-black">
@@ -112,22 +112,22 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
             </div>
           </div>
 
-          <p className="mt-3 text-[11px] text-zinc-400 text-center max-w-xs print:hidden">
+          <p className="mt-3 text-[11px] text-stone-500 text-center max-w-xs print:hidden">
             Print ready for TVS, TSC, Zebra, Citizen, or Xprinter 2-inch thermal sticker rolls.
           </p>
         </div>
 
         {/* Modal Actions */}
-        <div className="flex items-center justify-end gap-2.5 px-5 py-3 border-t border-white/[0.08] bg-[#161619] shrink-0 print:hidden">
+        <div className="flex items-center justify-end gap-2.5 px-5 py-3 border-t border-[#E8DEC8] bg-[#FAF8F5] shrink-0 print:hidden">
           <button
             onClick={onClose}
-            className="px-3.5 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+            className="px-3.5 py-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handlePrint}
-            className="btn-gold text-xs py-1.5 px-4 flex items-center gap-1.5 font-bold"
+            className="btn-gold text-xs py-2 px-4 flex items-center gap-1.5 font-bold shadow-sm"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Print Label</span>
