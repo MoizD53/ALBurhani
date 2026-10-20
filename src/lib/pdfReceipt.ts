@@ -419,18 +419,18 @@ export function generateReceiptHtml(order: OrderBill): string {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Receipt-${order.billNumber}</title>
+  <title></title>
   <style>
     @page {
       size: 80mm auto;
-      margin: 0;
+      margin: 0 !important;
     }
     *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    body {
+    html, body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       font-size: 9px;
       line-height: 1.25;
@@ -439,7 +439,7 @@ export function generateReceiptHtml(order: OrderBill): string {
       width: 72mm;
       max-width: 72mm;
       margin: 0 auto;
-      padding: 2mm 3mm;
+      padding: 1.5mm 2.5mm;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -460,7 +460,11 @@ export function generateReceiptHtml(order: OrderBill): string {
     table { width: 100%; border-collapse: collapse; font-size: 9px; }
     th { font-weight: 900; border-bottom: 2px solid #000; padding-bottom: 2px; }
     @media print {
-      body { width: 72mm; margin: 0 auto; padding: 1mm 2.5mm; }
+      html, body {
+        width: 72mm !important;
+        margin: 0 auto !important;
+        padding: 1.5mm 2.5mm !important;
+      }
     }
   </style>
 </head>
@@ -620,6 +624,62 @@ export function printReceiptViaWindow(order: OrderBill): boolean {
     return true;
   } catch (err) {
     console.error('printReceiptViaWindow failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Prints the thermal receipt via a dedicated hidden iframe.
+ * Completely isolates the receipt from SPA DOM hierarchy, avoids blank preview pages,
+ * prevents pop-up blocking, and eliminates browser headers/footers with zero-margin 80mm continuous roll.
+ */
+export function printReceiptViaIframe(order: OrderBill): boolean {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+  try {
+    const iframeId = '__thermal_receipt_print_frame__';
+    let iframe = document.getElementById(iframeId) as HTMLIFrameElement | null;
+    if (iframe) {
+      try {
+        iframe.remove();
+      } catch {}
+    }
+
+    iframe = document.createElement('iframe');
+    iframe.id = iframeId;
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc || !iframe.contentWindow) return false;
+
+    const html = generateReceiptHtml(order);
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const triggerPrint = () => {
+      try {
+        iframe?.contentWindow?.focus();
+        iframe?.contentWindow?.print();
+      } catch (printErr) {
+        console.error('iframe print failed, falling back to window.print():', printErr);
+        window.print();
+      }
+    };
+
+    // 150ms timeout ensures the browser parses CSS, calculates 80mm layout and renders before opening print dialog
+    setTimeout(triggerPrint, 150);
+    return true;
+  } catch (err) {
+    console.error('printReceiptViaIframe failed:', err);
     return false;
   }
 }

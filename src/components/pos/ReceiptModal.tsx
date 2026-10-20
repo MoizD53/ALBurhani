@@ -15,7 +15,8 @@ import {
 import { 
   shareReceiptPdfWhatsApp, 
   downloadReceiptPdf,
-  printReceiptViaWindow 
+  printReceiptViaWindow,
+  printReceiptViaIframe
 } from '../../lib/pdfReceipt';
 import { 
   isValidWhatsAppPhoneNumber, 
@@ -75,24 +76,43 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [order, onClose, showPhonePrompt]);
 
+  // Suppress browser headers & footers by temporarily clearing document.title during print
+  useEffect(() => {
+    if (!order) return;
+    const originalTitle = document.title;
+    const handleBeforePrint = () => {
+      document.title = '';
+    };
+    const handleAfterPrint = () => {
+      document.title = originalTitle;
+    };
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+      if (document.title === '') {
+        document.title = originalTitle;
+      }
+    };
+  }, [order]);
+
   if (!order) return null;
 
   const handlePrint = () => {
+    if (!order) return;
     setShowPrintHelp(true);
-    // Ensure receipt content renders completely before triggering the print dialog
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        try {
-          window.print();
-        } catch (err) {
-          console.error('window.print() error:', err);
-          setFeedback({
-            message: 'Browser print dialog could not open directly. Press Ctrl+P or use "Clean Print Window".',
-            type: 'info',
-          });
-        }
-      }, 60);
-    });
+    // Isolate thermal receipt via dedicated iframe: guarantees 100% visible preview,
+    // suppresses Chrome headers/footers, and cuts at exact continuous roll content length.
+    try {
+      const ok = printReceiptViaIframe(order);
+      if (!ok) {
+        window.print();
+      }
+    } catch (err) {
+      console.error('printReceiptViaIframe error, falling back to window.print():', err);
+      window.print();
+    }
   };
 
   const handlePrintViaCleanWindow = () => {
@@ -193,8 +213,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       <style>{`
         @media print {
           @page {
-            size: 80mm;
-            margin: 0mm;
+            size: 80mm auto;
+            margin: 0mm !important;
           }
           html, body {
             width: 80mm !important;
@@ -213,7 +233,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             visibility: visible !important;
           }
           #thermal-receipt {
-            position: absolute !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
             width: 72mm !important;
@@ -222,6 +242,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             padding: 1.5mm 2.5mm !important;
             border: none !important;
             box-shadow: none !important;
+            z-index: 99999999 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             page-break-after: avoid !important;
             page-break-before: avoid !important;
             page-break-inside: avoid !important;
