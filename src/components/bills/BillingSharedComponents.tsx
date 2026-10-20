@@ -33,22 +33,22 @@ export const BillingPageHeader: React.FC<BillingPageHeaderProps> = ({
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#C99A18]/30 text-[#C99A18] flex items-center justify-center shrink-0 shadow-sm">
+      <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+        <div className="w-10 h-10 rounded-2xl bg-[#FAF8F5] border border-[#C99A18]/30 text-[#C99A18] flex items-center justify-center shrink-0 shadow-sm mt-0.5 sm:mt-0">
           <Icon className="w-5 h-5" />
         </div>
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-lg sm:text-xl font-bold text-[#1C1917] font-serif tracking-wide">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+            <h2 className="text-lg sm:text-xl font-bold text-[#1C1917] font-serif tracking-tight leading-snug">
               {title}
             </h2>
             {badge && (
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border uppercase font-bold tracking-wider ${badgeClasses}`}>
+              <span className={`inline-flex items-center text-[10px] font-mono px-2.5 py-0.5 rounded-full border uppercase font-bold tracking-wider whitespace-nowrap shrink-0 shadow-xs ${badgeClasses}`}>
                 {badge.text}
               </span>
             )}
           </div>
-          <p className="text-xs text-stone-500 mt-0.5 font-medium">
+          <p className="text-xs text-stone-500 mt-1 font-medium leading-normal">
             {subtitle}
           </p>
         </div>
