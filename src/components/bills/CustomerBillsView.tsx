@@ -413,6 +413,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
           order={selectedOrderForReceipt}
           onClose={() => setSelectedOrderForReceipt(null)}
           onModifyOrder={onModifyOrder}
+          onUpdateOrder={(updated) => setSelectedOrderForReceipt(updated)}
         />
       )}
 

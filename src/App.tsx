@@ -73,9 +73,10 @@ const VALID_TABS: ActiveTab[] = [
 ];
 
 function getTabFromHash(): ActiveTab {
-  if (typeof window === 'undefined') return 'overview';
+  if (typeof window === 'undefined') return 'pos';
   const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
-  return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'overview';
+  if (raw === 'customer-bills') return 'no-bill-sales';
+  return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'pos';
 }
 
 export function App() {
@@ -88,7 +89,7 @@ export function App() {
     if (session && isSessionValid(session)) {
       return getTabFromHash();
     }
-    return 'overview';
+    return 'pos';
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -462,6 +463,20 @@ export function App() {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Listen for order updates (e.g. phone number added from ReceiptModal)
+  useEffect(() => {
+    const handleOrdersUpdated = (e: Event) => {
+      const customEvt = e as CustomEvent<OrderBill>;
+      if (customEvt.detail && customEvt.detail.id) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === customEvt.detail.id ? customEvt.detail : o))
+        );
+      }
+    };
+    window.addEventListener('albhurani_orders_updated', handleOrdersUpdated);
+    return () => window.removeEventListener('albhurani_orders_updated', handleOrdersUpdated);
   }, []);
 
   useEffect(() => {
@@ -901,7 +916,7 @@ export function App() {
               products={products}
               onCompleteSale={handleCompleteSale}
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
-              initialTransactionType="CUSTOMER_BILL"
+              initialTransactionType="NO_BILL"
               editingOrder={editingOrder}
               onCancelEditOrder={handleCancelModifyOrder}
               onSaveModifiedOrder={handleSaveModifiedOrder}

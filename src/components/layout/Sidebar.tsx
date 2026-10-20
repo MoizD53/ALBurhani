@@ -61,14 +61,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'POS Billing',
       icon: ShoppingBag,
     },
-    {
-      id: 'customer-bills' as ActiveTab,
-      label: 'Customer Bills',
-      icon: FileText,
-    },
+    // Temporarily hidden: GST Tax Invoices entry disabled by default
+    // {
+    //   id: 'customer-bills' as ActiveTab,
+    //   label: 'Customer Bills',
+    //   icon: FileText,
+    // },
     {
       id: 'no-bill-sales' as ActiveTab,
-      label: 'No-Bill Sales',
+      label: 'Bills / Counter Sales',
       icon: ReceiptText,
     },
     {

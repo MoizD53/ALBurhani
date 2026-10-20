@@ -1,4 +1,8 @@
 import { OrderBill } from '../types';
+import {
+  normalizeWhatsAppPhoneNumber,
+  formatPhoneNumberForDisplay,
+} from './phoneUtils';
 
 /**
  * Escapes characters for PDF literal text strings in Type 1 standard fonts.
@@ -308,23 +312,58 @@ export interface ShareResult {
 
 /**
  * Shares or prepares WhatsApp sharing for the receipt PDF:
- * 1. Generates the real receipt PDF.
- * 2. If navigator.share supports file sharing, launches native share sheet (which allows choosing WhatsApp directly).
- * 3. Fallback: downloads the PDF locally and opens WhatsApp with a pre-filled summary message,
- *    notifying the cashier to attach the downloaded PDF.
+ * 1. Generates the real receipt PDF for the selected order.
+ * 2. If a valid recipient phone number is provided (or saved on order), automatically targets that recipient on WhatsApp.
+ * 3. Downloads the PDF locally so it can be attached.
+ * 4. Fallback: if no phone number is provided, attempts native share or opens general WhatsApp.
  */
 export async function shareReceiptPdfWhatsApp(
   order: OrderBill,
+  targetPhoneOrFeedback?: string | ((msg: string, type: 'info' | 'success' | 'warning' | 'error') => void),
   onFeedback?: (msg: string, type: 'info' | 'success' | 'warning' | 'error') => void
 ): Promise<ShareResult> {
-  const blob = generateReceiptPdfBlob(order);
-  const filename = `Receipt-${order.billNumber}.pdf`;
+  let explicitPhone: string | undefined;
+  let feedbackCallback: ((msg: string, type: 'info' | 'success' | 'warning' | 'error') => void) | undefined;
 
-  // Prepared friendly customer message
+  if (typeof targetPhoneOrFeedback === 'function') {
+    feedbackCallback = targetPhoneOrFeedback;
+  } else if (typeof targetPhoneOrFeedback === 'string') {
+    explicitPhone = targetPhoneOrFeedback;
+    feedbackCallback = onFeedback;
+  } else if (onFeedback) {
+    feedbackCallback = onFeedback;
+  }
+
+  // 1. Determine and normalize target phone number (explicit argument takes priority over order)
+  const rawPhone = explicitPhone !== undefined ? explicitPhone : order.customerPhone;
+  const normalizedPhone = normalizeWhatsAppPhoneNumber(rawPhone);
+
+  // 2. Prepare receipt summary text
   const custName = order.customerName ? order.customerName.trim() : 'Valued Customer';
-  const messageText = `*AL-BURHANI Sweets & Dry Items*\nDear ${custName}, thank you for your purchase!\nBill No: *${order.billNumber}*\nDate: ${order.createdAt}\nTotal Amount: *Rs. ${order.grandTotal.toFixed(2)}*\n\nYour receipt PDF is attached. We look forward to serving you again!`;
+  const hasGst = order.gstAmount > 0;
+  const billType = hasGst ? 'Tax Invoice' : 'Retail Sale Memo';
+  const messageText = `*AL-BURHANI Sweets & Dry Items*\nDear ${custName}, thank you for your purchase!\n${billType}: *${order.billNumber}*\nDate: ${order.createdAt}\nTotal Amount: *Rs. ${order.grandTotal.toFixed(2)}*\n\nYour receipt PDF is attached. We look forward to serving you again!`;
 
-  // Try Native File Sharing if supported by device/browser
+  // 3. When a recipient phone number is available, ALWAYS route directly to WhatsApp with that phone number
+  if (normalizedPhone) {
+    try {
+      downloadReceiptPdf(order);
+      const waUrl = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(messageText)}`;
+      if (typeof window !== 'undefined') {
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+      const displayPhone = formatPhoneNumberForDisplay(normalizedPhone);
+      const msg = `Receipt PDF downloaded. Opening WhatsApp for ${displayPhone} — attach the downloaded receipt to send.`;
+      feedbackCallback?.(msg, 'success');
+      return { method: 'whatsapp-fallback', success: true, message: msg };
+    } catch (err: any) {
+      const errorMsg = `Could not initiate WhatsApp share: ${err?.message || 'Unknown error'}`;
+      feedbackCallback?.(errorMsg, 'error');
+      return { method: 'download-only', success: false, message: errorMsg };
+    }
+  }
+
+  // 4. If no phone number is specified, try native share if supported
   if (
     typeof navigator !== 'undefined' &&
     typeof File !== 'undefined' &&
@@ -332,6 +371,8 @@ export async function shareReceiptPdfWhatsApp(
     typeof navigator.canShare === 'function'
   ) {
     try {
+      const blob = generateReceiptPdfBlob(order);
+      const filename = `Receipt-${order.billNumber}.pdf`;
       const file = new File([blob], filename, { type: 'application/pdf' });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -340,7 +381,7 @@ export async function shareReceiptPdfWhatsApp(
           files: [file],
         });
         const msg = 'Receipt PDF shared successfully.';
-        onFeedback?.(msg, 'success');
+        feedbackCallback?.(msg, 'success');
         return { method: 'native-share', success: true, message: msg };
       }
     } catch (err: any) {
@@ -351,34 +392,19 @@ export async function shareReceiptPdfWhatsApp(
     }
   }
 
-  // Fallback: Download PDF and open WhatsApp web/app link
+  // 5. Fallback without recipient: download PDF and open general WhatsApp
   try {
     downloadReceiptPdf(order);
-
-    // Format phone number for WhatsApp link
-    let phoneParam = '';
-    if (order.customerPhone) {
-      const cleaned = order.customerPhone.replace(/\D/g, '');
-      if (cleaned.length === 10) {
-        phoneParam = `91${cleaned}`;
-      } else if (cleaned.length > 10) {
-        phoneParam = cleaned;
-      }
-    }
-
-    const waBase = phoneParam ? `https://wa.me/${phoneParam}` : 'https://wa.me/';
-    const waUrl = `${waBase}?text=${encodeURIComponent(messageText)}`;
-
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(messageText)}`;
     if (typeof window !== 'undefined') {
       window.open(waUrl, '_blank', 'noopener,noreferrer');
     }
-
     const msg = 'Receipt PDF downloaded. In WhatsApp, attach the downloaded receipt file to send to the customer.';
-    onFeedback?.(msg, 'info');
+    feedbackCallback?.(msg, 'info');
     return { method: 'whatsapp-fallback', success: true, message: msg };
   } catch (err: any) {
     const errorMsg = `Could not initiate WhatsApp share: ${err?.message || 'Unknown error'}`;
-    onFeedback?.(errorMsg, 'error');
+    feedbackCallback?.(errorMsg, 'error');
     return { method: 'download-only', success: false, message: errorMsg };
   }
 }

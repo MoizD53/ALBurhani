@@ -51,7 +51,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   products,
   onCompleteSale,
   onOpenStickerModal,
-  initialTransactionType = 'CUSTOMER_BILL',
+  initialTransactionType = 'NO_BILL',
   editingOrder = null,
   onCancelEditOrder,
   onSaveModifiedOrder,
@@ -799,35 +799,12 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
           ${mobileTab === 'catalog' ? 'hidden lg:flex' : 'flex'}
         `}>
           
-          {/* Bill Mode Tabs: "With GST" vs "Without GST" (2 clean headings) */}
+          {/* Active Billing Mode: Without GST (0% GST) by default */}
           <div className="p-2 sm:p-2.5 border-b border-[#E8DEC8] bg-[#FAF8F5] shrink-0">
             <div className="flex items-center gap-2">
-              <div className="grid grid-cols-2 flex-1 p-0.5 bg-white rounded-xl border border-[#E8DEC8] shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setTransactionType('CUSTOMER_BILL')}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold tracking-wide flex items-center justify-center gap-1.5 transition-all ${
-                    transactionType === 'CUSTOMER_BILL'
-                      ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>With GST</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setTransactionType('NO_BILL')}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold tracking-wide flex items-center justify-center gap-1.5 transition-all ${
-                    transactionType === 'NO_BILL'
-                      ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
-                  }`}
-                >
-                  <ReceiptText className="w-3.5 h-3.5" />
-                  <span>Without GST</span>
-                </button>
+              <div className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white text-xs font-bold tracking-wide flex items-center justify-center gap-1.5 shadow-sm">
+                <ReceiptText className="w-3.5 h-3.5" />
+                <span>{editingOrder?.transactionType === 'CUSTOMER_BILL' ? 'Editing GST Customer Bill' : 'Retail Sale (0% GST)'}</span>
               </div>
 
               {/* Scroll Controls */}
@@ -1211,6 +1188,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         onClose={() => {
           setCompletedOrder(null);
           refocusBarcode();
+        }}
+        onUpdateOrder={(updated) => {
+          setCompletedOrder(updated);
         }}
       />
 

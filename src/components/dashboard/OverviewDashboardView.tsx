@@ -325,7 +325,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
               <span>Recent Billing Activity</span>
             </h3>
             <button
-              onClick={() => onNavigateToTab('customer-bills')}
+              onClick={() => onNavigateToTab('no-bill-sales')}
               className="text-xs font-bold text-[#C99A18] hover:text-[#A67D0C] flex items-center gap-1 transition-colors"
             >
               <span>View All Bills</span>

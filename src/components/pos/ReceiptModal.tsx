@@ -9,21 +9,48 @@ import {
   ArrowRight, 
   Info, 
   Check, 
-  Edit2 
+  Edit2,
+  Phone
 } from 'lucide-react';
 import { shareReceiptPdfWhatsApp, downloadReceiptPdf } from '../../lib/pdfReceipt';
+import { 
+  isValidWhatsAppPhoneNumber, 
+  updateOrderCustomerPhone 
+} from '../../lib/phoneUtils';
 
 interface ReceiptModalProps {
   order: OrderBill | null;
   onClose: () => void;
   onModifyOrder?: (order: OrderBill) => void;
+  onUpdateOrder?: (order: OrderBill) => void;
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onModifyOrder }) => {
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({ 
+  order: initialOrder, 
+  onClose, 
+  onModifyOrder,
+  onUpdateOrder,
+}) => {
+  const [currentOrder, setCurrentOrder] = useState<OrderBill | null>(initialOrder);
   const [feedback, setFeedback] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [showPhonePrompt, setShowPhonePrompt] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
-  // Global Escape keydown listener (closes modal without altering saved sale)
+  // Sync state whenever prop order changes (e.g. reopening different bill or revised order)
+  useEffect(() => {
+    setCurrentOrder(initialOrder);
+    setFeedback(null);
+    setIsSharing(false);
+    setShowPhonePrompt(false);
+    setPhoneInput(initialOrder?.customerPhone || '');
+    setPhoneError(null);
+  }, [initialOrder?.id, initialOrder?.billNumber]);
+
+  const order = currentOrder || initialOrder;
+
+  // Global Escape keydown listener (closes modal or closes phone prompt)
   useEffect(() => {
     if (!order) return;
 
@@ -31,19 +58,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        if (showPhonePrompt) {
+          setShowPhonePrompt(false);
+        } else {
+          onClose();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [order, onClose]);
-
-  // Reset feedback whenever order changes
-  useEffect(() => {
-    setFeedback(null);
-    setIsSharing(false);
-  }, [order?.id]);
+  }, [order, onClose, showPhonePrompt]);
 
   if (!order) return null;
 
@@ -52,10 +77,58 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
   };
 
   const handleShareWhatsApp = async () => {
-    setIsSharing(true);
+    if (!order) return;
     setFeedback(null);
+
+    // If order already has a valid phone number, reuse it directly without prompt
+    if (isValidWhatsAppPhoneNumber(order.customerPhone)) {
+      setIsSharing(true);
+      try {
+        await shareReceiptPdfWhatsApp(order, (msg, type) => {
+          setFeedback({ message: msg, type: type === 'warning' ? 'info' : type });
+        });
+      } catch (err: any) {
+        setFeedback({
+          message: `Share error: ${err?.message || 'Could not complete WhatsApp share'}`,
+          type: 'error',
+        });
+      } finally {
+        setIsSharing(false);
+      }
+      return;
+    }
+
+    // Otherwise, ask the cashier to enter or correct the phone number as fallback
+    setPhoneInput(order.customerPhone || '');
+    setPhoneError(null);
+    setShowPhonePrompt(true);
+  };
+
+  const handleConfirmPhoneAndShare = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!order) return;
+
+    if (!isValidWhatsAppPhoneNumber(phoneInput)) {
+      setPhoneError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    setPhoneError(null);
+    setShowPhonePrompt(false);
+    setIsSharing(true);
+
+    const cleanInput = phoneInput.trim();
+    // Persist phone number with the bill and customer record in existing data model
+    const updated = updateOrderCustomerPhone(order.id, cleanInput, order.billNumber) || {
+      ...order,
+      customerPhone: cleanInput,
+    };
+
+    setCurrentOrder(updated);
+    onUpdateOrder?.(updated);
+
     try {
-      await shareReceiptPdfWhatsApp(order, (msg, type) => {
+      await shareReceiptPdfWhatsApp(updated, (msg, type) => {
         setFeedback({ message: msg, type: type === 'warning' ? 'info' : type });
       });
     } catch (err: any) {
@@ -132,6 +205,85 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-sm rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl overflow-hidden max-h-[92vh] max-h-[92dvh] flex flex-col print:border-none print:shadow-none print:max-h-none print:w-auto print:max-w-none print:static print:overflow-visible print:bg-white"
       >
+        
+        {/* Fallback Customer Phone Input Modal for WhatsApp Sharing */}
+        {showPhonePrompt && (
+          <div 
+            className="absolute inset-0 z-30 bg-stone-900/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full max-w-xs bg-white rounded-2xl p-4 shadow-2xl border border-[#E8DEC8] space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E8DEC8]">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <Share2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-stone-900">Send WhatsApp PDF</h4>
+                    <p className="text-[10px] text-stone-500 font-mono">{order.billNumber}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPhonePrompt(false)}
+                  className="p-1 text-stone-400 hover:text-stone-600 rounded-lg hover:bg-stone-100"
+                  aria-label="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmPhoneAndShare} className="space-y-3">
+                <p className="text-[11px] text-stone-600 leading-snug">
+                  Enter customer's mobile number to send this PDF receipt directly on WhatsApp:
+                </p>
+
+                <div>
+                  <div className="flex items-center rounded-xl border border-stone-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20 overflow-hidden bg-white shadow-inner">
+                    <span className="px-2.5 py-2 bg-stone-100 text-[11px] font-bold text-stone-600 border-r border-stone-200 select-none">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      autoFocus
+                      placeholder="98765 43210"
+                      value={phoneInput}
+                      onChange={(e) => {
+                        setPhoneInput(e.target.value);
+                        if (phoneError) setPhoneError(null);
+                      }}
+                      className="w-full px-2.5 py-2 text-xs font-mono text-stone-900 focus:outline-none bg-transparent"
+                    />
+                  </div>
+                  {phoneError && (
+                    <p className="text-[10px] text-rose-600 font-semibold mt-1 flex items-center gap-1">
+                      <Info className="w-3 h-3 shrink-0" />
+                      <span>{phoneError}</span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowPhonePrompt(false)}
+                    className="py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Send PDF</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
         
         {/* Header (Hidden when printing) */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#E8DEC8] bg-[#FAF8F5] shrink-0 print:hidden">

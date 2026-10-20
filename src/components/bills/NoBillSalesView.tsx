@@ -466,6 +466,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
           order={selectedOrderForReceipt}
           onClose={() => setSelectedOrderForReceipt(null)}
           onModifyOrder={onModifyOrder}
+          onUpdateOrder={(updated) => setSelectedOrderForReceipt(updated)}
         />
       )}
 
