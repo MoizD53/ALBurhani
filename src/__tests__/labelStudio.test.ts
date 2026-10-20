@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateBatchDates } from '../components/labels/LabelStudioView';
+import { validateBatchDates, PRESETS } from '../components/labels/LabelStudioView';
 import { Product, UserProfile } from '../types';
 
 describe('AL-BHURANI POS — Label Studio Specification & Verification', () => {
@@ -153,45 +153,89 @@ describe('AL-BHURANI POS — Label Studio Specification & Verification', () => {
     });
   });
 
-  describe('5. NovaJet MPL A4 Sheet Dimensions & Capacity', () => {
-    it('verifies NovaJet MPL 24L WR sheet geometry fits within A4', () => {
-      const sheetWidth = 210;
-      const sheetHeight = 297;
-      const labelW = 64;
-      const labelH = 34;
-      const cols = 3;
-      const rows = 8;
-      const gapX = 2;
-      const gapY = 0;
-      const marginLeft = 7;
-      const marginTop = 12.5;
+  describe('5. TECHNOVA Profiles for Canon Printer & Geometry Verification', () => {
+    it('verifies TECHNOVA — 24 Labels (Canon) profile fits perfectly on A4', () => {
+      const profile = PRESETS['technova-24l-canon'];
+      expect(profile).toBeDefined();
+      expect(profile.label).toBe('TECHNOVA — 24 Labels (Canon)');
+      const dims = profile.dims;
 
-      const totalOccupiedWidth = marginLeft + (cols * labelW) + ((cols - 1) * gapX);
-      const totalOccupiedHeight = marginTop + (rows * labelH) + ((rows - 1) * gapY);
+      expect(dims.sheetWidthMm).toBe(210);
+      expect(dims.sheetHeightMm).toBe(297);
+      expect(dims.labelWidthMm).toBe(64);
+      expect(dims.labelHeightMm).toBe(34);
+      expect(dims.columns).toBe(3);
+      expect(dims.rows).toBe(8);
+      expect(dims.columns * dims.rows).toBe(24);
 
-      expect(totalOccupiedWidth).toBeLessThanOrEqual(sheetWidth);
-      expect(totalOccupiedHeight).toBeLessThanOrEqual(sheetHeight);
-      expect(cols * rows).toBe(24);
+      // Verify horizontal total: 6mm left margin + 3 * 64mm + 2 * 3mm gap = 204mm <= 210mm
+      const totalWidth = dims.marginLeftMm + (dims.columns * dims.labelWidthMm) + ((dims.columns - 1) * dims.gapXMm);
+      expect(totalWidth).toBe(204);
+      expect(totalWidth).toBeLessThanOrEqual(210);
+
+      // Verify vertical total: 12.5mm top margin + 8 * 34mm = 284.5mm <= 297mm
+      const totalHeight = dims.marginTopMm + (dims.rows * dims.labelHeightMm) + ((dims.rows - 1) * dims.gapYMm);
+      expect(totalHeight).toBe(284.5);
+      expect(totalHeight).toBeLessThanOrEqual(297);
     });
 
-    it('verifies NovaJet MPL 48L sheet geometry fits within A4', () => {
-      const sheetWidth = 210;
-      const sheetHeight = 297;
-      const labelW = 48;
-      const labelH = 24;
-      const cols = 4;
-      const rows = 12;
-      const gapX = 0;
-      const gapY = 0;
-      const marginLeft = 9;
-      const marginTop = 4.5;
+    it('verifies TECHNOVA — 48 Labels (Canon) profile fits perfectly on A4', () => {
+      const profile = PRESETS['technova-48l-canon'];
+      expect(profile).toBeDefined();
+      expect(profile.label).toBe('TECHNOVA — 48 Labels (Canon)');
+      const dims = profile.dims;
 
-      const totalOccupiedWidth = marginLeft + (cols * labelW) + ((cols - 1) * gapX);
-      const totalOccupiedHeight = marginTop + (rows * labelH) + ((rows - 1) * gapY);
+      expect(dims.sheetWidthMm).toBe(210);
+      expect(dims.sheetHeightMm).toBe(297);
+      expect(dims.labelWidthMm).toBe(48);
+      expect(dims.labelHeightMm).toBe(24);
+      expect(dims.columns).toBe(4);
+      expect(dims.rows).toBe(12);
+      expect(dims.columns * dims.rows).toBe(48);
 
-      expect(totalOccupiedWidth).toBeLessThanOrEqual(sheetWidth);
-      expect(totalOccupiedHeight).toBeLessThanOrEqual(sheetHeight);
-      expect(cols * rows).toBe(48);
+      // Verify horizontal total: 4.5mm left margin + 4 * 48mm + 3 * 3mm gap = 205.5mm <= 210mm
+      const totalWidth = dims.marginLeftMm + (dims.columns * dims.labelWidthMm) + ((dims.columns - 1) * dims.gapXMm);
+      expect(totalWidth).toBe(205.5);
+      expect(totalWidth).toBeLessThanOrEqual(210);
+
+      // Verify vertical total: 5mm top margin + 12 * 24mm = 293mm <= 297mm
+      const totalHeight = dims.marginTopMm + (dims.rows * dims.labelHeightMm) + ((dims.rows - 1) * dims.gapYMm);
+      expect(totalHeight).toBe(293);
+      expect(totalHeight).toBeLessThanOrEqual(297);
+    });
+
+    it('guarantees that row N+1 starting position strictly matches label height plus vertical gap', () => {
+      const dims24 = PRESETS['technova-24l-canon'].dims;
+      for (let r = 0; r < dims24.rows - 1; r++) {
+        const rowCurrentTop = dims24.marginTopMm + r * (dims24.labelHeightMm + dims24.gapYMm);
+        const rowCurrentBottom = rowCurrentTop + dims24.labelHeightMm;
+        const rowNextTop = dims24.marginTopMm + (r + 1) * (dims24.labelHeightMm + dims24.gapYMm);
+
+        // Row N bottom must never exceed Row N+1 top (no vertical overlap)
+        expect(rowCurrentBottom).toBeLessThanOrEqual(rowNextTop);
+      }
+
+      const dims48 = PRESETS['technova-48l-canon'].dims;
+      for (let r = 0; r < dims48.rows - 1; r++) {
+        const rowCurrentTop = dims48.marginTopMm + r * (dims48.labelHeightMm + dims48.gapYMm);
+        const rowCurrentBottom = rowCurrentTop + dims48.labelHeightMm;
+        const rowNextTop = dims48.marginTopMm + (r + 1) * (dims48.labelHeightMm + dims48.gapYMm);
+
+        expect(rowCurrentBottom).toBeLessThanOrEqual(rowNextTop);
+      }
+    });
+
+    it('correctly applies Canon printer calibration offsets to effective margins', () => {
+      const baseDims = PRESETS['technova-24l-canon'].dims;
+      const offsetY = -1.5; // Compensate for 1.5mm Canon lead-in feed
+      const offsetX = 0.5;
+
+      const effectiveTop = Math.max(0, baseDims.marginTopMm + offsetY);
+      const effectiveLeft = Math.max(0, baseDims.marginLeftMm + offsetX);
+
+      expect(effectiveTop).toBe(11.0);
+      expect(effectiveLeft).toBe(6.5);
+      expect(baseDims.printScale).toBe(100);
     });
   });
 });

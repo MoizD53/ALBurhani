@@ -291,7 +291,6 @@
   @media print {
     @page {
       margin: 0;
-      size: 80mm auto;
     }
 
     *, *::before, *::after {

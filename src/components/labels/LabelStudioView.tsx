@@ -31,6 +31,8 @@ export interface LabelBatchItem {
 }
 
 export interface SheetDimensions {
+  sheetWidthMm: number;
+  sheetHeightMm: number;
   labelWidthMm: number;
   labelHeightMm: number;
   columns: number;
@@ -39,41 +41,94 @@ export interface SheetDimensions {
   gapYMm: number;
   marginTopMm: number;
   marginLeftMm: number;
+  offsetXMm?: number;
+  offsetYMm?: number;
+  printScale?: number;
 }
 
 export const PRESETS: Record<string, { label: string; sheetName: string; dims: SheetDimensions }> = {
-  'novajet-24l': {
-    label: 'NovaJet 24L (64 × 34 mm)',
-    sheetName: 'Format A — NovaJet MPL 24L WR (3×8 · 24 Labels/Sheet)',
+  'technova-24l-canon': {
+    label: 'TECHNOVA — 24 Labels (Canon)',
+    sheetName: 'TechNova NovaJet MPL 24L WR (3×8 · 24 Labels/Sheet)',
     dims: {
+      sheetWidthMm: 210,
+      sheetHeightMm: 297,
       labelWidthMm: 64,
       labelHeightMm: 34,
       columns: 3,
       rows: 8,
-      gapXMm: 2,
+      gapXMm: 3,
       gapYMm: 0,
       marginTopMm: 12.5,
-      marginLeftMm: 7,
+      marginLeftMm: 6,
+      offsetXMm: 0,
+      offsetYMm: 0,
+      printScale: 100,
     },
   },
-  'novajet-48l': {
-    label: 'NovaJet 48L (48 × 24 mm)',
-    sheetName: 'Format B — NovaJet MPL 48L (4×12 · 48 Labels/Sheet)',
+  'technova-48l-canon': {
+    label: 'TECHNOVA — 48 Labels (Canon)',
+    sheetName: 'TechNova NovaJet MPL 48L (4×12 · 48 Labels/Sheet)',
     dims: {
+      sheetWidthMm: 210,
+      sheetHeightMm: 297,
       labelWidthMm: 48,
       labelHeightMm: 24,
       columns: 4,
       rows: 12,
-      gapXMm: 0,
+      gapXMm: 3,
       gapYMm: 0,
-      marginTopMm: 4.5,
-      marginLeftMm: 9,
+      marginTopMm: 5.0,
+      marginLeftMm: 4.5,
+      offsetXMm: 0,
+      offsetYMm: 0,
+      printScale: 100,
+    },
+  },
+  'novajet-24l': {
+    label: 'NovaJet 24L (64 × 34 mm)',
+    sheetName: 'Format A — TechNova NovaJet MPL 24L WR (3×8 · 24 Labels/Sheet)',
+    dims: {
+      sheetWidthMm: 210,
+      sheetHeightMm: 297,
+      labelWidthMm: 64,
+      labelHeightMm: 34,
+      columns: 3,
+      rows: 8,
+      gapXMm: 3,
+      gapYMm: 0,
+      marginTopMm: 12.5,
+      marginLeftMm: 6,
+      offsetXMm: 0,
+      offsetYMm: 0,
+      printScale: 100,
+    },
+  },
+  'novajet-48l': {
+    label: 'NovaJet 48L (48 × 24 mm)',
+    sheetName: 'Format B — TechNova NovaJet MPL 48L (4×12 · 48 Labels/Sheet)',
+    dims: {
+      sheetWidthMm: 210,
+      sheetHeightMm: 297,
+      labelWidthMm: 48,
+      labelHeightMm: 24,
+      columns: 4,
+      rows: 12,
+      gapXMm: 3,
+      gapYMm: 0,
+      marginTopMm: 5.0,
+      marginLeftMm: 4.5,
+      offsetXMm: 0,
+      offsetYMm: 0,
+      printScale: 100,
     },
   },
   'standard-2col': {
     label: '2-Up Sheet / Roll (50 × 30 mm)',
     sheetName: 'Standard 2-Column Roll (50 × 30 mm)',
     dims: {
+      sheetWidthMm: 110,
+      sheetHeightMm: 310,
       labelWidthMm: 50,
       labelHeightMm: 30,
       columns: 2,
@@ -82,12 +137,17 @@ export const PRESETS: Record<string, { label: string; sheetName: string; dims: S
       gapYMm: 3,
       marginTopMm: 5,
       marginLeftMm: 5,
+      offsetXMm: 0,
+      offsetYMm: 0,
+      printScale: 100,
     },
   },
   'single-roll': {
     label: 'Single Thermal Roll (50 × 30 mm)',
     sheetName: 'Single Thermal Roll (50 × 30 mm, 1 Column)',
     dims: {
+      sheetWidthMm: 54,
+      sheetHeightMm: 34,
       labelWidthMm: 50,
       labelHeightMm: 30,
       columns: 1,
@@ -96,11 +156,14 @@ export const PRESETS: Record<string, { label: string; sheetName: string; dims: S
       gapYMm: 2,
       marginTopMm: 2,
       marginLeftMm: 2,
+      offsetXMm: 0,
+      offsetYMm: 0,
+      printScale: 100,
     },
   },
 };
 
-export const DEFAULT_DIMENSIONS: SheetDimensions = PRESETS['novajet-24l'].dims;
+export const DEFAULT_DIMENSIONS: SheetDimensions = PRESETS['technova-24l-canon'].dims;
 
 /**
  * Validates MFG and EXP dates. Returns error message if invalid.
@@ -133,26 +196,42 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
   const [batchMfgDate, setBatchMfgDate] = useState<string>(getTodayStr());
   const [batchExpDate, setBatchExpDate] = useState<string>('');
 
-  // Active preset
+  // Independent Custom Profiles Store
+  const [savedProfiles, setSavedProfiles] = useState<Record<string, SheetDimensions>>(() => {
+    try {
+      const raw = localStorage.getItem('albhurani_label_custom_profiles');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {};
+  });
+
+  // Active preset (defaults to TECHNOVA — 24 Labels (Canon))
   const [activePreset, setActivePreset] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('albhurani_label_preset');
       if (saved && PRESETS[saved]) return saved;
+      if (saved === 'novajet-24l') return 'technova-24l-canon';
+      if (saved === 'novajet-48l') return 'technova-48l-canon';
     } catch {}
-    return 'novajet-24l';
+    return 'technova-24l-canon';
   });
 
-  // Print Sheet Config
+  // Print Sheet Config (Independent per profile)
   const [sheetDims, setSheetDims] = useState<SheetDimensions>(() => {
     try {
-      const saved = localStorage.getItem('albhurani_label_settings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      const preset = localStorage.getItem('albhurani_label_preset') || 'technova-24l-canon';
+      const rawProfiles = localStorage.getItem('albhurani_label_custom_profiles');
+      if (rawProfiles) {
+        const parsed = JSON.parse(rawProfiles);
+        if (parsed[preset]) return parsed[preset];
+      }
+      const savedSettings = localStorage.getItem('albhurani_label_settings');
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
         if (parsed.labelWidthMm && parsed.labelHeightMm) {
           return {
             ...DEFAULT_DIMENSIONS,
             ...parsed,
-            rows: parsed.rows || (parsed.labelHeightMm === 24 ? 12 : 8),
           };
         }
       }
@@ -163,11 +242,18 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
   const [showSettings, setShowSettings] = useState(false);
   const [viewMode, setViewMode] = useState<'editor' | 'preview'>('editor');
 
-  // Save dimensions to localStorage and sync to Turso cloud
+  // Save dimensions to localStorage and sync to Turso cloud independently per profile
   useEffect(() => {
     try {
       localStorage.setItem('albhurani_label_settings', JSON.stringify(sheetDims));
       localStorage.setItem('albhurani_label_preset', activePreset);
+      setSavedProfiles((prev) => {
+        const updated = { ...prev, [activePreset]: sheetDims };
+        try {
+          localStorage.setItem('albhurani_label_custom_profiles', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
       saveSettingToTurso('label_settings', sheetDims).catch(() => {});
       saveSettingToTurso('label_preset', activePreset).catch(() => {});
     } catch {}
@@ -301,20 +387,42 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
     playBeep('success');
   };
 
-  // Preset Selection
+  // Preset Selection with independent profile memory
   const handleSelectPreset = (presetKey: string) => {
     setActivePreset(presetKey);
-    if (PRESETS[presetKey]) {
-      setSheetDims(PRESETS[presetKey].dims);
-    }
+    const targetDims = savedProfiles[presetKey] || PRESETS[presetKey]?.dims || DEFAULT_DIMENSIONS;
+    setSheetDims(targetDims);
   };
 
-  // Capacity per full A4 sheet
+  // Fine Calibration Offset Adjustments for Canon printer
+  const handleAdjustOffset = (axis: 'X' | 'Y', delta: number) => {
+    setSheetDims((prev) => {
+      const field = axis === 'X' ? 'offsetXMm' : 'offsetYMm';
+      const current = prev[field] || 0;
+      const next = Math.round((current + delta) * 10) / 10;
+      return { ...prev, [field]: next };
+    });
+  };
+
+  const handleResetCalibration = () => {
+    setSheetDims((prev) => ({
+      ...prev,
+      offsetXMm: 0,
+      offsetYMm: 0,
+      printScale: 100,
+    }));
+  };
+
+  // Effective Margins (base margins + Canon printer calibration offset)
+  const effectiveMarginTop = Math.max(0, (sheetDims.marginTopMm || 0) + (sheetDims.offsetYMm || 0));
+  const effectiveMarginLeft = Math.max(0, (sheetDims.marginLeftMm || 0) + (sheetDims.offsetXMm || 0));
+
+  // Capacity per full sheet
   const labelsPerSheet = useMemo(() => {
     const cols = sheetDims.columns || 3;
-    const rows = sheetDims.rows || (activePreset === 'novajet-48l' ? 12 : 8);
+    const rows = sheetDims.rows || (sheetDims.labelHeightMm <= 26 ? 12 : 8);
     return cols * rows;
-  }, [sheetDims.columns, sheetDims.rows, activePreset]);
+  }, [sheetDims.columns, sheetDims.rows, sheetDims.labelHeightMm]);
 
   // Fill 1 Full Sheet Quick Action (e.g. exactly 24 or 48 labels)
   const handleFillFullSheet = () => {
@@ -553,26 +661,26 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
           <div className="flex items-center justify-between border-b border-white/[0.08] pb-2">
             <div className="flex items-center gap-2">
               <Sliders className="w-4 h-4 text-[#D4AF37]" />
-              <h3 className="font-bold text-sm text-white">Sticker Sheet Margins & Physical Offsets</h3>
+              <h3 className="font-bold text-sm text-white">Canon Printer & TECHNOVA Sheet Calibration</h3>
             </div>
             <button
               onClick={() => {
-                setSheetDims(DEFAULT_DIMENSIONS);
-                setActivePreset('novajet-24l');
+                const def = PRESETS[activePreset]?.dims || DEFAULT_DIMENSIONS;
+                setSheetDims(def);
               }}
               className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset to NovaJet 24L Defaults</span>
+              <span>Reset Selected Profile to Defaults</span>
             </button>
           </div>
 
-          {/* Quick Presets */}
+          {/* Quick Presets / Profiles */}
           <div>
             <label className="text-[11px] uppercase font-bold text-zinc-400 block mb-1.5">
-              Standard Sheet Presets:
+              TECHNOVA Paper Profiles (Canon Printer):
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               {Object.entries(PRESETS).map(([key, item]) => (
                 <button
                   key={key}
@@ -586,14 +694,133 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 >
                   <span className="block font-bold text-white text-[11px] leading-snug">{item.label}</span>
                   <span className="text-[10px] text-[#C5A85A] mt-0.5 block font-mono">
-                    {item.dims.labelWidthMm}×{item.dims.labelHeightMm}mm · {item.dims.columns}×{item.dims.rows} ({item.dims.columns * item.dims.rows}/sheet)
+                    {item.dims.labelWidthMm}×{item.dims.labelHeightMm}mm · {item.dims.columns}×{item.dims.rows} ({item.dims.columns * item.dims.rows} labels)
                   </span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Granular Dimension Fields */}
+          {/* Canon Fine Printer Calibration (Offsets & Scale) */}
+          <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[#E7C75A] flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5" />
+                Canon Hardware Alignment & Fine Calibration
+              </span>
+              <button
+                type="button"
+                onClick={handleResetCalibration}
+                className="text-[10px] text-zinc-400 hover:text-white flex items-center gap-1"
+                title="Reset fine alignment offsets to 0"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Offsets (0mm)</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              {/* Vertical Y Calibration */}
+              <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.06] flex flex-col justify-between">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[11px] font-semibold text-zinc-300">Vertical Offset (Y)</span>
+                  <span className="font-mono font-bold text-[#E7C75A] text-[11px]">
+                    {(sheetDims.offsetYMm || 0) > 0 ? '+' : ''}{(sheetDims.offsetYMm || 0).toFixed(1)} mm
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustOffset('Y', -0.5)}
+                    className="flex-1 py-1 px-2 rounded bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs"
+                    title="Move content UP by 0.5mm"
+                  >
+                    -0.5mm (Up)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustOffset('Y', 0.5)}
+                    className="flex-1 py-1 px-2 rounded bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs"
+                    title="Move content DOWN by 0.5mm"
+                  >
+                    +0.5mm (Down)
+                  </button>
+                </div>
+                <p className="text-[9px] text-zinc-500 mt-1 leading-tight">
+                  If bottom of label touches the next row, click -0.5mm to shift up.
+                </p>
+              </div>
+
+              {/* Horizontal X Calibration */}
+              <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.06] flex flex-col justify-between">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[11px] font-semibold text-zinc-300">Horizontal Offset (X)</span>
+                  <span className="font-mono font-bold text-[#E7C75A] text-[11px]">
+                    {(sheetDims.offsetXMm || 0) > 0 ? '+' : ''}{(sheetDims.offsetXMm || 0).toFixed(1)} mm
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustOffset('X', -0.5)}
+                    className="flex-1 py-1 px-2 rounded bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs"
+                    title="Move content LEFT by 0.5mm"
+                  >
+                    -0.5mm (Left)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAdjustOffset('X', 0.5)}
+                    className="flex-1 py-1 px-2 rounded bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs"
+                    title="Move content RIGHT by 0.5mm"
+                  >
+                    +0.5mm (Right)
+                  </button>
+                </div>
+                <p className="text-[9px] text-zinc-500 mt-1 leading-tight">
+                  Adjust left/right horizontal placement.
+                </p>
+              </div>
+
+              {/* Print Scale (Default 100% Actual Size) */}
+              <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.06] flex flex-col justify-between">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[11px] font-semibold text-zinc-300">Print Scale</span>
+                  <span className="font-mono font-bold text-emerald-400 text-[11px]">
+                    {sheetDims.printScale || 100}% (Actual Size)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSheetDims((prev) => ({ ...prev, printScale: Math.max(90, (prev.printScale || 100) - 1) }))}
+                    className="flex-1 py-1 px-2 rounded bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs"
+                  >
+                    -1%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSheetDims((prev) => ({ ...prev, printScale: 100 }))}
+                    className="py-1 px-2 rounded bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs"
+                  >
+                    100%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSheetDims((prev) => ({ ...prev, printScale: Math.min(110, (prev.printScale || 100) + 1) }))}
+                    className="flex-1 py-1 px-2 rounded bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-xs"
+                  >
+                    +1%
+                  </button>
+                </div>
+                <p className="text-[9px] text-zinc-500 mt-1 leading-tight">
+                  Must remain at 100% (Actual Size). Never use "Fit to Printable Area".
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Granular Dimension Fields for Sheet & Sticker Profiles */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 pt-2 text-xs">
             <div>
               <label className="text-[10px] text-zinc-400 block mb-1">Label Width (mm)</label>
@@ -720,17 +947,17 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
             </div>
           </div>
 
-          {/* Calibration Notice */}
+          {/* Alignment & Calibration Guidance */}
           <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] text-[11px] text-zinc-400 space-y-1">
-            <span className="text-[#D4AF37] font-semibold block">Alignment & Calibration Guidance:</span>
+            <span className="text-[#D4AF37] font-semibold block">Canon Alignment & Calibration Guidance:</span>
             <p>
-              • <strong>Top / Left Offsets:</strong> If test prints are shifted down or right, decrease <em>Top Margin</em> or <em>Left Margin</em>. If shifted up or left, increase them.
+              • <strong>Vertical Overlap Prevention:</strong> In both TECHNOVA 24L and 48L, each sticker is physically bounded with safe internal padding. MRP and MFG/EXP remain strictly within their sticker box.
             </p>
             <p>
-              • <strong>Cumulative Row Drift:</strong> If lower rows drift off physical sticker boundaries, adjust <em>Vert Gap (mm)</em> or <em>Label Height (mm)</em> by 0.5mm increments.
+              • <strong>Canon Paper Feeder Offset:</strong> If test prints are shifted down by 1–2mm due to the Canon printer gripper, use <em>Vertical Offset: -1.0mm (Up)</em>.
             </p>
             <p>
-              • <strong>Browser Print Settings:</strong> Set <em>Paper size: A4</em>, <em>Scale: 100% (Default)</em>, and <em>Margins: None</em> in the browser print dialog. Do not use "Fit to Printable Area".
+              • <strong>Browser Print Settings:</strong> Set <em>Paper size: A4</em>, <em>Scale: 100% (Default / Actual Size)</em>, and <em>Margins: None</em> in the print dialog.
             </p>
           </div>
         </div>
@@ -1065,7 +1292,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 A4 Sticker Sheet Preview ({pages.length} Page{pages.length > 1 ? 's' : ''} · {totalLabelCount} Labels)
               </h3>
               <p className="text-[11px] text-zinc-400">
-                {activePreset === 'novajet-48l' ? 'NovaJet MPL 48L (48×24mm · 4×12)' : 'NovaJet MPL 24L WR (64×34mm · 3×8)'} — {sheetDims.columns} columns × {sheetDims.rows} rows
+                {PRESETS[activePreset]?.label || 'TECHNOVA Sheet'} — {sheetDims.columns} columns × {sheetDims.rows} rows ({labelsPerSheet} stickers/sheet) · Scale: {sheetDims.printScale || 100}%
               </p>
             </div>
 
@@ -1103,14 +1330,14 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                   {/* Visual A4 Sheet Container */}
                   <div
                     style={{
-                      width: '210mm',
-                      minHeight: '297mm',
+                      width: `${sheetDims.sheetWidthMm || 210}mm`,
+                      minHeight: `${sheetDims.sheetHeightMm || 297}mm`,
                       boxSizing: 'border-box',
-                      paddingTop: `${sheetDims.marginTopMm}mm`,
-                      paddingLeft: `${sheetDims.marginLeftMm}mm`,
+                      paddingTop: `${effectiveMarginTop}mm`,
+                      paddingLeft: `${effectiveMarginLeft}mm`,
                       display: 'grid',
                       gridTemplateColumns: `repeat(${sheetDims.columns}, ${sheetDims.labelWidthMm}mm)`,
-                      gridAutoRows: `${sheetDims.labelHeightMm}mm`,
+                      gridTemplateRows: `repeat(${sheetDims.rows}, ${sheetDims.labelHeightMm}mm)`,
                       columnGap: `${sheetDims.gapXMm}mm`,
                       rowGap: `${sheetDims.gapYMm}mm`,
                     }}
@@ -1135,21 +1362,51 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
       )}
 
       {/* ─── Hidden Printable Multi-Label Sheet (ONLY rendered during window.print) ─── */}
+      <style>{`
+        @media print {
+          @page {
+            size: ${sheetDims.sheetWidthMm || 210}mm ${sheetDims.sheetHeightMm || 297}mm;
+            margin: 0mm;
+          }
+          #label-studio-print-sheet {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: ${sheetDims.sheetWidthMm || 210}mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #FFFFFF !important;
+            z-index: 999999 !important;
+          }
+          .a4-label-page {
+            width: ${sheetDims.sheetWidthMm || 210}mm !important;
+            height: ${sheetDims.sheetHeightMm || 297}mm !important;
+            max-height: ${sheetDims.sheetHeightMm || 297}mm !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+            background: #FFFFFF !important;
+            overflow: hidden !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        }
+      `}</style>
       <div id="label-studio-print-sheet">
         {pages.map((pageLabels, pageIdx) => (
           <div
             key={`print-page-${pageIdx}`}
             className="a4-label-page"
             style={{
-              width: '210mm',
-              height: '297mm',
-              maxHeight: '297mm',
+              width: `${sheetDims.sheetWidthMm || 210}mm`,
+              height: `${sheetDims.sheetHeightMm || 297}mm`,
+              maxHeight: `${sheetDims.sheetHeightMm || 297}mm`,
               boxSizing: 'border-box',
-              paddingTop: `${sheetDims.marginTopMm}mm`,
-              paddingLeft: `${sheetDims.marginLeftMm}mm`,
+              paddingTop: `${effectiveMarginTop}mm`,
+              paddingLeft: `${effectiveMarginLeft}mm`,
               display: 'grid',
               gridTemplateColumns: `repeat(${sheetDims.columns}, ${sheetDims.labelWidthMm}mm)`,
-              gridAutoRows: `${sheetDims.labelHeightMm}mm`,
+              gridTemplateRows: `repeat(${sheetDims.rows}, ${sheetDims.labelHeightMm}mm)`,
               columnGap: `${sheetDims.gapXMm}mm`,
               rowGap: `${sheetDims.gapYMm}mm`,
               pageBreakAfter: pageIdx < pages.length - 1 ? 'always' : 'auto',

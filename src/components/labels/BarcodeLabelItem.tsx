@@ -22,7 +22,7 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   const hasBarcode = Boolean(product.barcode && product.barcode.trim());
-  // Compact format: e.g. NovaJet 48L (48 × 24 mm)
+  // Compact format: e.g. TechNova 48L (48 × 24 mm)
   const isCompact = heightMm <= 26;
 
   useEffect(() => {
@@ -31,11 +31,11 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
         JsBarcode(svgRef.current, product.barcode.trim(), {
           format: 'CODE128',
           lineColor: '#000000',
-          width: isCompact ? 1.15 : 1.4,
-          height: isCompact ? 13 : 20,
+          width: isCompact ? 1.05 : 1.25,
+          height: isCompact ? 9 : 14,
           displayValue: true,
           fontOptions: 'bold',
-          fontSize: isCompact ? 7.5 : 8.5,
+          fontSize: isCompact ? 6 : 7.5,
           font: 'monospace',
           margin: 0,
           textMargin: 1,
@@ -74,17 +74,16 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
         backgroundColor: '#FFFFFF',
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
+        padding: isCompact ? '0.8mm 1.5mm' : '1.5mm 2mm',
       }}
-      className={`bg-white text-black ${
-        isCompact ? 'p-1' : 'p-1.5'
-      } flex flex-col justify-between items-center text-center select-none overflow-hidden border border-black/20 print:border-none print:m-0 break-inside-avoid ${className}`}
+      className={`bg-white text-black flex flex-col justify-between items-center text-center select-none overflow-hidden border border-dashed border-stone-300 print:border-none print:m-0 break-inside-avoid relative ${className}`}
     >
       {/* 1. Shop Header at the top (Solid Jet Black, Bold) */}
       <div className="w-full text-center shrink-0 border-b border-black pb-0.5 leading-none">
         <span
           style={{ color: '#000000' }}
-          className={`font-black text-black block uppercase font-sans tracking-wide ${
-            isCompact ? 'text-[7px]' : 'text-[8.5px]'
+          className={`font-black text-black block uppercase font-sans tracking-wide leading-none ${
+            isCompact ? 'text-[6.5px]' : 'text-[7.5px]'
           }`}
         >
           AL BURHANI SWEET AND FARSAAN
@@ -95,8 +94,8 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
       <div className="w-full text-center px-0.5 shrink-0 my-0.5 leading-tight">
         <span
           style={{ color: '#000000' }}
-          className={`font-extrabold text-black block truncate ${
-            isCompact ? 'text-[7.5px]' : 'text-[9px]'
+          className={`font-extrabold text-black block truncate leading-tight ${
+            isCompact ? 'text-[7px]' : 'text-[8.5px]'
           }`}
           title={product.name}
         >
@@ -104,15 +103,15 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
         </span>
       </div>
 
-      {/* 3. Barcode Graphic + Human-Readable Number (Solid Black Bars & Text) */}
+      {/* 3. Barcode Graphic + Human-Readable Number (Strictly Bounded Inside Sticker) */}
       <div className="w-full flex-1 flex items-center justify-center overflow-hidden bg-white my-0.5">
         {hasBarcode ? (
           <svg
             ref={svgRef}
-            className={`max-w-full ${isCompact ? 'max-h-[22px]' : 'max-h-[30px]'}`}
+            className={`max-w-[96%] ${isCompact ? 'max-h-[16px]' : 'max-h-[22px]'}`}
           />
         ) : (
-          <div className="text-[7px] text-black font-extrabold border border-black bg-white px-1 py-0.5 rounded">
+          <div className="text-[6.5px] text-black font-extrabold border border-black bg-white px-1 py-0.5 rounded">
             NO BARCODE
           </div>
         )}
@@ -122,19 +121,19 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
       <div className="w-full text-center shrink-0 leading-none my-0.5">
         <span
           style={{ color: '#000000' }}
-          className={`font-black font-mono text-black ${
-            isCompact ? 'text-[8.5px]' : 'text-[10px]'
+          className={`font-black font-mono text-black leading-none ${
+            isCompact ? 'text-[7.5px]' : 'text-[9px]'
           }`}
         >
           MRP: Rs. {product.sellingPrice.toFixed(2)}
         </span>
       </div>
 
-      {/* 5. Bottom Row: MFG (left) & EXP (right) (Dark Bold Black) */}
+      {/* 5. Bottom Row: MFG (left) & EXP (right) (Dark Bold Black, Strictly Inside Boundary) */}
       <div
         style={{ color: '#000000', borderColor: '#000000' }}
         className={`w-full flex justify-between items-center border-t border-black pt-0.5 px-0.5 ${
-          isCompact ? 'text-[6.5px]' : 'text-[7.5px]'
+          isCompact ? 'text-[6px]' : 'text-[7px]'
         } font-sans font-bold text-black leading-none shrink-0`}
       >
         <span className="truncate font-bold text-black">
