@@ -109,6 +109,38 @@
   textarea::placeholder {
     color: #A8A29E;
   }
+
+  /* High-contrast styling for Login View inputs, preventing dark text or autofill inversion */
+  input[data-login-input],
+  .login-input {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+    background-color: #181D26 !important;
+    caret-color: #E7C75A !important;
+  }
+
+  input[data-login-input]:-webkit-autofill,
+  input[data-login-input]:-webkit-autofill:hover,
+  input[data-login-input]:-webkit-autofill:focus,
+  input[data-login-input]:-webkit-autofill:active,
+  .login-input:-webkit-autofill,
+  .login-input:-webkit-autofill:hover,
+  .login-input:-webkit-autofill:focus,
+  .login-input:-webkit-autofill:active {
+    -webkit-text-fill-color: #FFFFFF !important;
+    color: #FFFFFF !important;
+    -webkit-box-shadow: 0 0 0px 1000px #181D26 inset !important;
+    box-shadow: 0 0 0px 1000px #181D26 inset !important;
+    caret-color: #E7C75A !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  input[data-login-input]::placeholder,
+  .login-input::placeholder {
+    color: #9CA3AF !important;
+    -webkit-text-fill-color: #9CA3AF !important;
+    opacity: 1 !important;
+  }
 }
 
 @layer utilities {

@@ -249,8 +249,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   placeholder="admin"
                   autoComplete="username"
                   data-login-input="true"
-                  style={{ paddingLeft: '42px', paddingRight: '16px', backgroundColor: '#181D26', color: '#FFFFFF' }}
-                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] !text-white !bg-[#181D26] text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
+                  style={{ 
+                    paddingLeft: '42px', 
+                    paddingRight: '16px', 
+                    backgroundColor: '#181D26', 
+                    color: '#FFFFFF',
+                    WebkitTextFillColor: '#FFFFFF',
+                    caretColor: '#E7C75A'
+                  }}
+                  className="login-input w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] !text-white !bg-[#181D26] text-xs sm:text-sm font-medium placeholder:!text-zinc-400 placeholder:!opacity-90 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner"
                 />
               </div>
             </div>
@@ -271,8 +278,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   placeholder="admin123"
                   autoComplete="current-password"
                   data-login-input="true"
-                  style={{ paddingLeft: '42px', paddingRight: '42px', backgroundColor: '#181D26', color: '#FFFFFF' }}
-                  className="w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] !text-white !bg-[#181D26] text-xs sm:text-sm placeholder-zinc-500 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
+                  style={{ 
+                    paddingLeft: '42px', 
+                    paddingRight: '42px', 
+                    backgroundColor: '#181D26', 
+                    color: '#FFFFFF',
+                    WebkitTextFillColor: '#FFFFFF',
+                    caretColor: '#E7C75A'
+                  }}
+                  className="login-input w-full py-3 rounded-xl sm:rounded-2xl border !border-white/[0.12] !text-white !bg-[#181D26] text-xs sm:text-sm font-medium placeholder:!text-zinc-400 placeholder:!opacity-90 focus:outline-none focus:!border-[#E7C75A] focus:ring-2 focus:ring-[#D4AF37]/25 transition-all shadow-inner font-mono"
                 />
                 <button
                   type="button"
