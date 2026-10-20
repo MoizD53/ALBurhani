@@ -16,7 +16,7 @@ import {
   Barcode as BarcodeIcon,
   CheckCircle2,
   Sliders,
-  Sparkles
+  FileSpreadsheet
 } from 'lucide-react';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 import { BarcodeLabelItem } from './BarcodeLabelItem';
@@ -33,41 +33,50 @@ export interface SheetDimensions {
   labelWidthMm: number;
   labelHeightMm: number;
   columns: number;
+  rows: number;
   gapXMm: number;
   gapYMm: number;
   marginTopMm: number;
   marginLeftMm: number;
 }
 
-const DEFAULT_DIMENSIONS: SheetDimensions = {
-  labelWidthMm: 50,
-  labelHeightMm: 30,
-  columns: 2,
-  gapXMm: 3,
-  gapYMm: 3,
-  marginTopMm: 5,
-  marginLeftMm: 5,
-};
-
-const PRESETS: Record<string, { label: string; dims: SheetDimensions }> = {
+export const PRESETS: Record<string, { label: string; sheetName: string; dims: SheetDimensions }> = {
+  'novajet-24l': {
+    label: 'NovaJet 24L (64 × 34 mm)',
+    sheetName: 'Format A — NovaJet MPL 24L WR (3×8 · 24 Labels/Sheet)',
+    dims: {
+      labelWidthMm: 64,
+      labelHeightMm: 34,
+      columns: 3,
+      rows: 8,
+      gapXMm: 2,
+      gapYMm: 0,
+      marginTopMm: 12.5,
+      marginLeftMm: 7,
+    },
+  },
+  'novajet-48l': {
+    label: 'NovaJet 48L (48 × 24 mm)',
+    sheetName: 'Format B — NovaJet MPL 48L (4×12 · 48 Labels/Sheet)',
+    dims: {
+      labelWidthMm: 48,
+      labelHeightMm: 24,
+      columns: 4,
+      rows: 12,
+      gapXMm: 0,
+      gapYMm: 0,
+      marginTopMm: 4.5,
+      marginLeftMm: 9,
+    },
+  },
   'standard-2col': {
     label: '2-Up Sheet / Roll (50 × 30 mm)',
+    sheetName: 'Standard 2-Column Roll (50 × 30 mm)',
     dims: {
       labelWidthMm: 50,
       labelHeightMm: 30,
       columns: 2,
-      gapXMm: 3,
-      gapYMm: 3,
-      marginTopMm: 5,
-      marginLeftMm: 5,
-    },
-  },
-  'standard-2col-tall': {
-    label: '2-Up Sheet (50 × 35 mm)',
-    dims: {
-      labelWidthMm: 50,
-      labelHeightMm: 35,
-      columns: 2,
+      rows: 10,
       gapXMm: 3,
       gapYMm: 3,
       marginTopMm: 5,
@@ -75,30 +84,22 @@ const PRESETS: Record<string, { label: string; dims: SheetDimensions }> = {
     },
   },
   'single-roll': {
-    label: 'Single Thermal Roll (50 × 30 mm, 1 Column)',
+    label: 'Single Thermal Roll (50 × 30 mm)',
+    sheetName: 'Single Thermal Roll (50 × 30 mm, 1 Column)',
     dims: {
       labelWidthMm: 50,
       labelHeightMm: 30,
       columns: 1,
+      rows: 1,
       gapXMm: 0,
       gapYMm: 2,
       marginTopMm: 2,
       marginLeftMm: 2,
     },
   },
-  'a4-3col': {
-    label: 'A4 Laser Sheet 3×8 (65 × 35 mm, 3 Columns)',
-    dims: {
-      labelWidthMm: 65,
-      labelHeightMm: 35,
-      columns: 3,
-      gapXMm: 2.5,
-      gapYMm: 0,
-      marginTopMm: 12,
-      marginLeftMm: 7,
-    },
-  },
 };
+
+export const DEFAULT_DIMENSIONS: SheetDimensions = PRESETS['novajet-24l'].dims;
 
 /**
  * Validates MFG and EXP dates. Returns error message if invalid.
@@ -131,16 +132,33 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
   const [batchMfgDate, setBatchMfgDate] = useState<string>(getTodayStr());
   const [batchExpDate, setBatchExpDate] = useState<string>('');
 
+  // Active preset
+  const [activePreset, setActivePreset] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('albhurani_label_preset');
+      if (saved && PRESETS[saved]) return saved;
+    } catch {}
+    return 'novajet-24l';
+  });
+
   // Print Sheet Config
   const [sheetDims, setSheetDims] = useState<SheetDimensions>(() => {
     try {
       const saved = localStorage.getItem('albhurani_label_settings');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.labelWidthMm && parsed.labelHeightMm) {
+          return {
+            ...DEFAULT_DIMENSIONS,
+            ...parsed,
+            rows: parsed.rows || (parsed.labelHeightMm === 24 ? 12 : 8),
+          };
+        }
+      }
     } catch {}
     return DEFAULT_DIMENSIONS;
   });
 
-  const [activePreset, setActivePreset] = useState<string>('standard-2col');
   const [showSettings, setShowSettings] = useState(false);
   const [viewMode, setViewMode] = useState<'editor' | 'preview'>('editor');
 
@@ -148,8 +166,9 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
   useEffect(() => {
     try {
       localStorage.setItem('albhurani_label_settings', JSON.stringify(sheetDims));
+      localStorage.setItem('albhurani_label_preset', activePreset);
     } catch {}
-  }, [sheetDims]);
+  }, [sheetDims, activePreset]);
 
   // USB Barcode Scanner Integration
   useBarcodeScanner({
@@ -287,6 +306,30 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
     }
   };
 
+  // Capacity per full A4 sheet
+  const labelsPerSheet = useMemo(() => {
+    const cols = sheetDims.columns || 3;
+    const rows = sheetDims.rows || (activePreset === 'novajet-48l' ? 12 : 8);
+    return cols * rows;
+  }, [sheetDims.columns, sheetDims.rows, activePreset]);
+
+  // Fill 1 Full Sheet Quick Action (e.g. exactly 24 or 48 labels)
+  const handleFillFullSheet = () => {
+    if (batchItems.length === 0) return;
+    const targetCount = labelsPerSheet;
+    const count = batchItems.length;
+    const baseCopies = Math.floor(targetCount / count);
+    const remainder = targetCount % count;
+
+    setBatchItems((prev) =>
+      prev.map((item, idx) => ({
+        ...item,
+        copies: baseCopies + (idx < remainder ? 1 : 0),
+      }))
+    );
+    playBeep('success');
+  };
+
   // Expanded Array of Individual Labels for Printing
   const printLabels = useMemo(() => {
     const list: { product: Product; mfgDate: string; expDate: string; index: number }[] = [];
@@ -305,6 +348,16 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
   }, [batchItems]);
 
   const totalLabelCount = printLabels.length;
+
+  // Chunk print labels into individual A4 pages
+  const pages = useMemo(() => {
+    const chunks: Array<typeof printLabels> = [];
+    const size = Math.max(1, labelsPerSheet);
+    for (let i = 0; i < printLabels.length; i += size) {
+      chunks.push(printLabels.slice(i, i + size));
+    }
+    return chunks.length > 0 ? chunks : [[]];
+  }, [printLabels, labelsPerSheet]);
 
   // Validation Checks
   const itemsWithoutBarcode = useMemo(() => {
@@ -329,7 +382,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
     <div className="space-y-4">
       
       {/* ─── Top Header & Controls (Hidden when printing) ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 print:hidden">
         <div>
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/35">
@@ -343,13 +396,57 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 </span>
               </h2>
               <p className="text-xs text-zinc-400">
-                Design, batch configure, and print scannable barcode stickers for multi-label sheets.
+                NovaJet MPL A4 sticker sheet formatting (24L & 48L) with calibrated physical margins.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Quick Format & Action Bar */}
+        <div className="flex flex-wrap items-center gap-2">
+          
+          {/* NovaJet 24L & 48L Quick Format Buttons */}
+          <div className="flex p-0.5 rounded-xl bg-black/60 border border-white/[0.08]">
+            <button
+              type="button"
+              onClick={() => handleSelectPreset('novajet-24l')}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activePreset === 'novajet-24l'
+                  ? 'bg-[#D4AF37] text-black font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="NovaJet MPL 24L WR (64 × 34 mm, 3 cols × 8 rows, 24 labels/sheet)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>NovaJet 24L (64×34)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectPreset('novajet-48l')}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activePreset === 'novajet-48l'
+                  ? 'bg-[#D4AF37] text-black font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="NovaJet MPL 48L (48 × 24 mm, 4 cols × 12 rows, 48 labels/sheet)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>NovaJet 48L (48×24)</span>
+            </button>
+          </div>
+
+          {/* Fill Sheet Quick Action */}
+          {batchItems.length > 0 && (
+            <button
+              type="button"
+              onClick={handleFillFullSheet}
+              className="py-1.5 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-[#E7C75A] text-xs font-bold transition-all"
+              title={`Set copies to fill exactly 1 full A4 sheet (${labelsPerSheet} labels)`}
+            >
+              <span>Fill Sheet ({labelsPerSheet})</span>
+            </button>
+          )}
+
           {/* View Mode Toggle */}
           <div className="flex p-0.5 rounded-xl bg-black/60 border border-white/[0.08]">
             <button
@@ -361,7 +458,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
               }`}
             >
               <Sliders className="w-3.5 h-3.5" />
-              <span>Batch Editor</span>
+              <span>Batch ({totalLabelCount})</span>
             </button>
             <button
               onClick={() => setViewMode('preview')}
@@ -372,7 +469,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>Sheet Preview ({totalLabelCount})</span>
+              <span>A4 Preview ({pages.length} Pg)</span>
             </button>
           </div>
 
@@ -384,7 +481,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]'
                 : 'bg-[#121214] border-white/[0.08] text-zinc-300 hover:text-white'
             }`}
-            title="Adjust Sticker Dimensions & Sheet Margins"
+            title="Adjust Sticker Dimensions, Offsets & Calibration Gaps"
           >
             <Settings2 className="w-4 h-4" />
           </button>
@@ -453,32 +550,32 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
           <div className="flex items-center justify-between border-b border-white/[0.08] pb-2">
             <div className="flex items-center gap-2">
               <Sliders className="w-4 h-4 text-[#D4AF37]" />
-              <h3 className="font-bold text-sm text-white">Sticker Sheet & Printer Dimensions</h3>
+              <h3 className="font-bold text-sm text-white">Sticker Sheet Margins & Physical Offsets</h3>
             </div>
             <button
               onClick={() => {
                 setSheetDims(DEFAULT_DIMENSIONS);
-                setActivePreset('standard-2col');
+                setActivePreset('novajet-24l');
               }}
               className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset to Defaults</span>
+              <span>Reset to NovaJet 24L Defaults</span>
             </button>
           </div>
 
           {/* Quick Presets */}
           <div>
             <label className="text-[11px] uppercase font-bold text-zinc-400 block mb-1.5">
-              Paper / Roll Presets:
+              Standard Sheet Presets:
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {Object.entries(PRESETS).map(([key, item]) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => handleSelectPreset(key)}
-                  className={`p-2 rounded-xl text-left border text-xs transition-all ${
+                  className={`p-2.5 rounded-xl text-left border text-xs transition-all ${
                     activePreset === key
                       ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-white font-semibold'
                       : 'border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:text-white'
@@ -486,7 +583,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 >
                   <span className="block font-bold text-white text-[11px] leading-snug">{item.label}</span>
                   <span className="text-[10px] text-[#C5A85A] mt-0.5 block font-mono">
-                    {item.dims.labelWidthMm}×{item.dims.labelHeightMm}mm · {item.dims.columns} Col
+                    {item.dims.labelWidthMm}×{item.dims.labelHeightMm}mm · {item.dims.columns}×{item.dims.rows} ({item.dims.columns * item.dims.rows}/sheet)
                   </span>
                 </button>
               ))}
@@ -494,7 +591,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
           </div>
 
           {/* Granular Dimension Fields */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 pt-2 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 pt-2 text-xs">
             <div>
               <label className="text-[10px] text-zinc-400 block mb-1">Label Width (mm)</label>
               <input
@@ -503,7 +600,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 max="120"
                 value={sheetDims.labelWidthMm}
                 onChange={(e) => {
-                  setSheetDims((prev) => ({ ...prev, labelWidthMm: Number(e.target.value) || 50 }));
+                  setSheetDims((prev) => ({ ...prev, labelWidthMm: Number(e.target.value) || 64 }));
                   setActivePreset('custom');
                 }}
                 className="w-full bg-black/50 border border-white/[0.1] rounded-lg px-2.5 py-1 text-white font-mono"
@@ -518,7 +615,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 max="120"
                 value={sheetDims.labelHeightMm}
                 onChange={(e) => {
-                  setSheetDims((prev) => ({ ...prev, labelHeightMm: Number(e.target.value) || 30 }));
+                  setSheetDims((prev) => ({ ...prev, labelHeightMm: Number(e.target.value) || 34 }));
                   setActivePreset('custom');
                 }}
                 className="w-full bg-black/50 border border-white/[0.1] rounded-lg px-2.5 py-1 text-white font-mono"
@@ -530,7 +627,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
               <input
                 type="number"
                 min="1"
-                max="5"
+                max="6"
                 value={sheetDims.columns}
                 onChange={(e) => {
                   setSheetDims((prev) => ({ ...prev, columns: Math.max(1, Number(e.target.value) || 1) }));
@@ -541,9 +638,25 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
             </div>
 
             <div>
+              <label className="text-[10px] text-zinc-400 block mb-1">Rows</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={sheetDims.rows}
+                onChange={(e) => {
+                  setSheetDims((prev) => ({ ...prev, rows: Math.max(1, Number(e.target.value) || 1) }));
+                  setActivePreset('custom');
+                }}
+                className="w-full bg-black/50 border border-white/[0.1] rounded-lg px-2.5 py-1 text-white font-mono"
+              />
+            </div>
+
+            <div>
               <label className="text-[10px] text-zinc-400 block mb-1">Horiz Gap (mm)</label>
               <input
                 type="number"
+                step="0.5"
                 min="0"
                 max="30"
                 value={sheetDims.gapXMm}
@@ -559,6 +672,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
               <label className="text-[10px] text-zinc-400 block mb-1">Vert Gap (mm)</label>
               <input
                 type="number"
+                step="0.5"
                 min="0"
                 max="30"
                 value={sheetDims.gapYMm}
@@ -574,6 +688,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
               <label className="text-[10px] text-zinc-400 block mb-1">Top Margin (mm)</label>
               <input
                 type="number"
+                step="0.5"
                 min="0"
                 max="50"
                 value={sheetDims.marginTopMm}
@@ -589,6 +704,7 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
               <label className="text-[10px] text-zinc-400 block mb-1">Left Margin (mm)</label>
               <input
                 type="number"
+                step="0.5"
                 min="0"
                 max="50"
                 value={sheetDims.marginLeftMm}
@@ -599,6 +715,20 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                 className="w-full bg-black/50 border border-white/[0.1] rounded-lg px-2.5 py-1 text-white font-mono"
               />
             </div>
+          </div>
+
+          {/* Calibration Notice */}
+          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] text-[11px] text-zinc-400 space-y-1">
+            <span className="text-[#D4AF37] font-semibold block">Alignment & Calibration Guidance:</span>
+            <p>
+              • <strong>Top / Left Offsets:</strong> If test prints are shifted down or right, decrease <em>Top Margin</em> or <em>Left Margin</em>. If shifted up or left, increase them.
+            </p>
+            <p>
+              • <strong>Cumulative Row Drift:</strong> If lower rows drift off physical sticker boundaries, adjust <em>Vert Gap (mm)</em> or <em>Label Height (mm)</em> by 0.5mm increments.
+            </p>
+            <p>
+              • <strong>Browser Print Settings:</strong> Set <em>Paper size: A4</em>, <em>Scale: 100% (Default)</em>, and <em>Margins: None</em> in the browser print dialog. Do not use "Fit to Printable Area".
+            </p>
           </div>
         </div>
       )}
@@ -925,23 +1055,34 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
 
       {/* ─── Mode 2: Full Sheet Preview (Visible in Preview Mode, Hidden when printing) ─── */}
       {viewMode === 'preview' && (
-        <div className="p-4 rounded-2xl bg-[#121214] border border-white/[0.08] shadow-sm space-y-3 print:hidden">
-          <div className="flex items-center justify-between border-b border-white/[0.08] pb-2">
+        <div className="p-4 rounded-2xl bg-[#121214] border border-white/[0.08] shadow-sm space-y-4 print:hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/[0.08] pb-3">
             <div>
-              <h3 className="font-bold text-white text-sm">Sheet Layout Preview</h3>
+              <h3 className="font-bold text-white text-sm">
+                A4 Sticker Sheet Preview ({pages.length} Page{pages.length > 1 ? 's' : ''} · {totalLabelCount} Labels)
+              </h3>
               <p className="text-[11px] text-zinc-400">
-                {totalLabelCount} stickers arranged in {sheetDims.columns} column(s) ({sheetDims.labelWidthMm} × {sheetDims.labelHeightMm} mm)
+                {activePreset === 'novajet-48l' ? 'NovaJet MPL 48L (48×24mm · 4×12)' : 'NovaJet MPL 24L WR (64×34mm · 3×8)'} — {sheetDims.columns} columns × {sheetDims.rows} rows
               </p>
             </div>
 
-            <button
-              onClick={handlePrint}
-              disabled={!canPrint}
-              className="btn-gold py-1.5 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow disabled:opacity-40"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Now</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleFillFullSheet}
+                disabled={batchItems.length === 0}
+                className="py-1.5 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-[#E7C75A] border border-white/[0.1] transition-all disabled:opacity-40"
+              >
+                Fill Full Sheet ({labelsPerSheet})
+              </button>
+              <button
+                onClick={handlePrint}
+                disabled={!canPrint}
+                className="btn-gold py-1.5 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow disabled:opacity-40"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Now</span>
+              </button>
+            </div>
           </div>
 
           {totalLabelCount === 0 ? (
@@ -949,55 +1090,81 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
               No labels to preview. Add products in the Batch Editor tab.
             </div>
           ) : (
-            <div className="bg-[#1a1a1f] p-4 rounded-xl overflow-x-auto flex justify-center custom-scrollbar">
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${sheetDims.columns}, ${sheetDims.labelWidthMm}mm)`,
-                  columnGap: `${sheetDims.gapXMm}mm`,
-                  rowGap: `${sheetDims.gapYMm}mm`,
-                  paddingTop: `${sheetDims.marginTopMm}mm`,
-                  paddingLeft: `${sheetDims.marginLeftMm}mm`,
-                }}
-                className="bg-white p-2 rounded shadow-2xl border border-gray-400"
-              >
-                {printLabels.map((lbl, idx) => (
-                  <BarcodeLabelItem
-                    key={`${lbl.product.id}-${idx}`}
-                    product={lbl.product}
-                    mfgDate={lbl.mfgDate}
-                    expDate={lbl.expDate}
-                    widthMm={sheetDims.labelWidthMm}
-                    heightMm={sheetDims.labelHeightMm}
-                  />
-                ))}
-              </div>
+            <div className="bg-[#1a1a1f] p-4 sm:p-6 rounded-xl overflow-x-auto flex flex-col items-center gap-8 custom-scrollbar">
+              {pages.map((pageLabels, pageIdx) => (
+                <div key={`preview-pg-${pageIdx}`} className="flex flex-col items-center gap-2">
+                  <span className="text-xs font-mono text-zinc-400 font-semibold">
+                    Page {pageIdx + 1} of {pages.length} ({pageLabels.length} of {labelsPerSheet} stickers)
+                  </span>
+                  
+                  {/* Visual A4 Sheet Container */}
+                  <div
+                    style={{
+                      width: '210mm',
+                      minHeight: '297mm',
+                      boxSizing: 'border-box',
+                      paddingTop: `${sheetDims.marginTopMm}mm`,
+                      paddingLeft: `${sheetDims.marginLeftMm}mm`,
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${sheetDims.columns}, ${sheetDims.labelWidthMm}mm)`,
+                      gridAutoRows: `${sheetDims.labelHeightMm}mm`,
+                      columnGap: `${sheetDims.gapXMm}mm`,
+                      rowGap: `${sheetDims.gapYMm}mm`,
+                    }}
+                    className="bg-white rounded-lg shadow-2xl border border-gray-400 relative overflow-hidden"
+                  >
+                    {pageLabels.map((lbl, idx) => (
+                      <BarcodeLabelItem
+                        key={`prev-${lbl.product.id}-${lbl.index}-${idx}`}
+                        product={lbl.product}
+                        mfgDate={lbl.mfgDate}
+                        expDate={lbl.expDate}
+                        widthMm={sheetDims.labelWidthMm}
+                        heightMm={sheetDims.labelHeightMm}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
 
       {/* ─── Hidden Printable Multi-Label Sheet (ONLY rendered during window.print) ─── */}
-      <div
-        id="label-studio-print-sheet"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${sheetDims.columns}, ${sheetDims.labelWidthMm}mm)`,
-          columnGap: `${sheetDims.gapXMm}mm`,
-          rowGap: `${sheetDims.gapYMm}mm`,
-          paddingTop: `${sheetDims.marginTopMm}mm`,
-          paddingLeft: `${sheetDims.marginLeftMm}mm`,
-        }}
-      >
-        {printLabels.map((lbl, idx) => (
-          <BarcodeLabelItem
-            key={`print-${lbl.product.id}-${idx}`}
-            product={lbl.product}
-            mfgDate={lbl.mfgDate}
-            expDate={lbl.expDate}
-            widthMm={sheetDims.labelWidthMm}
-            heightMm={sheetDims.labelHeightMm}
-          />
+      <div id="label-studio-print-sheet">
+        {pages.map((pageLabels, pageIdx) => (
+          <div
+            key={`print-page-${pageIdx}`}
+            className="a4-label-page"
+            style={{
+              width: '210mm',
+              height: '297mm',
+              maxHeight: '297mm',
+              boxSizing: 'border-box',
+              paddingTop: `${sheetDims.marginTopMm}mm`,
+              paddingLeft: `${sheetDims.marginLeftMm}mm`,
+              display: 'grid',
+              gridTemplateColumns: `repeat(${sheetDims.columns}, ${sheetDims.labelWidthMm}mm)`,
+              gridAutoRows: `${sheetDims.labelHeightMm}mm`,
+              columnGap: `${sheetDims.gapXMm}mm`,
+              rowGap: `${sheetDims.gapYMm}mm`,
+              pageBreakAfter: pageIdx < pages.length - 1 ? 'always' : 'auto',
+              breakAfter: pageIdx < pages.length - 1 ? 'page' : 'auto',
+              overflow: 'hidden',
+            }}
+          >
+            {pageLabels.map((lbl, idx) => (
+              <BarcodeLabelItem
+                key={`print-${lbl.product.id}-${lbl.index}-${idx}`}
+                product={lbl.product}
+                mfgDate={lbl.mfgDate}
+                expDate={lbl.expDate}
+                widthMm={sheetDims.labelWidthMm}
+                heightMm={sheetDims.labelHeightMm}
+              />
+            ))}
+          </div>
         ))}
       </div>
 

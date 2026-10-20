@@ -136,37 +136,43 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
           
           <div 
             id="thermal-receipt"
-            className="w-[72mm] max-w-[72mm] bg-white text-black p-3.5 rounded shadow border border-gray-300 font-mono text-[10px] leading-snug select-none print:w-[72mm] print:max-w-[72mm] print:border-none print:shadow-none print:p-2 print:m-0"
+            style={{
+              color: '#000000',
+              backgroundColor: '#FFFFFF',
+              WebkitPrintColorAdjust: 'exact',
+              printColorAdjust: 'exact',
+            }}
+            className="w-[72mm] max-w-[72mm] bg-white text-black p-3 rounded shadow border border-black font-sans text-[9.5px] leading-snug select-none print:w-[72mm] print:max-w-[72mm] print:border-none print:shadow-none print:p-1.5 print:m-0"
           >
 
-            {/* Store Header Branding */}
-            <div className="text-center pb-2 border-b border-black">
+            {/* Store Header Branding (Solid Black, Bold) */}
+            <div className="text-center pb-2 border-b-2 border-black">
               <img
                 src="/logo.png"
                 alt="AL-BHURANI Logo"
                 className="w-10 h-10 mx-auto mb-1 rounded-full object-contain"
               />
-              <h2 className="font-bold text-sm tracking-widest uppercase">AL-BHURANI</h2>
-              <p className="text-[8.5px] uppercase font-semibold">Sweets & Dry Items Franchise</p>
-              <p className="text-[8px] text-gray-700">Godi Road, Near Clock Tower</p>
-              <p className="text-[8px] text-gray-600">Ph: +91 98765 43210</p>
+              <h2 className="font-black text-base tracking-wider uppercase text-black">AL-BHURANI</h2>
+              <p className="text-[9px] uppercase font-bold text-black">Sweets & Dry Items Franchise</p>
+              <p className="text-[8.5px] font-semibold text-black">Godi Road, Near Clock Tower</p>
+              <p className="text-[8.5px] font-semibold text-black">Ph: +91 98765 43210</p>
               {hasGst ? (
-                <div className="mt-1 pt-1 border-t border-gray-300">
-                  <p className="text-[8px] font-bold text-gray-800">GSTIN: 24AABCA1234F1Z5</p>
-                  <span className={`inline-block px-1.5 py-0.2 text-[7.5px] font-bold rounded mt-0.5 ${
+                <div className="mt-1 pt-1 border-t border-black">
+                  <p className="text-[9px] font-black text-black">GSTIN: 24AABCA1234F1Z5</p>
+                  <span className={`inline-block px-1.5 py-0.5 text-[8px] font-black rounded mt-0.5 border border-black ${
                     order.isRevised
-                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                      : 'bg-gray-100 border border-gray-300'
+                      ? 'bg-amber-100 text-black'
+                      : 'bg-white text-black'
                   }`}>
                     {order.isRevised ? 'REVISED TAX INVOICE (GST INCL)' : 'TAX INVOICE (GST INCLUSIVE)'}
                   </span>
                 </div>
               ) : (
-                <div className="mt-1 pt-1 border-t border-gray-300">
-                  <span className={`inline-block px-1.5 py-0.2 text-[7.5px] font-semibold rounded mt-0.5 ${
+                <div className="mt-1 pt-1 border-t border-black">
+                  <span className={`inline-block px-1.5 py-0.5 text-[8px] font-black rounded mt-0.5 border border-black ${
                     order.isRevised
-                      ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
-                      : 'bg-gray-100 border border-gray-300'
+                      ? 'bg-amber-100 text-black'
+                      : 'bg-white text-black'
                   }`}>
                     {order.isRevised ? 'REVISED RETAIL SALE MEMO (0% GST)' : 'RETAIL SALE MEMO (0% GST)'}
                   </span>
@@ -174,8 +180,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
               )}
             </div>
 
-            {/* Bill Meta */}
-            <div className="py-2 border-b border-dashed border-black text-[8.5px] space-y-0.5">
+            {/* Bill Meta (Solid Black, Crisp) */}
+            <div className="py-1.5 border-b border-dashed border-black text-[9px] font-bold text-black space-y-0.5">
               <div className="flex justify-between">
                 <span>Bill: {order.billNumber}</span>
                 <span>Date: {order.createdAt}</span>
@@ -191,31 +197,31 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
               )}
             </div>
 
-            {/* Line Items Table with Aligned Columns */}
+            {/* Line Items Table with Aligned Columns (Bold Dark Text) */}
             <div className="py-1.5 border-b border-black">
-              <table className="w-full text-[9px] border-collapse">
+              <table className="w-full text-[9.5px] border-collapse">
                 <thead>
-                  <tr className="border-b border-black font-bold">
-                    <th className="text-left pb-1 font-bold">ITEM</th>
-                    <th className="text-center pb-1 w-12 font-bold">QTY</th>
-                    <th className="text-right pb-1 w-12 font-bold">RATE</th>
-                    <th className="text-right pb-1 w-14 font-bold">AMT</th>
+                  <tr className="border-b-2 border-black font-black text-black">
+                    <th className="text-left pb-1 font-black text-black">ITEM</th>
+                    <th className="text-center pb-1 w-12 font-black text-black">QTY</th>
+                    <th className="text-right pb-1 w-12 font-black text-black">RATE</th>
+                    <th className="text-right pb-1 w-14 font-black text-black">AMT</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-black/30">
                   {order.items.map((it, idx) => (
                     <tr key={idx} className="align-top">
                       <td className="py-1 pr-1 text-left">
-                        <div className="font-semibold break-words leading-tight">{it.product.name}</div>
-                        <div className="text-[7.5px] text-gray-500">[{it.product.sku}]</div>
+                        <div className="font-extrabold text-black break-words leading-tight">{it.product.name}</div>
+                        <div className="text-[8px] font-bold text-black font-mono">[{it.product.sku}]</div>
                       </td>
-                      <td className="py-1 px-1 text-center font-medium whitespace-nowrap">
+                      <td className="py-1 px-1 text-center font-black text-black whitespace-nowrap">
                         {it.formattedQuantity || it.quantity}
                       </td>
-                      <td className="py-1 px-1 text-right whitespace-nowrap tabular-nums">
+                      <td className="py-1 px-1 text-right font-black text-black whitespace-nowrap tabular-nums">
                         ₹{it.unitPrice}
                       </td>
-                      <td className="py-1 pl-1 text-right font-medium whitespace-nowrap tabular-nums">
+                      <td className="py-1 pl-1 text-right font-black text-black whitespace-nowrap tabular-nums">
                         ₹{it.lineTotal.toFixed(2)}
                       </td>
                     </tr>
@@ -224,79 +230,79 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
               </table>
             </div>
 
-            {/* Totals & Inclusive GST Breakdown */}
-            <div className="py-2 space-y-1 text-[9.5px] border-b border-dashed border-black">
+            {/* Totals & Inclusive GST Breakdown (Pure Black, Bold) */}
+            <div className="py-1.5 space-y-1 text-[10px] font-bold text-black border-b border-dashed border-black">
               <div className="flex justify-between items-center">
                 <span>Subtotal {hasGst ? '(Incl. GST)' : ''}:</span>
-                <span className="tabular-nums font-medium">₹{order.subtotal.toFixed(2)}</span>
+                <span className="tabular-nums font-black text-black">₹{order.subtotal.toFixed(2)}</span>
               </div>
 
               {order.discountAmount > 0 && (
-                <div className="flex justify-between items-center text-green-700">
+                <div className="flex justify-between items-center text-black font-black">
                   <span>Discount Savings:</span>
-                  <span className="tabular-nums font-medium">−₹{order.discountAmount.toFixed(2)}</span>
+                  <span className="tabular-nums">−₹{order.discountAmount.toFixed(2)}</span>
                 </div>
               )}
 
-              {/* Explicit Inclusive GST Breakdown without adding on top */}
+              {/* Explicit Inclusive GST Breakdown without adding on top (Dark Black) */}
               {hasGst && (
-                <div className="pt-1 border-t border-dotted border-gray-400 space-y-0.5 text-[8.5px] text-gray-700">
-                  <div className="flex justify-between font-semibold">
+                <div className="pt-1 border-t border-dotted border-black space-y-0.5 text-[9px] font-bold text-black">
+                  <div className="flex justify-between font-black">
                     <span>Included 5% GST:</span>
                     <span className="tabular-nums">₹{order.gstAmount.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between pl-2 text-gray-600">
+                  <div className="flex justify-between pl-2">
                     <span>• CGST (2.5%):</span>
-                    <span className="tabular-nums">₹{cgstAmount.toFixed(2)}</span>
+                    <span className="tabular-nums font-extrabold">₹{cgstAmount.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between pl-2 text-gray-600">
+                  <div className="flex justify-between pl-2">
                     <span>• SGST (2.5%):</span>
-                    <span className="tabular-nums">₹{sgstAmount.toFixed(2)}</span>
+                    <span className="tabular-nums font-extrabold">₹{sgstAmount.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between pl-2 text-gray-600">
+                  <div className="flex justify-between pl-2">
                     <span>• Taxable Value:</span>
-                    <span className="tabular-nums">₹{taxableValue.toFixed(2)}</span>
+                    <span className="tabular-nums font-extrabold">₹{taxableValue.toFixed(2)}</span>
                   </div>
                 </div>
               )}
 
-              {/* Grand Total */}
-              <div className="flex justify-between items-center text-xs font-bold border-t border-black pt-1 mt-1">
+              {/* Grand Total (Prominent Double Line Jet Black) */}
+              <div className="flex justify-between items-center text-sm font-black text-black border-t-2 border-black pt-1 mt-1">
                 <span>GRAND TOTAL:</span>
-                <span className="tabular-nums">₹{order.grandTotal.toFixed(2)}</span>
+                <span className="tabular-nums font-black">₹{order.grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Payment Details */}
+            {/* Payment Details (Solid Black, Bold) */}
             {order.isRevised && order.originalGrandTotal !== undefined ? (
-              <div className="py-1.5 text-[8.5px] space-y-0.5 border-b border-dashed border-black">
+              <div className="py-1 text-[9px] font-bold text-black space-y-0.5 border-b border-dashed border-black">
                 <div className="flex justify-between">
                   <span>Original Total:</span>
-                  <span className="tabular-nums">₹{order.originalGrandTotal.toFixed(2)}</span>
+                  <span className="tabular-nums font-black">₹{order.originalGrandTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Previously Paid ({order.originalPaymentMethod || order.paymentMethod}):</span>
-                  <span className="tabular-nums">₹{order.originalGrandTotal.toFixed(2)}</span>
+                  <span className="tabular-nums font-black">₹{order.originalGrandTotal.toFixed(2)}</span>
                 </div>
                 {order.additionalAmountPaid !== undefined && (
-                  <div className="flex justify-between font-bold text-gray-900">
+                  <div className="flex justify-between font-black text-black">
                     <span>Additional Paid ({order.additionalPaymentMethod || order.paymentMethod}):</span>
                     <span className="tabular-nums">₹{order.additionalAmountPaid.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold border-t border-dotted border-gray-400 pt-0.5">
+                <div className="flex justify-between font-black border-t border-dotted border-black pt-0.5">
                   <span>Total Settled:</span>
-                  <span className="tabular-nums">₹{order.grandTotal.toFixed(2)}</span>
+                  <span className="tabular-nums font-black">₹{order.grandTotal.toFixed(2)}</span>
                 </div>
               </div>
             ) : (
-              <div className="py-1.5 text-[8.5px] space-y-0.5 border-b border-dashed border-black">
+              <div className="py-1 text-[9px] font-bold text-black space-y-0.5 border-b border-dashed border-black">
                 <div className="flex justify-between">
                   <span>Paid via {order.paymentMethod}:</span>
-                  <span className="font-semibold tabular-nums">₹{order.amountReceived.toFixed(2)}</span>
+                  <span className="font-black tabular-nums">₹{order.amountReceived.toFixed(2)}</span>
                 </div>
                 {order.changeGiven > 0 && (
-                  <div className="flex justify-between font-semibold">
+                  <div className="flex justify-between font-black">
                     <span>Change Returned:</span>
                     <span className="tabular-nums">₹{order.changeGiven.toFixed(2)}</span>
                   </div>
@@ -304,8 +310,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose, onMo
               </div>
             )}
 
-            {/* Footer Greeting */}
-            <div className="text-center pt-2 text-[7.5px] text-gray-700">
+            {/* Footer Greeting (Dark Black Bold) */}
+            <div className="text-center pt-2 text-[8.5px] font-black text-black">
               <p>*** Thank You For Visiting AL-BHURANI! ***</p>
             </div>
           </div>

@@ -152,4 +152,46 @@ describe('AL-BHURANI POS — Label Studio Specification & Verification', () => {
       expect(canAccessLabelStudio(cashierUser)).toBe(false);
     });
   });
+
+  describe('5. NovaJet MPL A4 Sheet Dimensions & Capacity', () => {
+    it('verifies NovaJet MPL 24L WR sheet geometry fits within A4', () => {
+      const sheetWidth = 210;
+      const sheetHeight = 297;
+      const labelW = 64;
+      const labelH = 34;
+      const cols = 3;
+      const rows = 8;
+      const gapX = 2;
+      const gapY = 0;
+      const marginLeft = 7;
+      const marginTop = 12.5;
+
+      const totalOccupiedWidth = marginLeft + (cols * labelW) + ((cols - 1) * gapX);
+      const totalOccupiedHeight = marginTop + (rows * labelH) + ((rows - 1) * gapY);
+
+      expect(totalOccupiedWidth).toBeLessThanOrEqual(sheetWidth);
+      expect(totalOccupiedHeight).toBeLessThanOrEqual(sheetHeight);
+      expect(cols * rows).toBe(24);
+    });
+
+    it('verifies NovaJet MPL 48L sheet geometry fits within A4', () => {
+      const sheetWidth = 210;
+      const sheetHeight = 297;
+      const labelW = 48;
+      const labelH = 24;
+      const cols = 4;
+      const rows = 12;
+      const gapX = 0;
+      const gapY = 0;
+      const marginLeft = 9;
+      const marginTop = 4.5;
+
+      const totalOccupiedWidth = marginLeft + (cols * labelW) + ((cols - 1) * gapX);
+      const totalOccupiedHeight = marginTop + (rows * labelH) + ((rows - 1) * gapY);
+
+      expect(totalOccupiedWidth).toBeLessThanOrEqual(sheetWidth);
+      expect(totalOccupiedHeight).toBeLessThanOrEqual(sheetHeight);
+      expect(cols * rows).toBe(48);
+    });
+  });
 });

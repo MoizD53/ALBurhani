@@ -16,7 +16,9 @@ import {
   Receipt,
   FileText,
   ReceiptText,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Product, CartItem, OrderBill, PaymentMethod, TransactionType, CompleteSaleResult } from '../../types';
 import { playBeep } from '../../lib/utils';
@@ -85,6 +87,41 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const isSubmittingRef = useRef<boolean>(false);
   const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
+
+  // Right Checkout Panel Scrolling
+  const rightPanelScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+
+  const checkRightPanelScroll = () => {
+    const el = rightPanelScrollRef.current;
+    if (!el) return;
+    const isScrollable = el.scrollHeight > el.clientHeight + 10;
+    const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 25;
+    const isAtTop = el.scrollTop <= 10;
+    setCanScrollDown(isScrollable && !isAtBottom);
+    setCanScrollUp(isScrollable && !isAtTop);
+  };
+
+  const handleScrollDown = () => {
+    rightPanelScrollRef.current?.scrollBy({ top: 200, behavior: 'smooth' });
+  };
+
+  const handleScrollUp = () => {
+    rightPanelScrollRef.current?.scrollBy({ top: -200, behavior: 'smooth' });
+  };
+
+  const handleScrollToBottom = () => {
+    if (rightPanelScrollRef.current) {
+      rightPanelScrollRef.current.scrollTo({ top: rightPanelScrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    checkRightPanelScroll();
+    window.addEventListener('resize', checkRightPanelScroll);
+    return () => window.removeEventListener('resize', checkRightPanelScroll);
+  }, [cart.length, paymentMethod, editingOrder, transactionType]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -797,11 +834,31 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 </button>
               </div>
 
+              {/* Scroll Controls */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleScrollUp}
+                  className="p-1.5 text-zinc-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-lg transition-all"
+                  title="Scroll cart up"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleScrollDown}
+                  className="p-1.5 text-[#D4AF37] hover:text-white bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 border border-[#D4AF37]/30 rounded-lg transition-all"
+                  title="Scroll down to Complete Sale"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {cart.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setCart([])}
-                  className="px-2.5 py-2 text-xs font-medium text-zinc-400 hover:text-red-400 bg-white/[0.04] hover:bg-red-500/10 border border-white/[0.08] hover:border-red-500/30 rounded-xl transition-all shrink-0"
+                  className="px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-red-400 bg-white/[0.04] hover:bg-red-500/10 border border-white/[0.08] hover:border-red-500/30 rounded-xl transition-all shrink-0"
                   title="Clear all cart items"
                 >
                   Clear
@@ -809,6 +866,13 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               )}
             </div>
           </div>
+
+          {/* Scrollable Workspace Container */}
+          <div 
+            ref={rightPanelScrollRef} 
+            onScroll={checkRightPanelScroll} 
+            className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col relative"
+          >
 
           {/* Customer Details Inputs (only for Customer Bill) */}
           {transactionType === 'CUSTOMER_BILL' && (
@@ -1071,6 +1135,23 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                       : `Complete Sale (Without GST — ₹${grandTotal})`}
               </span>
             </button>
+
+          </div>
+
+          {/* Floating Quick Scroll to Complete Sale Button */}
+          {canScrollDown && (
+            <div className="sticky bottom-2 flex justify-center z-30 pointer-events-none my-1">
+              <button
+                type="button"
+                onClick={handleScrollToBottom}
+                className="pointer-events-auto py-1 px-3.5 rounded-full bg-[#D4AF37] hover:bg-[#E7C75A] text-black font-extrabold text-[11px] flex items-center gap-1 shadow-[0_4px_20px_rgba(212,175,55,0.5)] transition-all animate-bounce border border-black/20"
+                title="Scroll down to Complete Sale button"
+              >
+                <ChevronDown className="w-3.5 h-3.5 stroke-[3]" />
+                <span>Scroll to Complete Sale</span>
+              </button>
+            </div>
+          )}
 
           </div>
 
