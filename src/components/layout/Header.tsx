@@ -9,11 +9,13 @@ import {
   ChevronRight,
   Bell,
   Calendar,
-  LogOut
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { ActiveTab } from './Sidebar';
 import { InstallPwaButton } from '../common/InstallPwaButton';
+import { syncManager, SyncStatus } from '../../lib/syncManager';
 
 interface HeaderProps {
   activeTab: ActiveTab;
@@ -36,8 +38,15 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => syncManager.getStatus());
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const notifMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return syncManager.onStatusChange((newStatus) => {
+      setSyncStatus(newStatus);
+    });
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -119,9 +128,40 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right Controls: Install Button, Notifications, Date Pill & Owner Dropdown */}
+      {/* Right Controls: Sync Status, Install Button, Notifications, Date Pill & Owner Dropdown */}
       <div className="flex items-center gap-2.5 shrink-0">
         
+        {/* Real-Time Turso Cloud Sync Pill */}
+        <div 
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#121214] border border-white/[0.08] text-[11px] font-medium shadow-sm transition-all"
+          title={`Turso Cloud Sync Status: ${syncStatus.toUpperCase()}`}
+        >
+          {syncStatus === 'connected' && (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+              <span className="text-zinc-300 hidden md:inline">Cloud Synced</span>
+            </>
+          )}
+          {syncStatus === 'syncing' && (
+            <>
+              <RefreshCw className="w-3 h-3 text-[#D4AF37] animate-spin" />
+              <span className="text-[#D4AF37] hidden md:inline">Syncing...</span>
+            </>
+          )}
+          {syncStatus === 'offline' && (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="text-amber-300 hidden md:inline">Offline Cache</span>
+            </>
+          )}
+          {syncStatus === 'error' && (
+            <>
+              <span className="w-2 h-2 rounded-full bg-rose-400" />
+              <span className="text-rose-300 hidden md:inline">Sync Warning</span>
+            </>
+          )}
+        </div>
+
         {/* Install App Button */}
         <InstallPwaButton variant="header" />
 

@@ -136,7 +136,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         icon={ReceiptText}
         title="No-Bill Counter Sales Audit"
         subtitle="Internal recorded sales without customer tax invoice · Inventory deducted accurately · 0% GST"
-        badge={{ text: 'Without GST (0%)', variant: 'zinc' }}
+        badge={{ text: 'Without GST (0%) · Cloud Synced', variant: 'zinc' }}
       />
 
       {/* 2. Unified Metric Summary Cards (5-Card Grid) */}

@@ -6,13 +6,21 @@ import {
   getTursoClient, 
   fetchOrdersFromTurso, 
   saveOrderToTurso, 
+  batchSaveOrdersToTurso,
   saveProductToTurso,
   updateStockOnTurso,
   clearOrdersFromTurso,
   clearExpensesFromTurso,
   resetAllStockOnTursoToZero,
-  deleteOrderFromTurso
+  deleteOrderFromTurso,
+  fetchProductsFromTurso,
+  fetchExpensesFromTurso,
+  fetchCustomersFromTurso,
+  saveCustomerToTurso,
+  fetchSettingsFromTurso,
+  saveSettingToTurso
 } from './lib/turso';
+import { syncManager } from './lib/syncManager';
 import {
   preserveRealCustomersFromOrders,
   getSavedCustomers,
@@ -161,13 +169,6 @@ export function App() {
   // Orders State (Clean real orders only, resets all demo/test orders for fresh opening while preserving genuine sales)
   const [orders, setOrders] = useState<OrderBill[]>(() => {
     try {
-      const isFreshShopMigratedV2 = typeof window !== 'undefined' 
-        ? localStorage.getItem('albhurani_fresh_shop_opening_v2') === 'true'
-        : false;
-      const isFreshShopMigratedV1 = typeof window !== 'undefined' 
-        ? localStorage.getItem('albhurani_fresh_shop_opening_v1') === 'true'
-        : false;
-
       const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_orders') : null;
       let parsedOrders: OrderBill[] = [];
       if (saved) {
@@ -204,64 +205,20 @@ export function App() {
           (!o.billNumber || !deletedIds.has(o.billNumber))
       );
 
-      // If neither v1 nor v2 migration has run yet:
-      if (!isFreshShopMigratedV2 && !isFreshShopMigratedV1 && typeof window !== 'undefined') {
-        if (cleanOrders.length > 0) {
-          // Genuine sales already exist! Preserve real customers and keep genuine sales.
-          preserveRealCustomersFromOrders(parsedOrders);
-          localStorage.setItem('albhurani_orders', JSON.stringify(cleanOrders));
-          localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
-          localStorage.setItem('albhurani_fresh_shop_opening_v2', 'true');
-          return cleanOrders;
-        } else {
-          // First-time fresh opening with only demo/mock orders
-          preserveRealCustomersFromOrders(parsedOrders);
-          localStorage.setItem('albhurani_orders', JSON.stringify([]));
-          localStorage.setItem('albhurani_expenses', JSON.stringify([]));
-          localStorage.setItem('albhurani_fresh_shop_opening_v1', 'true');
-          localStorage.setItem('albhurani_fresh_shop_opening_v2', 'true');
-          localStorage.setItem('albhurani_fresh_opening_timestamp', String(Date.now()));
-          clearOrdersFromTurso().catch(() => {});
-          clearExpensesFromTurso().catch(() => {});
-          return [];
-        }
-      }
-
-      // If v1 was completed previously, mark v2 without wiping genuine sales or reset timestamps
-      if (isFreshShopMigratedV1 && !isFreshShopMigratedV2 && typeof window !== 'undefined') {
-        localStorage.setItem('albhurani_fresh_shop_opening_v2', 'true');
-        localStorage.setItem('albhurani_orders', JSON.stringify(cleanOrders));
-        return cleanOrders;
-      }
-
-      // If orders had bad orders stripped, persist the cleaned list
-      if (typeof window !== 'undefined' && saved && cleanOrders.length !== parsedOrders.length) {
-        localStorage.setItem('albhurani_orders', JSON.stringify(cleanOrders));
-      }
-
       return cleanOrders;
     } catch {
-      // fallback
+      return [];
     }
-    return [];
   });
 
-  // Operating Expenses State (Clean real expenses only, resets all demo/test expenses for fresh opening)
+  // Operating Expenses State
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
     try {
-      const isFreshShopMigrated = typeof window !== 'undefined' 
-        ? (localStorage.getItem('albhurani_fresh_shop_opening_v2') === 'true' || localStorage.getItem('albhurani_fresh_shop_opening_v1') === 'true')
-        : false;
-
-      if (!isFreshShopMigrated && typeof window !== 'undefined') {
-        return [];
-      }
-
       const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_expenses') : null;
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleanExpenses = parsed.filter(
+          return parsed.filter(
             (e: ExpenseItem) =>
               e &&
               e.id &&
@@ -270,12 +227,9 @@ export function App() {
               !e.id.startsWith('exp-3') &&
               !e.id.startsWith('mock-')
           );
-          return cleanExpenses;
         }
       }
-    } catch {
-      // fallback
-    }
+    } catch {}
     return [];
   });
 
@@ -286,67 +240,166 @@ export function App() {
   useEffect(() => {
     try {
       localStorage.removeItem('albhurani_pos_test_mode');
-    } catch {
-      // ignore
-    }
+    } catch {}
 
     async function syncRemoteData() {
       try {
-        const client = getTursoClient();
-        if (!client) return;
-
-        const isFreshShopMigrated = typeof window !== 'undefined' 
-          ? (localStorage.getItem('albhurani_fresh_shop_opening_v2') === 'true' || localStorage.getItem('albhurani_fresh_shop_opening_v1') === 'true')
-          : false;
-        const resetTimestamp = typeof window !== 'undefined'
-          ? Number(localStorage.getItem('albhurani_fresh_opening_timestamp') || '0')
-          : 0;
         const deletedIds = getDeletedOrderIds();
 
-        const remoteOrders = await fetchOrdersFromTurso();
-        if (remoteOrders && remoteOrders.length > 0) {
-          // Filter out orders that were created before fresh opening reset, match mock IDs, or are deleted
-          const validRemoteOrders = remoteOrders.filter((ro) => {
-            if (deletedIds.has(ro.id) || (ro.billNumber && deletedIds.has(ro.billNumber))) {
-              deleteOrderFromTurso(ro.id, ro.billNumber).catch(() => {});
-              return false;
-            }
-            if (isDemoOrTestOrder(ro)) return false;
-            if (isFreshShopMigrated && resetTimestamp > 0 && ro.timestamp && ro.timestamp < resetTimestamp) {
-              return false;
-            }
-            return true;
-          });
+        // 1. Synchronize products
+        const remoteProducts = await fetchProductsFromTurso();
+        if (remoteProducts && remoteProducts.length > 0) {
+          setProducts(remoteProducts);
+          try {
+            localStorage.setItem('albhurani_products', JSON.stringify(remoteProducts));
+          } catch {}
+        }
 
-          if (validRemoteOrders.length === 0 && remoteOrders.length > 0 && isFreshShopMigrated) {
-            clearOrdersFromTurso().catch(() => {});
+        // 2. Synchronize orders
+        const remoteOrders = await fetchOrdersFromTurso();
+        if (remoteOrders !== null) {
+          const validRemoteOrders = remoteOrders.filter(
+            (ro) => !isDemoOrTestOrder(ro) && !deletedIds.has(ro.id) && (!ro.billNumber || !deletedIds.has(ro.billNumber))
+          );
+
+          // Check if this device has local genuine orders that haven't reached Turso yet
+          const remoteIdSet = new Set(validRemoteOrders.map((o) => o.id));
+          const remoteBillSet = new Set(validRemoteOrders.map((o) => o.billNumber));
+
+          const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_orders') : null;
+          let localOrders: OrderBill[] = [];
+          if (localSaved) {
+            try {
+              const parsed = JSON.parse(localSaved);
+              if (Array.isArray(parsed)) localOrders = parsed;
+            } catch {}
           }
 
-          if (validRemoteOrders.length > 0) {
-            setOrders((localOrders) => {
-              const localIds = new Set(localOrders.map((o) => o.id));
-              const localBillNumbers = new Set(localOrders.map((o) => o.billNumber));
-              const toAdd = validRemoteOrders.filter(
-                (ro) =>
-                  !localIds.has(ro.id) &&
-                  !localBillNumbers.has(ro.billNumber) &&
-                  !deletedIds.has(ro.id) &&
-                  (!ro.billNumber || !deletedIds.has(ro.billNumber))
-              );
-              if (toAdd.length === 0) return localOrders;
-              const merged = [...localOrders, ...toAdd];
-              try {
-                localStorage.setItem('albhurani_orders', JSON.stringify(merged));
-              } catch {}
-              return merged;
-            });
+          const unsyncedLocalOrders = localOrders.filter(
+            (lo) =>
+              lo &&
+              lo.id &&
+              !isDemoOrTestOrder(lo) &&
+              !deletedIds.has(lo.id) &&
+              (!lo.billNumber || !deletedIds.has(lo.billNumber)) &&
+              !remoteIdSet.has(lo.id) &&
+              (!lo.billNumber || !remoteBillSet.has(lo.billNumber))
+          );
+
+          if (unsyncedLocalOrders.length > 0) {
+            // Upload to cloud so all other devices see them
+            await batchSaveOrdersToTurso(unsyncedLocalOrders);
+          }
+
+          const mergedOrders = [...validRemoteOrders, ...unsyncedLocalOrders];
+          setOrders(mergedOrders);
+          try {
+            localStorage.setItem('albhurani_orders', JSON.stringify(mergedOrders));
+          } catch {}
+        }
+
+        // 3. Synchronize expenses
+        const remoteExpenses = await fetchExpensesFromTurso();
+        if (remoteExpenses !== null) {
+          setExpenses(remoteExpenses);
+          try {
+            localStorage.setItem('albhurani_expenses', JSON.stringify(remoteExpenses));
+          } catch {}
+        }
+
+        // 4. Synchronize customers
+        const remoteCustomers = await fetchCustomersFromTurso();
+        if (remoteCustomers && remoteCustomers.length > 0) {
+          setCustomers(remoteCustomers);
+        }
+
+        // 5. Synchronize shared settings
+        const remoteSettings = await fetchSettingsFromTurso();
+        if (remoteSettings) {
+          if (remoteSettings.label_preset) {
+            localStorage.setItem('albhurani_label_preset', remoteSettings.label_preset);
+          }
+          if (remoteSettings.label_settings) {
+            localStorage.setItem('albhurani_label_settings', JSON.stringify(remoteSettings.label_settings));
+          }
+          if (remoteSettings.store_profile) {
+            localStorage.setItem('albhurani_store_profile', JSON.stringify(remoteSettings.store_profile));
           }
         }
       } catch (err) {
         console.warn('Could not sync remote data from Turso:', err);
       }
     }
+
     syncRemoteData();
+
+    // Start background sync manager (polling delta events every 2.5s and on focus/online)
+    syncManager.start();
+
+    // Listen for real-time events from other devices
+    const unsubOrder = syncManager.subscribe('order', (ev) => {
+      if (ev.operation === 'save' && ev.payload) {
+        setOrders((prev) => {
+          const exists = prev.some((o) => o.id === ev.payload.id || (ev.payload.billNumber && o.billNumber === ev.payload.billNumber));
+          if (exists) {
+            return prev.map((o) => (o.id === ev.payload.id || o.billNumber === ev.payload.billNumber ? ev.payload : o));
+          }
+          return [ev.payload, ...prev];
+        });
+      } else if (ev.operation === 'delete') {
+        const orderId = ev.entityId;
+        const billNumber = ev.payload?.billNumber;
+        setOrders((prev) => prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber)));
+      } else if (ev.operation === 'batch_save' || ev.operation === 'clear_orders') {
+        fetchOrdersFromTurso().then((res) => {
+          if (res) setOrders(res);
+        });
+      }
+    });
+
+    const unsubProduct = syncManager.subscribe('product', (ev) => {
+      if (ev.operation === 'stock' && ev.payload) {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === ev.payload.productId ? { ...p, stock: ev.payload.stock } : p))
+        );
+      } else if (ev.operation === 'save' && ev.payload) {
+        setProducts((prev) => {
+          const exists = prev.some((p) => p.id === ev.payload.id);
+          return exists ? prev.map((p) => (p.id === ev.payload.id ? ev.payload : p)) : [ev.payload, ...prev];
+        });
+      } else if (ev.operation === 'reset_stock') {
+        setProducts((prev) => prev.map((p) => ({ ...p, stock: 0 })));
+      }
+    });
+
+    const unsubExpense = syncManager.subscribe('expense', (ev) => {
+      if (ev.operation === 'save' && ev.payload) {
+        setExpenses((prev) => {
+          const exists = prev.some((e) => e.id === ev.payload.id);
+          return exists ? prev.map((e) => (e.id === ev.payload.id ? ev.payload : e)) : [ev.payload, ...prev];
+        });
+      } else if (ev.operation === 'clear_expenses') {
+        setExpenses([]);
+      }
+    });
+
+    const unsubSettings = syncManager.subscribe('settings', (ev) => {
+      if (ev.payload?.key === 'label_preset') {
+        localStorage.setItem('albhurani_label_preset', ev.payload.value);
+      } else if (ev.payload?.key === 'label_settings') {
+        localStorage.setItem('albhurani_label_settings', JSON.stringify(ev.payload.value));
+      } else if (ev.payload?.key === 'store_profile') {
+        localStorage.setItem('albhurani_store_profile', JSON.stringify(ev.payload.value));
+      }
+    });
+
+    return () => {
+      syncManager.stop();
+      unsubOrder();
+      unsubProduct();
+      unsubExpense();
+      unsubSettings();
+    };
   }, []);
 
   // Save states to localStorage

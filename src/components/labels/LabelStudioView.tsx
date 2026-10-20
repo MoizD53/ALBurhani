@@ -21,6 +21,7 @@ import {
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 import { BarcodeLabelItem } from './BarcodeLabelItem';
 import { playBeep } from '../../lib/utils';
+import { saveSettingToTurso } from '../../lib/turso';
 
 export interface LabelBatchItem {
   product: Product;
@@ -162,11 +163,13 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
   const [showSettings, setShowSettings] = useState(false);
   const [viewMode, setViewMode] = useState<'editor' | 'preview'>('editor');
 
-  // Save dimensions to localStorage
+  // Save dimensions to localStorage and sync to Turso cloud
   useEffect(() => {
     try {
       localStorage.setItem('albhurani_label_settings', JSON.stringify(sheetDims));
       localStorage.setItem('albhurani_label_preset', activePreset);
+      saveSettingToTurso('label_settings', sheetDims).catch(() => {});
+      saveSettingToTurso('label_preset', activePreset).catch(() => {});
     } catch {}
   }, [sheetDims, activePreset]);
 

@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Store, 
   Barcode, 
   Volume2, 
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { playBeep } from '../../lib/utils';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
+import { saveSettingToTurso, fetchSettingsFromTurso } from '../../lib/turso';
 
 interface SettingsViewProps {
   currentUser: UserProfile;
@@ -57,16 +59,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   });
 
   // Store information
-  const [storeName, setStoreName] = useState('AL-BHURANI Sweets & Dry Items');
-  const [branchName, setBranchName] = useState('Godi Road Main Counter');
-  const [gstin, setGstin] = useState('24AABCA1234F1Z5');
-  const [phone, setPhone] = useState('+91 98765 43210');
+  const [storeName, setStoreName] = useState(() => {
+    try {
+      const saved = localStorage.getItem('albhurani_store_profile');
+      if (saved) return JSON.parse(saved).storeName || 'AL-BHURANI Sweets & Dry Items';
+    } catch {}
+    return 'AL-BHURANI Sweets & Dry Items';
+  });
+  const [branchName, setBranchName] = useState(() => {
+    try {
+      const saved = localStorage.getItem('albhurani_store_profile');
+      if (saved) return JSON.parse(saved).branchName || 'Godi Road Main Counter';
+    } catch {}
+    return 'Godi Road Main Counter';
+  });
+  const [gstin, setGstin] = useState(() => {
+    try {
+      const saved = localStorage.getItem('albhurani_store_profile');
+      if (saved) return JSON.parse(saved).gstin || '24AABCA1234F1Z5';
+    } catch {}
+    return '24AABCA1234F1Z5';
+  });
+  const [phone, setPhone] = useState(() => {
+    try {
+      const saved = localStorage.getItem('albhurani_store_profile');
+      if (saved) return JSON.parse(saved).phone || '+91 98765 43210';
+    } catch {}
+    return '+91 98765 43210';
+  });
   const [isSavedMessage, setIsSavedMessage] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveStore = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchSettingsFromTurso('store_profile').then((res) => {
+      if (res && res.store_profile) {
+        const p = res.store_profile;
+        if (p.storeName) setStoreName(p.storeName);
+        if (p.branchName) setBranchName(p.branchName);
+        if (p.gstin) setGstin(p.gstin);
+        if (p.phone) setPhone(p.phone);
+        try {
+          localStorage.setItem('albhurani_store_profile', JSON.stringify(p));
+        } catch {}
+      }
+    });
+  }, []);
+
+  const handleSaveStore = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSavedMessage(true);
-    setTimeout(() => setIsSavedMessage(false), 3000);
+    setIsSaving(true);
+    const profile = { storeName, branchName, gstin, phone };
+    try {
+      localStorage.setItem('albhurani_store_profile', JSON.stringify(profile));
+      await saveSettingToTurso('store_profile', profile);
+      setIsSavedMessage(true);
+      setTimeout(() => setIsSavedMessage(false), 3000);
+    } catch (err) {
+      console.warn('Failed to save settings:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
