@@ -210,6 +210,36 @@ export async function updateStockOnTurso(productId: string, newStock: number): P
 }
 
 /**
+ * Atomically adjust stock by a delta value on the remote database.
+ * Use negative delta for deductions (sales) and positive for additions (restocking).
+ * This is safe for concurrent multi-device operations.
+ */
+export async function adjustStockOnTurso(productId: string, delta: number): Promise<{ success: boolean; stock?: number }> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'update-stock',
+        payload: {
+          productId,
+          delta,
+        },
+      }),
+    });
+
+    if (!res.ok) return { success: false };
+    const data = await res.json();
+    return { success: Boolean(data.success), stock: data.stock };
+  } catch {
+    return { success: false };
+  }
+}
+
+/**
  * Fetch orders from remote database
  */
 export async function fetchOrdersFromTurso(transactionType?: 'CUSTOMER_BILL' | 'NO_BILL' | 'ALL'): Promise<OrderBill[] | null> {

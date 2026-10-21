@@ -33,8 +33,17 @@ class SyncManager {
 
   constructor() {
     this.initNetworkListeners();
-    // Initialize timestamp to slightly in past to catch any recent changes
-    this.lastTimestamp = Date.now() - 30000;
+    // Initialize timestamp from persisted sync cursor or past hour to catch changes while device was closed/sleeping
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('albhurani_last_sync_timestamp');
+        this.lastTimestamp = saved ? Number(saved) : Date.now() - 3600000;
+      } catch {
+        this.lastTimestamp = Date.now() - 3600000;
+      }
+    } else {
+      this.lastTimestamp = Date.now() - 3600000;
+    }
   }
 
   private initNetworkListeners() {
@@ -174,9 +183,19 @@ class SyncManager {
         }
 
         this.lastTimestamp = maxTimestamp;
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('albhurani_last_sync_timestamp', String(maxTimestamp));
+          } catch {}
+        }
       } else if (data.serverTime && data.serverTime > this.lastTimestamp) {
         // Keep timestamp roughly updated
         this.lastTimestamp = Math.max(this.lastTimestamp, data.serverTime - 10000);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('albhurani_last_sync_timestamp', String(this.lastTimestamp));
+          } catch {}
+        }
       }
     } catch {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {

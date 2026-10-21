@@ -208,20 +208,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const cgstAmount = Math.round((order.gstAmount / 2) * 100) / 100;
   const sgstAmount = Math.round((order.gstAmount - cgstAmount) * 100) / 100;
 
-  const itemRowCount = order.items.length;
-  const estimatedReceiptHeightMm = rollWidth === 'A4'
-    ? 297
-    : Math.max(
-        50,
-        Math.ceil(
-          (rollWidth === '58mm' ? 56 : 50) +
-          itemRowCount * (rollWidth === '58mm' ? 10 : 8) +
-          (hasGst ? 14 : 0) +
-          (order.customerPhone ? 4 : 0) +
-          (order.discountAmount > 0 ? 4 : 0)
-        )
-      );
-
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none print:p-0 print:bg-white print:static print:block"
@@ -231,7 +217,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       <style>{`
         @media print {
           @page {
-            size: ${rollWidth === 'A4' ? 'A4 portrait' : `${rollWidth === '58mm' ? '58mm' : '80mm'} ${estimatedReceiptHeightMm}mm`};
+            size: ${rollWidth === 'A4' ? 'A4 portrait' : 'portrait'};
             margin: ${rollWidth === 'A4' ? '10mm' : '0mm'};
           }
           html, body {

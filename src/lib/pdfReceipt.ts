@@ -420,7 +420,6 @@ export function generateReceiptHtml(
 ): string {
   const isA4 = rollWidth === 'A4';
   const is58mm = rollWidth === '58mm';
-  const rollWidthMm = isA4 ? 210 : (is58mm ? 58 : 80);
   const printableWidthMm = isA4 ? 190 : (is58mm ? 48 : 72);
   const paddingH = isA4 ? '4mm' : (is58mm ? '1.5mm' : '2.5mm');
   const fontSizeBase = isA4 ? '11px' : (is58mm ? '8px' : '9px');
@@ -439,21 +438,6 @@ export function generateReceiptHtml(
   const titleText = hasGst
     ? (isRevised ? 'REVISED TAX INVOICE (GST INCL)' : 'TAX INVOICE (GST INCLUSIVE)')
     : (isRevised ? 'REVISED RETAIL SALE MEMO (0% GST)' : 'RETAIL SALE MEMO (0% GST)');
-
-  // Estimate content height in mm for static CSS @page size (valid syntax, strictly portrait)
-  const itemRowCount = order.items.length;
-  const estimatedHeightMm = isA4
-    ? 297
-    : Math.max(
-        50,
-        Math.ceil(
-          (is58mm ? 56 : 50) +
-          itemRowCount * (is58mm ? 10 : 8) +
-          (hasGst ? 14 : 0) +
-          (order.customerPhone ? 4 : 0) +
-          (order.discountAmount > 0 ? 4 : 0)
-        )
-      );
 
   const itemsHtml = order.items.map((it) => `
     <tr>
@@ -484,7 +468,7 @@ export function generateReceiptHtml(
   <title></title>
   <style>
     @page {
-      size: ${isA4 ? 'A4 portrait' : `${rollWidthMm}mm ${estimatedHeightMm}mm`};
+      size: ${isA4 ? 'A4 portrait' : 'portrait'};
       margin: ${isA4 ? '10mm' : '0'};
     }
     *, *::before, *::after {
@@ -523,7 +507,7 @@ export function generateReceiptHtml(
     th { font-weight: 900; border-bottom: 2px solid #000; padding-bottom: 2px; }
     @media print {
       @page {
-        size: ${isA4 ? 'A4 portrait' : `${rollWidthMm}mm ${estimatedHeightMm}mm`};
+        size: ${isA4 ? 'A4 portrait' : 'portrait'};
         margin: ${isA4 ? '10mm' : '0'};
       }
       html, body {
@@ -743,23 +727,6 @@ export function printReceiptViaIframe(
     const triggerPrint = () => {
       try {
         const win = iframe?.contentWindow;
-        const d = win?.document;
-        if (d && !isA4) {
-          const receiptEl = d.getElementById('receipt-container') || d.body;
-          const contentHeightPx = receiptEl.scrollHeight || receiptEl.getBoundingClientRect().height;
-          // In CSS: 96px = 25.4mm
-          // Add 2mm tight padding before cut so no text is clipped and zero extra paper fed
-          const contentHeightMm = Math.max(45, Math.ceil((contentHeightPx * 25.4) / 96) + 2);
-
-          let styleEl = d.getElementById('__dynamic_page_size__');
-          if (!styleEl) {
-            styleEl = d.createElement('style');
-            styleEl.id = '__dynamic_page_size__';
-            d.head.appendChild(styleEl);
-          }
-          // Note: Strictly valid CSS without !important (CSS spec forbids !important in @page)
-          styleEl.innerHTML = `@page { size: ${rollMm}mm ${contentHeightMm}mm; margin: 0; }`;
-        }
         win?.focus();
         win?.print();
       } catch (printErr) {

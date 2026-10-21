@@ -140,11 +140,12 @@ export function preserveRealCustomersFromOrders(orders: OrderBill[]): CustomerRe
 }
 
 /**
- * Adds or updates a real customer during active POS checkout
+ * Adds or updates a real customer during active POS checkout.
+ * Returns the upserted CustomerRecord for cloud sync, or null if demo/invalid.
  */
-export function upsertCustomerFromSale(name?: string, phone?: string, amount = 0): void {
-  if (!name && !phone) return;
-  if (isDemoCustomer(name, phone)) return;
+export function upsertCustomerFromSale(name?: string, phone?: string, amount = 0): CustomerRecord | null {
+  if (!name && !phone) return null;
+  if (isDemoCustomer(name, phone)) return null;
 
   const existing = getSavedCustomers();
   const phoneKey = phone ? phone.trim().toLowerCase() : '';
@@ -156,6 +157,8 @@ export function upsertCustomerFromSale(name?: string, phone?: string, amount = 0
     return false;
   });
 
+  let result: CustomerRecord;
+
   if (index >= 0) {
     existing[index].totalVisits = (existing[index].totalVisits || 0) + 1;
     existing[index].totalSpend = (existing[index].totalSpend || 0) + amount;
@@ -165,16 +168,19 @@ export function upsertCustomerFromSale(name?: string, phone?: string, amount = 0
     if (phone && !existing[index].phone) {
       existing[index].phone = phone.trim();
     }
+    result = existing[index];
   } else {
-    existing.push({
+    result = {
       id: `cust-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       name: (name || 'Valued Customer').trim(),
       phone: phone?.trim() || '',
       createdAt: new Date().toLocaleString(),
       totalVisits: 1,
       totalSpend: amount,
-    });
+    };
+    existing.push(result);
   }
 
   saveCustomers(existing);
+  return result;
 }

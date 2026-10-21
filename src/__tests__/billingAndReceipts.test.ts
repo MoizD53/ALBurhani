@@ -200,7 +200,7 @@ describe('AL-BURHANI POS — Billing Modes, GST-Inclusive Calculations & Receipt
       // 1. Test 80mm configuration
       const html80 = generateReceiptHtml(testOrder, '80mm');
       expect(html80).toContain('<title></title>');
-      expect(html80).toContain('size: 80mm');
+      expect(html80).toContain('size: portrait');
       expect(html80).toContain('margin: 0');
       expect(html80).toContain('width: 72mm');
       expect(html80).toContain('AL-BURHANI');
@@ -213,7 +213,7 @@ describe('AL-BURHANI POS — Billing Modes, GST-Inclusive Calculations & Receipt
       // 2. Test 58mm configuration
       const html58 = generateReceiptHtml(testOrder, '58mm');
       expect(html58).toContain('<title></title>');
-      expect(html58).toContain('size: 58mm');
+      expect(html58).toContain('size: portrait');
       expect(html58).toContain('margin: 0');
       expect(html58).toContain('width: 48mm');
       expect(html58).toContain('AL-BURHANI');
@@ -296,10 +296,36 @@ describe('AL-BURHANI POS — Billing Modes, GST-Inclusive Calculations & Receipt
         const writtenHtml = mockDoc.write.mock.calls[0][0];
         expect(writtenHtml).toContain('ALB-INV-7732');
         expect(writtenHtml).toContain('<title></title>');
+        expect(writtenHtml).toContain('size: portrait');
       } finally {
         (globalThis as any).window = originalWindow;
         (globalThis as any).document = originalDoc;
       }
+    });
+
+    it('enforces strict portrait page orientation and eliminates any landscape width>height dimension in @page', () => {
+      const singleItemOrder: OrderBill = {
+        id: 'sale-single-item',
+        billNumber: 'ALB-INV-1001',
+        transactionType: 'CUSTOMER_BILL',
+        items: [buildCartItem(sampleProduct60, 1)],
+        subtotal: 60,
+        discountAmount: 0,
+        gstAmount: 3,
+        grandTotal: 63,
+        paymentMethod: 'CASH',
+        amountReceived: 100,
+        changeGiven: 37,
+        cashierName: 'Owner',
+        createdAt: '21 Oct 2026, 01:00 PM',
+      };
+
+      const html = generateReceiptHtml(singleItemOrder, '80mm');
+      expect(html).toContain('size: portrait');
+      // Verify no landscape dimensions (e.g. 80mm 50mm, 80mm 58mm, 80mm 60mm) are used in @page
+      expect(html).not.toMatch(/@page\s*\{\s*size:\s*80mm\s+\d+mm/);
+      // Verify content width fits 80mm roll printable area
+      expect(html).toContain('width: 72mm');
     });
   });
 });

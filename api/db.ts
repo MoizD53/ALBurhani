@@ -431,19 +431,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Update Stock
     if (action === 'update-stock') {
-      const { productId, stock } = payload || {};
-      if (!productId || typeof stock !== 'number') {
-        return res.status(400).json({ success: false, error: 'Invalid stock update payload' });
+      const { productId, stock, delta } = payload || {};
+      if (!productId) {
+        return res.status(400).json({ success: false, error: 'Invalid stock update payload: missing productId' });
       }
 
       try {
-        await client.execute({
-          sql: 'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-          args: [Math.max(0, stock), productId],
-        });
-
-        await logSyncEvent(client, 'product', productId, 'stock', { productId, stock });
-        return res.status(200).json({ success: true });
+        if (typeof delta === 'number') {
+          // Atomic relative stock adjustment — safe for concurrent multi-device sales
+          await client.execute({
+            sql: 'UPDATE products SET stock = MAX(0, stock + ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+            args: [delta, productId],
+          });
+          // Fetch the actual resulting stock for the sync event
+          const result = await client.execute({
+            sql: 'SELECT stock FROM products WHERE id = ?;',
+            args: [productId],
+          });
+          const actualStock = result.rows[0] ? Number(result.rows[0].stock) : 0;
+          await logSyncEvent(client, 'product', productId, 'stock', { productId, stock: actualStock });
+          return res.status(200).json({ success: true, stock: actualStock });
+        } else if (typeof stock === 'number') {
+          // Absolute stock set — used for manual inventory entry
+          await client.execute({
+            sql: 'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+            args: [Math.max(0, stock), productId],
+          });
+          await logSyncEvent(client, 'product', productId, 'stock', { productId, stock });
+          return res.status(200).json({ success: true });
+        } else {
+          return res.status(400).json({ success: false, error: 'Invalid stock update payload: need stock or delta' });
+        }
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }

@@ -19,7 +19,8 @@ import {
   fetchCustomersFromTurso,
   saveCustomerToTurso,
   fetchSettingsFromTurso,
-  saveSettingToTurso
+  saveSettingToTurso,
+  saveExpenseToTurso
 } from './lib/turso';
 import { syncManager } from './lib/syncManager';
 import {
@@ -254,9 +255,32 @@ export function App() {
         // 1. Synchronize products with safeguarding against partial catalog wipes
         const remoteProducts = await fetchProductsFromTurso();
         if (remoteProducts && remoteProducts.length >= 250) {
-          setProducts(remoteProducts);
+          // Check if this device has local products that haven't reached Turso yet
+          const remoteIdSet = new Set(remoteProducts.map((p) => p.id));
+          const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_products') : null;
+          let localProducts: Product[] = [];
+          if (localSaved) {
+            try {
+              const parsed = JSON.parse(localSaved);
+              if (Array.isArray(parsed)) localProducts = parsed;
+            } catch {}
+          }
+
+          const unsyncedProducts = localProducts.filter(
+            (lp) => lp && lp.id && !remoteIdSet.has(lp.id)
+          );
+
+          if (unsyncedProducts.length > 0) {
+            // Upload unsynced local products to Turso cloud so other devices see them
+            for (const up of unsyncedProducts) {
+              await saveProductToTurso(up);
+            }
+          }
+
+          const mergedProducts = [...remoteProducts, ...unsyncedProducts];
+          setProducts(mergedProducts);
           try {
-            localStorage.setItem('albhurani_products', JSON.stringify(remoteProducts));
+            localStorage.setItem('albhurani_products', JSON.stringify(mergedProducts));
           } catch {}
         } else if (remoteProducts !== null && remoteProducts.length < 250) {
           // Safeguard: Never allow a partial or empty cloud response (<250 items) to truncate local 305-product catalog.
@@ -385,9 +409,26 @@ export function App() {
           prev.map((p) => (p.id === ev.payload.productId ? { ...p, stock: ev.payload.stock } : p))
         );
       } else if (ev.operation === 'save' && ev.payload) {
-        setProducts((prev) => {
-          const exists = prev.some((p) => p.id === ev.payload.id);
-          return exists ? prev.map((p) => (p.id === ev.payload.id ? ev.payload : p)) : [ev.payload, ...prev];
+        // Immediate local state update for zero-latency cross-device feedback
+        if (ev.payload.id) {
+          setProducts((prev) => {
+            const exists = prev.some((p) => p.id === ev.payload.id || (p.barcode && p.barcode === ev.payload.barcode));
+            const clean = { ...ev.payload, isActive: true };
+            const next = exists ? prev.map((p) => (p.id === ev.payload.id ? clean : p)) : [clean, ...prev];
+            try {
+              localStorage.setItem('albhurani_products', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
+        // Re-fetch full canonical product list from cloud to ensure all fields are synchronized
+        fetchProductsFromTurso().then((remoteProducts) => {
+          if (remoteProducts && remoteProducts.length >= 250) {
+            setProducts(remoteProducts);
+            try {
+              localStorage.setItem('albhurani_products', JSON.stringify(remoteProducts));
+            } catch {}
+          }
         });
       } else if (ev.operation === 'reset_stock') {
         setProducts((prev) => prev.map((p) => ({ ...p, stock: 0 })));
@@ -396,9 +437,14 @@ export function App() {
 
     const unsubExpense = syncManager.subscribe('expense', (ev) => {
       if (ev.operation === 'save' && ev.payload) {
-        setExpenses((prev) => {
-          const exists = prev.some((e) => e.id === ev.payload.id);
-          return exists ? prev.map((e) => (e.id === ev.payload.id ? ev.payload : e)) : [ev.payload, ...prev];
+        // Re-fetch expenses from cloud for properly formatted data
+        fetchExpensesFromTurso().then((remoteExpenses) => {
+          if (remoteExpenses) {
+            setExpenses(remoteExpenses);
+            try {
+              localStorage.setItem('albhurani_expenses', JSON.stringify(remoteExpenses));
+            } catch {}
+          }
         });
       } else if (ev.operation === 'clear_expenses') {
         setExpenses([]);
@@ -415,12 +461,24 @@ export function App() {
       }
     });
 
+    const unsubCustomer = syncManager.subscribe('customer', (ev) => {
+      if (ev.operation === 'save' && ev.payload) {
+        // Re-fetch customers from cloud for properly formatted data
+        fetchCustomersFromTurso().then((remoteCustomers) => {
+          if (remoteCustomers && remoteCustomers.length > 0) {
+            setCustomers(remoteCustomers);
+          }
+        });
+      }
+    });
+
     return () => {
       syncManager.stop();
       unsubOrder();
       unsubProduct();
       unsubExpense();
       unsubSettings();
+      unsubCustomer();
     };
   }, []);
 
@@ -565,17 +623,25 @@ export function App() {
 
     // Save customer if real non-demo customer
     if (newOrder.customerName || newOrder.customerPhone) {
-      upsertCustomerFromSale(newOrder.customerName, newOrder.customerPhone, newOrder.grandTotal);
+      const updatedCustomer = upsertCustomerFromSale(newOrder.customerName, newOrder.customerPhone, newOrder.grandTotal);
       setCustomers(getSavedCustomers());
+      // Persist customer to cloud for cross-device sync
+      if (updatedCustomer) {
+        saveCustomerToTurso(updatedCustomer).catch((err) =>
+          console.warn('Turso saveCustomer background error:', err)
+        );
+      }
     }
 
-    // 6. Asynchronous remote backup to Turso if configured
+    // 6. Persist to cloud database for cross-device sync (await to confirm)
     try {
       const client = getTursoClient();
       if (client) {
-        saveOrderToTurso(newOrder).catch((err) => 
-          console.warn('Turso saveOrder background error:', err)
-        );
+        const orderSaved = await saveOrderToTurso(newOrder);
+        if (!orderSaved) {
+          console.warn('Turso saveOrder returned false — order may not be visible on other devices');
+        }
+        // Update stock on cloud for each item in the bill
         for (const it of newOrder.items) {
           const p = updatedProducts.find((x) => x.id === it.product.id);
           if (p) {
@@ -769,12 +835,18 @@ export function App() {
         updatedOrder.additionalAmountPaid &&
         updatedOrder.additionalAmountPaid > 0
       ) {
-        upsertCustomerFromSale(
+        const updatedCustomer = upsertCustomerFromSale(
           updatedOrder.customerName,
           updatedOrder.customerPhone,
           updatedOrder.additionalAmountPaid
         );
         setCustomers(getSavedCustomers());
+        // Persist customer to cloud for cross-device sync
+        if (updatedCustomer) {
+          saveCustomerToTurso(updatedCustomer).catch((err) =>
+            console.warn('Turso saveCustomer background error:', err)
+          );
+        }
       }
 
       // 5. Remote backup if configured
@@ -804,36 +876,55 @@ export function App() {
     }
   };
 
-  const handleAddProduct = (newProduct: Product) => {
+  const handleAddProduct = async (newProduct: Product) => {
     const updated = [newProduct, ...products];
     setProducts(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem('albhurani_products', JSON.stringify(updated));
     }
-    saveProductToTurso(newProduct).catch(() => {});
+    const saved = await saveProductToTurso(newProduct);
+    if (!saved) {
+      console.warn('Failed to persist new product to Turso cloud database');
+      syncManager.setStatus('error');
+    } else {
+      syncManager.setStatus('connected');
+    }
   };
 
-  const handleUpdateProduct = (updatedProd: Product) => {
+  const handleUpdateProduct = async (updatedProd: Product) => {
     const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
     setProducts(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem('albhurani_products', JSON.stringify(updated));
     }
-    saveProductToTurso(updatedProd).catch(() => {});
+    const saved = await saveProductToTurso(updatedProd);
+    if (!saved) {
+      console.warn('Failed to update product on Turso cloud database');
+      syncManager.setStatus('error');
+    } else {
+      syncManager.setStatus('connected');
+    }
   };
 
-  const handleUpdateStock = (productId: string, newStock: number) => {
+  const handleUpdateStock = async (productId: string, newStock: number) => {
     const validStock = Math.max(0, newStock);
     const updated = products.map((p) => (p.id === productId ? { ...p, stock: validStock } : p));
     setProducts(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem('albhurani_products', JSON.stringify(updated));
     }
-    updateStockOnTurso(productId, validStock).catch(() => {});
+    const ok = await updateStockOnTurso(productId, validStock);
+    if (!ok) {
+      console.warn('Failed to sync updated stock to Turso cloud');
+    }
   };
 
   const handleAddExpense = (newExpense: ExpenseItem) => {
     setExpenses((prev) => [newExpense, ...prev]);
+    // Persist to cloud database for cross-device sync
+    saveExpenseToTurso(newExpense).catch((err) =>
+      console.warn('Turso saveExpense background error:', err)
+    );
   };
 
   const handleSignOut = () => {

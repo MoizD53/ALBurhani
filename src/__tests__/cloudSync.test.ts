@@ -186,4 +186,51 @@ describe('Real-Time Cloud Synchronization & Settings Suite', () => {
     expect(orders?.find((o) => o.id === 'gst-1')?.transactionType).toBe('CUSTOMER_BILL');
     expect(orders?.find((o) => o.id === 'nobill-1')?.transactionType).toBe('NO_BILL');
   });
+
+  it('persists and synchronizes new products and expenses to Turso', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, init?: any) => {
+      const body = init?.body ? JSON.parse(init.body) : {};
+      if (body.action === 'save-product') {
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      }
+      if (body.action === 'save-expense') {
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    });
+
+    const { saveProductToTurso, saveExpenseToTurso } = await import('../lib/turso');
+
+    const testProd = {
+      id: 'prod-new-1',
+      sku: '00999',
+      barcode: '890100999999',
+      name: 'Fresh Malai Peda',
+      category: 'SWEETS' as any,
+      unit: 'KG' as any,
+      priceBasis: 'Rs./kg',
+      costPrice: 200,
+      sellingPrice: 480,
+      stock: 10,
+      minStock: 2,
+      shelfLifeDays: 14,
+    };
+
+    const savedProd = await saveProductToTurso(testProd);
+    expect(savedProd).toBe(true);
+
+    const testExp = {
+      id: 'exp-new-1',
+      title: 'Packaging Boxes 500g',
+      category: 'Packaging & Boxes',
+      amount: 1500,
+      date: 'Today, 01:00 PM',
+      paymentMode: 'UPI' as any,
+    };
+
+    const savedExp = await saveExpenseToTurso(testExp);
+    expect(savedExp).toBe(true);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });
