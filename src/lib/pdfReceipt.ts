@@ -38,17 +38,27 @@ function estimateTextWidth(text: string, fontSize: number, isBold = false): numb
  * Generates a valid standard PDF 1.4 binary Uint8Array representation of an OrderBill receipt.
  * Spec-compliant, self-contained, no external runtime dependencies.
  */
-export function generateReceiptPdfBytes(order: OrderBill): Uint8Array {
-  const widthPt = 226.77; // Standard 80mm receipt roll width
-  const marginPt = 12;
+export function generateReceiptPdfBytes(
+  order: OrderBill,
+  rollWidth: ThermalRollWidth = getSavedThermalRollWidth()
+): Uint8Array {
+  const isA4 = rollWidth === 'A4';
+  const is58mm = rollWidth === '58mm';
+  const widthPt = isA4 ? 595.28 : (is58mm ? 164.41 : 226.77); // A4 (210mm) vs 58mm vs 80mm
+  const marginPt = isA4 ? 28 : (is58mm ? 8 : 12);
   const contentWidth = widthPt - marginPt * 2;
 
   // Calculate dynamic receipt height based on item count and tax breakdown
+  // (strictly portrait orientation, no dead blank paper at bottom)
   const hasGst = order.gstAmount > 0;
   const isRevised = Boolean(order.isRevised);
-  const baseHeight = 290 + (hasGst ? 45 : 0) + (isRevised ? 30 : 0) + (order.discountAmount > 0 ? 15 : 0) + (order.changeGiven > 0 ? 15 : 0);
-  const itemsHeight = Math.max(30, order.items.length * 18);
-  const heightPt = Math.max(320, baseHeight + itemsHeight);
+  const baseHeight = (isA4 ? 380 : (is58mm ? 200 : 210)) +
+    (hasGst ? 35 : 0) +
+    (isRevised ? 25 : 0) +
+    (order.discountAmount > 0 ? 12 : 0) +
+    (order.changeGiven > 0 ? 12 : 0);
+  const itemsHeight = Math.max(25, order.items.length * (isA4 ? 20 : 16));
+  const heightPt = isA4 ? 841.89 : Math.max(240, baseHeight + itemsHeight);
 
   let stream = '';
 
@@ -235,12 +245,6 @@ export function generateReceiptPdfBytes(order: OrderBill): Uint8Array {
     }
   }
 
-  drawLine(curY, true, 0.5);
-  curY -= 11;
-
-  // 6. Footer Greeting
-  writeCentered('*** Thank You For Visiting AL-BURHANI! ***', curY, 'F1', 6.5);
-
   // Assemble Complete Standard PDF 1.4 Binary Structure
   const encoder = new TextEncoder();
   const streamBytes = encoder.encode(stream);
@@ -303,8 +307,11 @@ export function validateReceiptPdfBytes(bytes: Uint8Array): { valid: boolean; er
 /**
  * Creates an application/pdf Blob from an OrderBill.
  */
-export function generateReceiptPdfBlob(order: OrderBill): Blob {
-  const bytes = generateReceiptPdfBytes(order);
+export function generateReceiptPdfBlob(
+  order: OrderBill,
+  rollWidth: ThermalRollWidth = getSavedThermalRollWidth()
+): Blob {
+  const bytes = generateReceiptPdfBytes(order, rollWidth);
   return new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
 }
 
@@ -324,10 +331,13 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
  * Triggers a robust browser download of the receipt PDF named Receipt-[billNumber].pdf.
  * Compatible with Windows 7, Chrome 109, Firefox ESR, IE/Legacy Edge, and modern browsers.
  */
-export function downloadReceiptPdf(order: OrderBill): boolean {
+export function downloadReceiptPdf(
+  order: OrderBill,
+  rollWidth: ThermalRollWidth = getSavedThermalRollWidth()
+): boolean {
   try {
     const filename = `Receipt-${order.billNumber}.pdf`;
-    const blob = generateReceiptPdfBlob(order);
+    const blob = generateReceiptPdfBlob(order, rollWidth);
 
     // 1. IE11 / Legacy Edge / Windows 7 specific API check
     if (typeof (window.navigator as any).msSaveOrOpenBlob === 'function') {
@@ -360,7 +370,7 @@ export function downloadReceiptPdf(order: OrderBill): boolean {
     }
 
     // 3. Fallback: Base64 Data URI Download if ObjectURL is not available
-    const bytes = generateReceiptPdfBytes(order);
+    const bytes = generateReceiptPdfBytes(order, rollWidth);
     const base64 = uint8ArrayToBase64(bytes);
     const dataUrl = `data:application/pdf;base64,${base64}`;
     const link = document.createElement('a');
@@ -382,13 +392,13 @@ export function downloadReceiptPdf(order: OrderBill): boolean {
   }
 }
 
-export type ThermalRollWidth = '80mm' | '58mm';
+export type ThermalRollWidth = '80mm' | '58mm' | 'A4';
 
 export function getSavedThermalRollWidth(): ThermalRollWidth {
   if (typeof window === 'undefined') return '80mm';
   try {
     const saved = localStorage.getItem('albhurani_thermal_roll_width');
-    if (saved === '58mm' || saved === '80mm') return saved;
+    if (saved === '58mm' || saved === '80mm' || saved === 'A4') return saved;
   } catch {}
   return '80mm';
 }
@@ -401,23 +411,24 @@ export function saveThermalRollWidth(width: ThermalRollWidth): void {
 }
 
 /**
- * Generates self-contained print-ready HTML for 80mm or 58mm thermal receipt rolls.
- * Enforces valid CSS Paged Media @page dimensions and zero margins to eliminate A4 paper waste.
+ * Generates self-contained print-ready HTML for 80mm, 58mm thermal receipt rolls or A4 memos.
+ * Enforces valid CSS Paged Media @page dimensions and zero margins to eliminate paper waste.
  */
 export function generateReceiptHtml(
   order: OrderBill,
   rollWidth: ThermalRollWidth = getSavedThermalRollWidth()
 ): string {
+  const isA4 = rollWidth === 'A4';
   const is58mm = rollWidth === '58mm';
-  const rollWidthMm = is58mm ? 58 : 80;
-  const printableWidthMm = is58mm ? 48 : 72;
-  const paddingH = is58mm ? '1.5mm' : '2.5mm';
-  const fontSizeBase = is58mm ? '8px' : '9px';
-  const storeTitleSize = is58mm ? '14px' : '16px';
-  const grandTotalSize = is58mm ? '11px' : '13px';
-  const qtyColWidth = is58mm ? '30px' : '38px';
-  const rateColWidth = is58mm ? '36px' : '44px';
-  const amtColWidth = is58mm ? '44px' : '52px';
+  const rollWidthMm = isA4 ? 210 : (is58mm ? 58 : 80);
+  const printableWidthMm = isA4 ? 190 : (is58mm ? 48 : 72);
+  const paddingH = isA4 ? '4mm' : (is58mm ? '1.5mm' : '2.5mm');
+  const fontSizeBase = isA4 ? '11px' : (is58mm ? '8px' : '9px');
+  const storeTitleSize = isA4 ? '20px' : (is58mm ? '14px' : '16px');
+  const grandTotalSize = isA4 ? '15px' : (is58mm ? '11px' : '13px');
+  const qtyColWidth = isA4 ? '60px' : (is58mm ? '30px' : '38px');
+  const rateColWidth = isA4 ? '80px' : (is58mm ? '36px' : '44px');
+  const amtColWidth = isA4 ? '90px' : (is58mm ? '44px' : '52px');
 
   const hasGst = order.gstAmount > 0;
   const isRevised = Boolean(order.isRevised);
@@ -429,36 +440,38 @@ export function generateReceiptHtml(
     ? (isRevised ? 'REVISED TAX INVOICE (GST INCL)' : 'TAX INVOICE (GST INCLUSIVE)')
     : (isRevised ? 'REVISED RETAIL SALE MEMO (0% GST)' : 'RETAIL SALE MEMO (0% GST)');
 
-  // Estimate content height in mm for static CSS @page size (valid <length>{2} syntax prevents Chrome A4 fallback)
+  // Estimate content height in mm for static CSS @page size (valid syntax, strictly portrait)
   const itemRowCount = order.items.length;
-  const estimatedHeightMm = Math.max(
-    65,
-    Math.ceil(
-      (is58mm ? 70 : 65) +
-      itemRowCount * (is58mm ? 11 : 8.5) +
-      (hasGst ? 16 : 0) +
-      (order.customerPhone ? 5 : 0) +
-      (order.discountAmount > 0 ? 5 : 0)
-    )
-  );
+  const estimatedHeightMm = isA4
+    ? 297
+    : Math.max(
+        50,
+        Math.ceil(
+          (is58mm ? 56 : 50) +
+          itemRowCount * (is58mm ? 10 : 8) +
+          (hasGst ? 14 : 0) +
+          (order.customerPhone ? 4 : 0) +
+          (order.discountAmount > 0 ? 4 : 0)
+        )
+      );
 
   const itemsHtml = order.items.map((it) => `
     <tr>
       <td style="padding: 2px 0; text-align: left; vertical-align: top; word-break: break-word;">
-        <div style="font-weight: 800; font-size: ${is58mm ? '8px' : '9px'}; line-height: 1.15;">${it.product.name}</div>
+        <div style="font-weight: 800; font-size: ${is58mm ? '8px' : (isA4 ? '11px' : '9px')}; line-height: 1.15;">${it.product.name}</div>
         ${it.product.barcode ? `
-          <div style="font-size: ${is58mm ? '6.5px' : '7.5px'}; font-family: monospace; color: #222; font-weight: 700;">[${it.product.barcode}]</div>
+          <div style="font-size: ${is58mm ? '6.5px' : (isA4 ? '9px' : '7.5px')}; font-family: monospace; color: #222; font-weight: 700;">[${it.product.barcode}]</div>
         ` : (it.product.sku ? `
-          <div style="font-size: ${is58mm ? '6.5px' : '7.5px'}; font-family: monospace; color: #222; font-weight: 700;">[${it.product.sku}]</div>
+          <div style="font-size: ${is58mm ? '6.5px' : (isA4 ? '9px' : '7.5px')}; font-family: monospace; color: #222; font-weight: 700;">[${it.product.sku}]</div>
         ` : '')}
       </td>
-      <td style="padding: 2px 2px; text-align: center; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '7.5px' : '8.5px'}; width: ${qtyColWidth};">
+      <td style="padding: 2px 2px; text-align: center; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '7.5px' : (isA4 ? '11px' : '8.5px')}; width: ${qtyColWidth};">
         ${it.formattedQuantity || it.quantity}
       </td>
-      <td style="padding: 2px 2px; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '7.5px' : '8.5px'}; width: ${rateColWidth};">
+      <td style="padding: 2px 2px; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '7.5px' : (isA4 ? '11px' : '8.5px')}; width: ${rateColWidth};">
         Rs. ${it.unitPrice}
       </td>
-      <td style="padding: 2px 0; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '8px' : '9px'}; width: ${amtColWidth};">
+      <td style="padding: 2px 0; text-align: right; vertical-align: top; white-space: nowrap; font-weight: 800; font-size: ${is58mm ? '8px' : (isA4 ? '11px' : '9px')}; width: ${amtColWidth};">
         Rs. ${it.lineTotal.toFixed(2)}
       </td>
     </tr>
@@ -471,8 +484,8 @@ export function generateReceiptHtml(
   <title></title>
   <style>
     @page {
-      size: ${rollWidthMm}mm ${estimatedHeightMm}mm;
-      margin: 0 !important;
+      size: ${isA4 ? 'A4 portrait' : `${rollWidthMm}mm ${estimatedHeightMm}mm`};
+      margin: ${isA4 ? '10mm' : '0'};
     }
     *, *::before, *::after {
       box-sizing: border-box;
@@ -488,7 +501,7 @@ export function generateReceiptHtml(
       width: ${printableWidthMm}mm;
       max-width: ${printableWidthMm}mm;
       margin: 0 auto;
-      padding: 1.5mm ${paddingH};
+      padding: ${isA4 ? '0' : `1.5mm ${paddingH}`};
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -509,11 +522,15 @@ export function generateReceiptHtml(
     table { width: 100%; border-collapse: collapse; font-size: ${fontSizeBase}; }
     th { font-weight: 900; border-bottom: 2px solid #000; padding-bottom: 2px; }
     @media print {
+      @page {
+        size: ${isA4 ? 'A4 portrait' : `${rollWidthMm}mm ${estimatedHeightMm}mm`};
+        margin: ${isA4 ? '10mm' : '0'};
+      }
       html, body {
         width: ${printableWidthMm}mm !important;
         max-width: ${printableWidthMm}mm !important;
         margin: 0 auto !important;
-        padding: 1.5mm ${paddingH} !important;
+        padding: ${isA4 ? '0' : `1mm ${paddingH}`} !important;
       }
     }
   </style>
@@ -643,10 +660,6 @@ export function generateReceiptHtml(
       ` : ''}
     `}
   </div>
-
-  <div class="text-center pt-1" style="font-size: ${is58mm ? '7px' : '8px'}; font-weight: 900;">
-    <p>*** Thank You For Visiting AL-BURHANI! ***</p>
-  </div>
   </div>
 </body>
 </html>`;
@@ -684,9 +697,9 @@ export function printReceiptViaWindow(
 }
 
 /**
- * Prints the thermal receipt via a dedicated hidden iframe.
+ * Prints the customer bill via a dedicated hidden iframe.
  * Dynamically computes the exact receipt content height and sets @page size to
- * eliminate A4 page waste, prevent trailing feeds, and cut immediately after content.
+ * eliminate A4 page waste, enforce portrait orientation, and cut immediately after content.
  */
 export function printReceiptViaIframe(
   order: OrderBill,
@@ -702,16 +715,20 @@ export function printReceiptViaIframe(
       } catch {}
     }
 
+    const isA4 = rollWidth === 'A4';
+    const is58mm = rollWidth === '58mm';
+    const rollMm = isA4 ? 210 : (is58mm ? 58 : 80);
+
     iframe = document.createElement('iframe');
     iframe.id = iframeId;
     iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '0';
+    // Provide realistic roll viewport width so layout and scrollHeight compute accurately
+    iframe.style.width = isA4 ? '210mm' : `${rollMm}mm`;
+    iframe.style.height = isA4 ? '297mm' : '1500px';
     iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
+    iframe.style.visibility = 'hidden';
     iframe.setAttribute('aria-hidden', 'true');
     document.body.appendChild(iframe);
 
@@ -727,12 +744,12 @@ export function printReceiptViaIframe(
       try {
         const win = iframe?.contentWindow;
         const d = win?.document;
-        if (d) {
+        if (d && !isA4) {
           const receiptEl = d.getElementById('receipt-container') || d.body;
           const contentHeightPx = receiptEl.scrollHeight || receiptEl.getBoundingClientRect().height;
           // In CSS: 96px = 25.4mm
-          const contentHeightMm = Math.ceil((contentHeightPx * 25.4) / 96) + 3; // +3mm bottom margin before cut
-          const rollMm = rollWidth === '58mm' ? 58 : 80;
+          // Add 2mm tight padding before cut so no text is clipped and zero extra paper fed
+          const contentHeightMm = Math.max(45, Math.ceil((contentHeightPx * 25.4) / 96) + 2);
 
           let styleEl = d.getElementById('__dynamic_page_size__');
           if (!styleEl) {
@@ -740,7 +757,8 @@ export function printReceiptViaIframe(
             styleEl.id = '__dynamic_page_size__';
             d.head.appendChild(styleEl);
           }
-          styleEl.innerHTML = `@page { size: ${rollMm}mm ${contentHeightMm}mm !important; margin: 0 !important; }`;
+          // Note: Strictly valid CSS without !important (CSS spec forbids !important in @page)
+          styleEl.innerHTML = `@page { size: ${rollMm}mm ${contentHeightMm}mm; margin: 0; }`;
         }
         win?.focus();
         win?.print();
@@ -750,8 +768,8 @@ export function printReceiptViaIframe(
       }
     };
 
-    // 150ms timeout ensures fonts and layout are computed before opening print dialog
-    setTimeout(triggerPrint, 150);
+    // 200ms timeout ensures fonts and layout are computed before opening print dialog
+    setTimeout(triggerPrint, 200);
     return true;
   } catch (err) {
     console.error('printReceiptViaIframe failed:', err);

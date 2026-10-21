@@ -300,6 +300,7 @@
   /* Thermal & Sticker print styling (Pure black on white) */
   @media print {
     @page {
+      size: portrait;
       margin: 0;
     }
 

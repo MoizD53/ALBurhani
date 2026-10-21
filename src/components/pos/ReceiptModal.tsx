@@ -196,7 +196,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   };
 
   const handleDownload = () => {
-    downloadReceiptPdf(order);
+    downloadReceiptPdf(order, rollWidth);
     setFeedback({
       message: `Receipt PDF downloaded (${order.billNumber}.pdf)`,
       type: 'success',
@@ -208,21 +208,35 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const cgstAmount = Math.round((order.gstAmount / 2) * 100) / 100;
   const sgstAmount = Math.round((order.gstAmount - cgstAmount) * 100) / 100;
 
+  const itemRowCount = order.items.length;
+  const estimatedReceiptHeightMm = rollWidth === 'A4'
+    ? 297
+    : Math.max(
+        50,
+        Math.ceil(
+          (rollWidth === '58mm' ? 56 : 50) +
+          itemRowCount * (rollWidth === '58mm' ? 10 : 8) +
+          (hasGst ? 14 : 0) +
+          (order.customerPhone ? 4 : 0) +
+          (order.discountAmount > 0 ? 4 : 0)
+        )
+      );
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in select-none print:p-0 print:bg-white print:static print:block"
       onClick={onClose}
     >
-      {/* Thermal Print Driver Settings: Configurable roll width, content-driven height, zero trailing feed */}
+      {/* Thermal Print Driver Settings: Strictly portrait, configurable roll width, zero trailing paper feed */}
       <style>{`
         @media print {
           @page {
-            size: ${rollWidth === '58mm' ? '58mm' : '80mm'} auto;
-            margin: 0mm !important;
+            size: ${rollWidth === 'A4' ? 'A4 portrait' : `${rollWidth === '58mm' ? '58mm' : '80mm'} ${estimatedReceiptHeightMm}mm`};
+            margin: ${rollWidth === 'A4' ? '10mm' : '0mm'};
           }
           html, body {
-            width: ${rollWidth === '58mm' ? '58mm' : '80mm'} !important;
-            max-width: ${rollWidth === '58mm' ? '58mm' : '80mm'} !important;
+            width: ${rollWidth === 'A4' ? '210mm' : (rollWidth === '58mm' ? '58mm' : '80mm')} !important;
+            max-width: ${rollWidth === 'A4' ? '210mm' : (rollWidth === '58mm' ? '58mm' : '80mm')} !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #FFFFFF !important;
@@ -237,13 +251,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             visibility: visible !important;
           }
           #thermal-receipt {
-            position: fixed !important;
+            position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: ${rollWidth === '58mm' ? '48mm' : '72mm'} !important;
-            max-width: ${rollWidth === '58mm' ? '48mm' : '72mm'} !important;
-            margin: 0 !important;
-            padding: 1.5mm ${rollWidth === '58mm' ? '1.5mm' : '2.5mm'} !important;
+            width: ${rollWidth === 'A4' ? '190mm' : (rollWidth === '58mm' ? '48mm' : '72mm')} !important;
+            max-width: ${rollWidth === 'A4' ? '190mm' : (rollWidth === '58mm' ? '48mm' : '72mm')} !important;
+            margin: 0 auto !important;
+            padding: ${rollWidth === 'A4' ? '0' : `1.5mm ${rollWidth === '58mm' ? '1.5mm' : '2.5mm'}`} !important;
             border: none !important;
             box-shadow: none !important;
             z-index: 99999999 !important;
@@ -382,9 +396,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           </div>
         )}
 
-        {/* Quick Thermal Roll Size Selector (80mm vs 58mm) */}
+        {/* Quick Thermal Roll Size Selector (80mm vs 58mm vs A4) */}
         <div className="flex items-center justify-between px-4 py-2 bg-[#FAF8F5] border-b border-[#E8DEC8] text-xs shrink-0 print:hidden">
-          <span className="text-[11px] font-bold text-stone-600">Roll Paper:</span>
+          <span className="text-[11px] font-bold text-stone-600">Print Profile:</span>
           <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-[#E8DEC8] shadow-xs">
             <button
               type="button"
@@ -416,6 +430,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             >
               58mm Roll (2")
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRollWidth('A4');
+                saveThermalRollWidth('A4');
+              }}
+              className={`px-2.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                rollWidth === 'A4'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
+                  : 'text-stone-600 hover:text-stone-900'
+              }`}
+              title="Full A4 Sheet Portrait (Canon / Laser / Inkjet)"
+            >
+              A4 Sheet
+            </button>
           </div>
         </div>
 
@@ -431,7 +460,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               printColorAdjust: 'exact',
             }}
             className={`${
-              rollWidth === '58mm' 
+              rollWidth === 'A4'
+                ? 'w-[190mm] max-w-[190mm] text-[11px] p-4 print:w-[190mm] print:max-w-[190mm]'
+                : rollWidth === '58mm' 
                 ? 'w-[48mm] max-w-[48mm] text-[8px] p-2 print:w-[48mm] print:max-w-[48mm]' 
                 : 'w-[72mm] max-w-[72mm] text-[9px] p-2.5 print:w-[72mm] print:max-w-[72mm]'
             } bg-white text-black rounded shadow-md border border-stone-300 font-sans leading-tight select-none print:border-none print:shadow-none print:p-1 print:m-0`}
@@ -596,11 +627,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 )}
               </div>
             )}
-
-            {/* Footer Greeting (Dark Black Bold) */}
-            <div className="text-center pt-1.5 text-[8px] font-black text-black">
-              <p>*** Thank You For Visiting AL-BURHANI! ***</p>
-            </div>
           </div>
 
         </div>

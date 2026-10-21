@@ -201,22 +201,35 @@ describe('AL-BURHANI POS — Billing Modes, GST-Inclusive Calculations & Receipt
       const html80 = generateReceiptHtml(testOrder, '80mm');
       expect(html80).toContain('<title></title>');
       expect(html80).toContain('size: 80mm');
-      expect(html80).toContain('margin: 0 !important');
+      expect(html80).toContain('margin: 0');
       expect(html80).toContain('width: 72mm');
       expect(html80).toContain('AL-BURHANI');
       expect(html80).toContain('ALB-NB-9901');
       expect(html80).toContain('Standard Sweet Box');
       expect(html80).toContain('Rs. 120.00');
+      // Verify no "Thank you" footer text on receipt
+      expect(html80).not.toContain('Thank You For Visiting');
 
       // 2. Test 58mm configuration
       const html58 = generateReceiptHtml(testOrder, '58mm');
       expect(html58).toContain('<title></title>');
       expect(html58).toContain('size: 58mm');
-      expect(html58).toContain('margin: 0 !important');
+      expect(html58).toContain('margin: 0');
       expect(html58).toContain('width: 48mm');
       expect(html58).toContain('AL-BURHANI');
       expect(html58).toContain('ALB-NB-9901');
       expect(html58).toContain('Standard Sweet Box');
+      // Verify no "Thank you" footer text on receipt
+      expect(html58).not.toContain('Thank You For Visiting');
+
+      // 3. Test A4 portrait configuration
+      const htmlA4 = generateReceiptHtml(testOrder, 'A4');
+      expect(htmlA4).toContain('<title></title>');
+      expect(htmlA4).toContain('A4 portrait');
+      expect(htmlA4).toContain('width: 190mm');
+      expect(htmlA4).toContain('AL-BURHANI');
+      expect(htmlA4).toContain('ALB-NB-9901');
+      expect(htmlA4).not.toContain('Thank You For Visiting');
     });
 
     it('creates an isolated print iframe to print without SPA clipping or blank preview', () => {
