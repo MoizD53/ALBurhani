@@ -23,7 +23,8 @@ import {
   Edit2
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { isOrderInDateRange, isExpenseInDateRange } from '../../lib/utils';
+import { DueBillsModal } from './DueBillsModal';
+import { isOrderInDateRange, isExpenseInDateRange, calculateDueSummary } from '../../lib/utils';
 
 interface OverviewDashboardViewProps {
   products: Product[];
@@ -32,6 +33,7 @@ interface OverviewDashboardViewProps {
   onNavigateToTab: (tab: any) => void;
   onDeleteOrder?: (orderId: string) => void;
   onModifyOrder?: (order: OrderBill) => void;
+  onSettleOrder?: (order: OrderBill) => Promise<void> | void;
 }
 
 export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
@@ -41,11 +43,19 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   onNavigateToTab,
   onDeleteOrder,
   onModifyOrder,
+  onSettleOrder,
 }) => {
   // Privacy mode toggle (matches eye icon in TEN11 screenshot)
   const [isMasked, setIsMasked] = useState(false);
   const [dateFilter, setDateFilter] = useState<'today' | '7days' | 'month' | 'all'>('today');
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<OrderBill | null>(null);
+  const [isDueModalOpen, setIsDueModalOpen] = useState(false);
+
+  // Aggregated Due metrics
+  const { totalDue, dueOrdersCount, dueOrders } = React.useMemo(
+    () => calculateDueSummary(orders),
+    [orders]
+  );
 
   // Dynamic today's date formatted (e.g., "OCTOBER 19")
   const todayFormatted = new Date().toLocaleDateString('en-US', {
@@ -149,7 +159,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
       </div>
 
       {/* 2. Top Primary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: TODAY'S REVENUE */}
         <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/60 transition-all group bg-white border border-[#E8DEC8] shadow-sm">
@@ -237,6 +247,42 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
           <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
             <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Total Expenses</span>
             <span className="text-stone-700 font-bold">{formatAmount(lifetimeExpenses)}</span>
+          </div>
+        </div>
+
+        {/* Card 4: OUTSTANDING DUE (UDHAR) */}
+        <div 
+          onClick={() => setIsDueModalOpen(true)}
+          className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37] transition-all group bg-white border border-[#E8DEC8] shadow-sm cursor-pointer hover:shadow-md relative overflow-hidden"
+          title="Click to view all unsettled due bills"
+        >
+          {dueOrdersCount > 0 && (
+            <div className="absolute top-3.5 right-3.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 text-[10px] font-bold">
+              {dueOrdersCount} Unsettled
+            </div>
+          )}
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-300 flex items-center justify-center text-amber-700 group-hover:border-[#C99A18] transition-colors shadow-sm">
+                <Clock className="w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <span className="text-[11px] font-bold tracking-wider text-stone-500 uppercase block">
+                Outstanding Due (उधार)
+              </span>
+              <div className="text-2xl sm:text-3xl font-bold text-amber-800 mt-1 font-mono tracking-tight">
+                {formatAmount(totalDue)}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
+            <span className="text-[#A67D0C] font-semibold text-[11px] flex items-center gap-1 group-hover:underline">
+              View {dueOrdersCount} Due Bills <ArrowUpRight className="w-3 h-3 inline" />
+            </span>
+            <span className="text-stone-400 text-[10px]">Click to open</span>
           </div>
         </div>
 
@@ -443,15 +489,14 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
         />
       )}
 
-
-      {/* Thermal Receipt Preview Modal */}
-      {selectedReceiptOrder && (
-        <ReceiptModal
-          order={selectedReceiptOrder}
-          onClose={() => setSelectedReceiptOrder(null)}
-          onModifyOrder={onModifyOrder}
-        />
-      )}
+      {/* Outstanding Due & Udhar Khata Modal */}
+      <DueBillsModal
+        isOpen={isDueModalOpen}
+        onClose={() => setIsDueModalOpen(false)}
+        orders={orders}
+        onViewReceipt={(order) => setSelectedReceiptOrder(order)}
+        onSettleOrder={onSettleOrder}
+      />
 
     </div>
   );

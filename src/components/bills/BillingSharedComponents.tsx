@@ -120,7 +120,7 @@ export const BillingFilterToolbar: React.FC<BillingFilterToolbarProps> = ({
   searchPlaceholder,
   paymentFilter,
   onPaymentFilterChange,
-  supportedModes = ['ALL', 'CASH', 'UPI', 'CARD'],
+  supportedModes = ['ALL', 'CASH', 'UPI', 'CARD', 'CREDIT'],
   children,
 }) => {
   return (
@@ -155,7 +155,7 @@ export const BillingFilterToolbar: React.FC<BillingFilterToolbarProps> = ({
         <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white border border-[#E8DEC8] overflow-x-auto no-scrollbar shadow-sm">
           {supportedModes.map((mode) => {
             const isSelected = paymentFilter === mode;
-            const label = mode === 'ALL' ? 'All Modes' : mode;
+            const label = mode === 'ALL' ? 'All Modes' : mode === 'CREDIT' ? 'Udhar / Due' : mode;
             return (
               <button
                 key={mode}

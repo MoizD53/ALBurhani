@@ -1,4 +1,5 @@
 import { OrderBill } from '../types';
+import { getOrderDue } from './utils';
 import {
   normalizeWhatsAppPhoneNumber,
   formatPhoneNumberForDisplay,
@@ -241,6 +242,12 @@ export function generateReceiptPdfBytes(
 
     if (order.changeGiven > 0) {
       writeBetween('Change Returned:', `Rs. ${order.changeGiven.toFixed(2)}`, curY, 'F2', 7.5);
+      curY -= 9;
+    }
+
+    const dueAmount = getOrderDue(order);
+    if (dueAmount > 0) {
+      writeBetween('BALANCE DUE (UDHAR):', `Rs. ${dueAmount.toFixed(2)}`, curY, 'F2', 8);
       curY -= 9;
     }
   }
@@ -640,6 +647,12 @@ export function generateReceiptHtml(
         <div class="flex-between black">
           <span>Change Returned:</span>
           <span>Rs. ${order.changeGiven.toFixed(2)}</span>
+        </div>
+      ` : ''}
+      ${getOrderDue(order) > 0 ? `
+        <div class="flex-between black bolder" style="font-size: 8.5px; border-top: 1px dotted #000; padding-top: 2px; margin-top: 2px;">
+          <span>BALANCE DUE (UDHAR):</span>
+          <span>Rs. ${getOrderDue(order).toFixed(2)}</span>
         </div>
       ` : ''}
     `}

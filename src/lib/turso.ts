@@ -263,6 +263,8 @@ export async function fetchOrdersFromTurso(transactionType?: 'CUSTOMER_BILL' | '
       paymentMethod: row.payment_method as any,
       amountReceived: Number(row.amount_received),
       changeGiven: Number(row.change_given),
+      dueAmount: row.due_amount !== undefined && row.due_amount !== null ? Number(row.due_amount) : Math.max(0, Number(row.grand_total) - Number(row.amount_received || 0)),
+      isSettled: row.is_settled !== undefined && row.is_settled !== null ? Boolean(row.is_settled) : undefined,
       customerName: row.customer_name ? String(row.customer_name) : undefined,
       customerPhone: row.customer_phone ? String(row.customer_phone) : undefined,
       cashierName: String(row.cashier_name),

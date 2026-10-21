@@ -25,6 +25,7 @@ import {
   isValidWhatsAppPhoneNumber, 
   updateOrderCustomerPhone 
 } from '../../lib/phoneUtils';
+import { getOrderDue } from '../../lib/utils';
 
 interface ReceiptModalProps {
   order: OrderBill | null;
@@ -609,6 +610,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   <div className="flex justify-between font-black">
                     <span>Change Returned:</span>
                     <span className="tabular-nums">Rs. {order.changeGiven.toFixed(2)}</span>
+                  </div>
+                )}
+                {getOrderDue(order) > 0 && (
+                  <div className="flex justify-between font-black border-t border-dotted border-black pt-0.5 mt-0.5">
+                    <span>BALANCE DUE (UDHAR):</span>
+                    <span className="tabular-nums font-black text-[9.5px]">Rs. {getOrderDue(order).toFixed(2)}</span>
                   </div>
                 )}
               </div>

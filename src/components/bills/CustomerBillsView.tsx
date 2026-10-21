@@ -11,6 +11,7 @@ import {
   Percent
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
+import { getOrderDue } from '../../lib/utils';
 import {
   BillingPageHeader,
   BillingSummaryCard,
@@ -25,12 +26,14 @@ interface CustomerBillsViewProps {
   orders: OrderBill[];
   onDeleteOrder?: (orderId: string) => Promise<boolean> | boolean | void;
   onModifyOrder?: (order: OrderBill) => void;
+  onSettleOrder?: (order: OrderBill) => Promise<void> | void;
 }
 
 export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({ 
   orders, 
   onDeleteOrder, 
-  onModifyOrder 
+  onModifyOrder,
+  onSettleOrder
 }) => {
   const [search, setSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
@@ -57,7 +60,11 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
   const filteredBills = useMemo(() => {
     const q = search.toLowerCase().trim();
     return customerBills.filter((bill) => {
-      const matchesPayment = paymentFilter === 'ALL' || bill.paymentMethod === paymentFilter;
+      const matchesPayment = paymentFilter === 'ALL'
+        ? true
+        : paymentFilter === 'CREDIT'
+          ? (bill.paymentMethod === 'CREDIT' || getOrderDue(bill) > 0)
+          : bill.paymentMethod === paymentFilter;
       const matchesSearch =
         !q ||
         bill.billNumber.toLowerCase().includes(q) ||
@@ -220,7 +227,14 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                 </div>
                 <div className="text-right">
                   <span className="font-mono font-bold text-stone-900 text-base block">Rs. {b.grandTotal.toFixed(2)}</span>
-                  <span className="text-[10px] text-stone-400 font-mono">{b.items.length} items (GST Rs. {b.gstAmount.toFixed(2)})</span>
+                  {getOrderDue(b) > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300">
+                      Due: Rs. {getOrderDue(b).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-emerald-600 font-medium block">Paid</span>
+                  )}
+                  <span className="text-[10px] text-stone-400 font-mono block">{b.items.length} items (GST Rs. {b.gstAmount.toFixed(2)})</span>
                 </div>
               </div>
 
@@ -338,9 +352,16 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                     Rs. {b.gstAmount.toFixed(2)}
                   </td>
 
-                  {/* 7. Grand Total */}
-                  <td className="py-3 px-4 text-right font-mono font-bold text-[#1C1917] text-sm">
-                    Rs. {b.grandTotal.toFixed(2)}
+                  {/* 7. Grand Total & Due Status */}
+                  <td className="py-3 px-4 text-right font-mono">
+                    <span className="font-bold text-[#1C1917] text-sm block">Rs. {b.grandTotal.toFixed(2)}</span>
+                    {getOrderDue(b) > 0 ? (
+                      <span className="inline-block mt-0.5 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300">
+                        Due: Rs. {getOrderDue(b).toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-emerald-600 font-medium block">Paid</span>
+                    )}
                   </td>
 
                   {/* 8. Payment Mode Badge */}

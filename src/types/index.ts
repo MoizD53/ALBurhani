@@ -37,7 +37,7 @@ export interface CartItem {
   formattedRate: string; // 'Rs. 800/kg', 'Rs. 20/pc'
 }
 
-export type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT';
+export type PaymentMethod = 'CASH' | 'UPI' | 'CARD' | 'SPLIT' | 'CREDIT';
 export type TransactionType = 'CUSTOMER_BILL' | 'NO_BILL';
 
 export interface OrderBill {
@@ -52,6 +52,9 @@ export interface OrderBill {
   paymentMethod: PaymentMethod;
   amountReceived: number;
   changeGiven: number;
+  dueAmount?: number;
+  settledAt?: string;
+  isSettled?: boolean;
   customerName?: string;
   customerPhone?: string;
   cashierName: string;

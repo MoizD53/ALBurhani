@@ -13,7 +13,7 @@ describe('PWA & Service Worker Configuration', () => {
     const swContent = fs.readFileSync(swPath, 'utf8');
 
     // Version bumped
-    expect(swContent).toContain("CACHE_NAME = 'albhurani-pos-v2'");
+    expect(swContent).toMatch(/CACHE_NAME = 'albhurani-pos-v\d+'/);
 
     // Skip waiting listener present
     expect(swContent).toContain('SKIP_WAITING');

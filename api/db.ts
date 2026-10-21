@@ -89,7 +89,9 @@ async function ensureSchema(client: Client): Promise<void> {
       additional_payment_method TEXT,
       revised_at TEXT,
       revised_timestamp INTEGER,
-      revision_count INTEGER DEFAULT 0
+      revision_count INTEGER DEFAULT 0,
+      due_amount REAL DEFAULT 0,
+      is_settled INTEGER DEFAULT 1
     );`,
 
     `CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders (created_at DESC);`,
@@ -149,6 +151,8 @@ async function ensureSchema(client: Client): Promise<void> {
   const columnMigrations = [
     'ALTER TABLE orders ADD COLUMN timestamp INTEGER;',
     'ALTER TABLE orders ADD COLUMN revised_timestamp INTEGER;',
+    'ALTER TABLE orders ADD COLUMN due_amount REAL DEFAULT 0;',
+    'ALTER TABLE orders ADD COLUMN is_settled INTEGER DEFAULT 1;',
   ];
 
   for (const alterSql of columnMigrations) {
@@ -555,8 +559,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
             payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at,
             timestamp, is_revised, original_grand_total, additional_amount_paid, original_payment_method,
-            additional_payment_method, revised_at, revised_timestamp, revision_count
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             o.id,
             o.billNumber,
@@ -582,6 +586,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             o.revisedAt || null,
             o.revisedTimestamp !== undefined ? Number(o.revisedTimestamp) : null,
             Number(o.revisionCount) || 0,
+            o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0)),
+            o.isSettled !== undefined ? (o.isSettled ? 1 : 0) : ((o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0))) > 0 ? 0 : 1),
           ],
         });
 
@@ -608,8 +614,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
               payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at,
               timestamp, is_revised, original_grand_total, additional_amount_paid, original_payment_method,
-              additional_payment_method, revised_at, revised_timestamp, revision_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             args: [
               o.id,
               o.billNumber,
@@ -635,6 +641,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               o.revisedAt || null,
               o.revisedTimestamp !== undefined ? Number(o.revisedTimestamp) : null,
               Number(o.revisionCount) || 0,
+              o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0)),
+              o.isSettled !== undefined ? (o.isSettled ? 1 : 0) : ((o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0))) > 0 ? 0 : 1),
             ],
           });
           inserted++;

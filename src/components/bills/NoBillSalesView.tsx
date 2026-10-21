@@ -12,6 +12,7 @@ import {
   Package
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
+import { getOrderDue } from '../../lib/utils';
 import {
   BillingPageHeader,
   BillingSummaryCard,
@@ -26,12 +27,14 @@ interface NoBillSalesViewProps {
   orders: OrderBill[];
   onDeleteOrder?: (orderId: string) => Promise<boolean> | boolean | void;
   onModifyOrder?: (order: OrderBill) => void;
+  onSettleOrder?: (order: OrderBill) => Promise<void> | void;
 }
 
 export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ 
   orders, 
   onDeleteOrder, 
-  onModifyOrder 
+  onModifyOrder,
+  onSettleOrder
 }) => {
   const [search, setSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
@@ -59,7 +62,11 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
   const filteredSales = useMemo(() => {
     const q = search.toLowerCase().trim();
     return noBillSales.filter((s) => {
-      const matchesPayment = paymentFilter === 'ALL' || s.paymentMethod === paymentFilter;
+      const matchesPayment = paymentFilter === 'ALL'
+        ? true
+        : paymentFilter === 'CREDIT'
+          ? (s.paymentMethod === 'CREDIT' || getOrderDue(s) > 0)
+          : s.paymentMethod === paymentFilter;
       const matchesSearch =
         !q ||
         s.billNumber.toLowerCase().includes(q) ||
@@ -235,7 +242,14 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
                 </div>
                 <div className="text-right">
                   <span className="font-mono font-bold text-stone-900 text-base block">Rs. {s.grandTotal.toFixed(2)}</span>
-                  <span className="text-[10px] text-stone-400 font-mono">0% GST Memo</span>
+                  {getOrderDue(s) > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300">
+                      Due: Rs. {getOrderDue(s).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-emerald-600 font-medium block">Paid</span>
+                  )}
+                  <span className="text-[10px] text-stone-400 font-mono block">0% GST Memo</span>
                 </div>
               </div>
 
@@ -356,9 +370,16 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
                         Rs. {s.subtotal.toFixed(2)}
                       </td>
 
-                      {/* 6. Total Amount (0% GST) */}
-                      <td className="py-3 px-4 text-right font-mono font-bold text-[#1C1917] text-sm">
-                        Rs. {s.grandTotal.toFixed(2)}
+                      {/* 6. Total Amount & Due Status (0% GST) */}
+                      <td className="py-3 px-4 text-right font-mono">
+                        <span className="font-bold text-[#1C1917] text-sm block">Rs. {s.grandTotal.toFixed(2)}</span>
+                        {getOrderDue(s) > 0 ? (
+                          <span className="inline-block mt-0.5 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300">
+                            Due: Rs. {getOrderDue(s).toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-600 font-medium block">Paid</span>
+                        )}
                       </td>
 
                       {/* 7. Payment Mode Badge */}

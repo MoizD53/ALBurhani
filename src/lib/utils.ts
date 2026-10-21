@@ -186,3 +186,38 @@ export function isExpenseInDateRange(
 
   return true;
 }
+
+/**
+ * Calculates the exact pending due (udhar) balance for an order
+ */
+export function getOrderDue(order: OrderBill): number {
+  if (order.isSettled) return 0;
+  if (typeof order.dueAmount === 'number') {
+    return Math.max(0, order.dueAmount);
+  }
+  if (order.paymentMethod === 'CREDIT') {
+    const received = typeof order.amountReceived === 'number' ? order.amountReceived : 0;
+    return Math.max(0, order.grandTotal - received);
+  }
+  if (typeof order.amountReceived === 'number' && order.amountReceived < order.grandTotal) {
+    return Math.max(0, order.grandTotal - order.amountReceived);
+  }
+  return 0;
+}
+
+/**
+ * Aggregates all due orders and totals
+ */
+export function calculateDueSummary(orders: OrderBill[]): {
+  totalDue: number;
+  dueOrdersCount: number;
+  dueOrders: OrderBill[];
+} {
+  const dueOrders = orders.filter((o) => getOrderDue(o) > 0);
+  const totalDue = dueOrders.reduce((sum, o) => sum + getOrderDue(o), 0);
+  return {
+    totalDue,
+    dueOrdersCount: dueOrders.length,
+    dueOrders,
+  };
+}

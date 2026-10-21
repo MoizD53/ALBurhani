@@ -1,6 +1,6 @@
 /**
  * AL-BURHANI POS — Production Service Worker
- * Version: albhurani-pos-v2
+ * Version: albhurani-pos-v3
  * 
  * Safety & Integrity Constraints:
  * 1. NEVER cache sensitive user authentication data or login tokens.
@@ -10,7 +10,7 @@
  * 5. Navigation requests use network-first with offline app shell fallback.
  */
 
-const CACHE_NAME = 'albhurani-pos-v2';
+const CACHE_NAME = 'albhurani-pos-v3';
 
 const STATIC_SHELL_ASSETS = [
   '/',

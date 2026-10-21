@@ -18,7 +18,9 @@ import {
   ReceiptText,
   Sparkles,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { Product, CartItem, OrderBill, PaymentMethod, TransactionType, CompleteSaleResult } from '../../types';
 import { playBeep } from '../../lib/utils';
@@ -358,8 +360,10 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     grandTotal,
   } = calculateOrderTotals(cart, discountPercent, transactionType);
 
-  const receivedNum = parseFloat(amountReceived) || grandTotal;
+  const parsedReceived = amountReceived !== '' ? parseFloat(amountReceived) : (paymentMethod === 'CREDIT' ? 0 : grandTotal);
+  const receivedNum = isNaN(parsedReceived) ? (paymentMethod === 'CREDIT' ? 0 : grandTotal) : parsedReceived;
   const changeGiven = Math.max(0, receivedNum - grandTotal);
+  const pendingDue = (paymentMethod === 'CREDIT' || paymentMethod === 'CASH') ? Math.max(0, grandTotal - receivedNum) : 0;
   const totalCartCount = cart.length;
 
   // Checkout Handler
@@ -432,6 +436,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       const billNumber = `ALB-${prefix}-${randomNum}`;
       const timestamp = Date.now();
 
+      const finalReceived = (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') ? receivedNum : grandTotal;
+      const finalDue = (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') ? pendingDue : 0;
+
       const newOrder: OrderBill = {
         id: `sale-${timestamp}-${randomNum}`,
         billNumber,
@@ -442,8 +449,10 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         gstAmount,
         grandTotal,
         paymentMethod,
-        amountReceived: paymentMethod === 'CASH' ? receivedNum : grandTotal,
+        amountReceived: finalReceived,
         changeGiven: paymentMethod === 'CASH' ? changeGiven : 0,
+        dueAmount: finalDue,
+        isSettled: finalDue === 0,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         cashierName: 'Owner',
@@ -1014,63 +1023,101 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
             </div>
 
             {/* Payment Method Selector */}
-            <div className="grid grid-cols-3 gap-1.5">
-              {([['CASH', 'Cash', Banknote], ['UPI', 'UPI QR', QrCode], ['CARD', 'Card', CreditCard]] as const).map(([key, label, Icon]) => {
+            <div className="grid grid-cols-4 gap-1.5">
+              {([
+                ['CASH', 'Cash', Banknote], 
+                ['UPI', 'UPI QR', QrCode], 
+                ['CARD', 'Card', CreditCard],
+                ['CREDIT', 'Udhar / Credit', Clock]
+              ] as const).map(([key, label, Icon]) => {
                 const isSelected = paymentMethod === key;
                 return (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setPaymentMethod(key as PaymentMethod)}
-                    className={`py-1.5 px-2 rounded-lg border flex flex-col items-center gap-0.5 transition-all text-xs font-semibold ${
+                    onClick={() => {
+                      setPaymentMethod(key as PaymentMethod);
+                      if (key === 'CREDIT' && !amountReceived) {
+                        setAmountReceived('0');
+                      }
+                    }}
+                    className={`py-1.5 px-1 rounded-lg border flex flex-col items-center gap-0.5 transition-all text-xs font-semibold ${
                       isSelected
-                        ? 'border-[#C99A18] bg-[#FBF7EE] text-[#A67D0C] shadow-sm'
+                        ? key === 'CREDIT'
+                          ? 'border-amber-500 bg-amber-50 text-amber-800 shadow-sm'
+                          : 'border-[#C99A18] bg-[#FBF7EE] text-[#A67D0C] shadow-sm'
                         : 'border-[#E8DEC8] bg-white text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5]'
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
-                    <span className="text-[10px]">{label}</span>
+                    <span className="text-[10px] text-center leading-tight">{label}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Cash Tender Calculation */}
-            {paymentMethod === 'CASH' && grandTotal > 0 && (
-              <div className="p-2 rounded-lg bg-white border border-[#E8DEC8] space-y-1.5 shadow-sm">
+            {/* Cash / Credit Tender & Due Calculation */}
+            {(paymentMethod === 'CASH' || paymentMethod === 'CREDIT') && grandTotal > 0 && (
+              <div className="p-2.5 rounded-xl bg-white border border-[#E8DEC8] space-y-2 shadow-sm">
                 <div className="flex gap-1">
                   {[100, 200, 500, 2000].map((val) => (
                     <button
                       key={val}
+                      type="button"
                       onClick={() => setAmountReceived(val.toString())}
-                      className="flex-1 py-0.5 rounded bg-[#FAF8F5] hover:bg-stone-100 border border-[#E8DEC8] text-[10px] font-mono text-stone-700 hover:text-stone-900 transition-colors"
+                      className="flex-1 py-1 rounded bg-[#FAF8F5] hover:bg-stone-100 border border-[#E8DEC8] text-[10px] font-mono text-stone-700 hover:text-stone-900 transition-colors"
                     >
                       Rs. {val}
                     </button>
                   ))}
                   <button
+                    type="button"
                     onClick={() => setAmountReceived(grandTotal.toString())}
-                    className="flex-1 py-0.5 rounded bg-[#FBF7EE] border border-[#C99A18]/40 text-[#A67D0C] text-[10px] font-mono font-bold"
+                    className="flex-1 py-1 rounded bg-[#FBF7EE] border border-[#C99A18]/40 text-[#A67D0C] text-[10px] font-mono font-bold"
                   >
                     Exact
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAmountReceived('0')}
+                    className="flex-1 py-1 rounded bg-amber-50 border border-amber-300 text-amber-800 text-[10px] font-mono font-bold"
+                  >
+                    Full Udhar
                   </button>
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-stone-600 font-medium">Cash Received:</span>
-                  <input
-                    type="number"
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    placeholder={`Rs. ${grandTotal}`}
-                    className="w-24 text-right py-1 px-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded font-mono text-stone-900 focus:border-[#C99A18] focus:outline-none"
-                  />
+                  <span className="text-stone-600 font-medium">
+                    {paymentMethod === 'CREDIT' ? 'Advance Paid (if any):' : 'Amount Received:'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-stone-400 text-xs">Rs.</span>
+                    <input
+                      type="number"
+                      value={amountReceived}
+                      onChange={(e) => setAmountReceived(e.target.value)}
+                      placeholder={paymentMethod === 'CREDIT' ? '0' : `${grandTotal}`}
+                      className="w-24 text-right py-1 px-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded font-mono text-stone-900 focus:border-[#C99A18] focus:outline-none"
+                    />
+                  </div>
                 </div>
 
-                {receivedNum >= grandTotal && amountReceived && (
-                  <div className="flex items-center justify-between text-xs font-bold text-emerald-600 pt-1 border-t border-[#E8DEC8]">
+                {/* Change to Return */}
+                {receivedNum > grandTotal && amountReceived && (
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-600 pt-1.5 border-t border-[#E8DEC8]">
                     <span>Change to Return:</span>
                     <span className="font-mono text-sm">Rs. {changeGiven.toFixed(2)}</span>
+                  </div>
+                )}
+
+                {/* Pending Due / Udhar */}
+                {pendingDue > 0 && (
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-900 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Balance Due (उधार):</span>
+                    </span>
+                    <span className="font-mono text-sm text-amber-700">Rs. {pendingDue.toFixed(2)}</span>
                   </div>
                 )}
               </div>
@@ -1106,9 +1153,11 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                   ? 'Saving Changes...' 
                   : editingOrder
                     ? `Save Bill Changes (${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)) > 0 ? `Collect Rs. ${Math.max(0, grandTotal - (editingOrder.originalGrandTotal ?? editingOrder.grandTotal)).toFixed(2)}` : 'No Extra Due'})`
-                    : transactionType === 'CUSTOMER_BILL' 
-                      ? `Complete Sale (With GST — Rs. ${grandTotal})` 
-                      : `Complete Sale (Without GST — Rs. ${grandTotal})`}
+                    : pendingDue > 0
+                      ? `Complete Sale with Udhar (Due: Rs. ${pendingDue.toFixed(2)})`
+                      : transactionType === 'CUSTOMER_BILL' 
+                        ? `Complete Sale (With GST — Rs. ${grandTotal})` 
+                        : `Complete Sale (Without GST — Rs. ${grandTotal})`}
               </span>
             </button>
 

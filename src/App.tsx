@@ -816,6 +816,37 @@ export function App() {
     setEditingOrder(null);
   };
 
+  const handleSettleOrder = async (order: OrderBill): Promise<void> => {
+    const settledOrder: OrderBill = {
+      ...order,
+      amountReceived: order.grandTotal,
+      dueAmount: 0,
+      isSettled: true,
+      settledAt: new Date().toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }),
+    };
+
+    setOrders((prev) => {
+      const updated = prev.map((o) => (o.id === order.id ? settledOrder : o));
+      try {
+        localStorage.setItem('albhurani_orders', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    try {
+      await saveOrderToTurso(settledOrder);
+    } catch (err) {
+      console.warn('Error syncing settled order to Turso:', err);
+    }
+  };
+
   const handleSaveModifiedOrder = async (
     updatedOrder: OrderBill,
     originalOrder: OrderBill
@@ -1020,6 +1051,7 @@ export function App() {
               onNavigateToTab={setActiveTab}
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
+              onSettleOrder={handleSettleOrder}
             />
           )}
 
@@ -1040,6 +1072,7 @@ export function App() {
               orders={orders} 
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
+              onSettleOrder={handleSettleOrder}
             />
           )}
 
@@ -1048,6 +1081,7 @@ export function App() {
               orders={orders} 
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
+              onSettleOrder={handleSettleOrder}
             />
           )}
 
