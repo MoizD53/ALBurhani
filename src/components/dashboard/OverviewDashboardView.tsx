@@ -23,7 +23,7 @@ import {
   Edit2
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { isOrderInDateRange } from '../../lib/utils';
+import { isOrderInDateRange, isExpenseInDateRange } from '../../lib/utils';
 
 interface OverviewDashboardViewProps {
   products: Product[];
@@ -72,7 +72,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   const lifetimeCustomersCount = orders.length;
 
   // Expenses
-  const todayExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const todayExpenses = expenses.filter((e) => isExpenseInDateRange(e, 'today')).reduce((sum, e) => sum + e.amount, 0);
   const lifetimeExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   // Payment Breakdown

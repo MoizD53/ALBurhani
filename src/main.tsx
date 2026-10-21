@@ -37,13 +37,53 @@ window.addEventListener('error', (e) => {
   console.error('Global window error:', e.error || e.message);
 });
 
-// Register Service Worker for PWA
+// Register Service Worker for PWA with automatic safe update flow
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+  let isRefreshing = false;
+
+  // Reload page when new service worker takes control (prevent infinite reload)
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!isRefreshing) {
+      isRefreshing = true;
+      console.log('[PWA] New service worker took control. Reloading to display latest version...');
+      window.location.reload();
+    }
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => {
         console.log('[PWA] Service Worker registered with scope:', registration.scope);
+
+        // If an updated worker is already waiting, trigger its activation
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        // Listen for new service worker being discovered
+        registration.addEventListener('updatefound', () => {
+          const installingWorker = registration.installing;
+          if (installingWorker) {
+            installingWorker.addEventListener('statechange', () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New update available, activate it immediately
+                console.log('[PWA] New update installed; activating...');
+                installingWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          }
+        });
+
+        // Promptly check for updates on startup
+        registration.update().catch(() => {});
+
+        // Re-check for updates whenever user returns to the app window
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            registration.update().catch(() => {});
+          }
+        });
       })
       .catch((err) => {
         console.warn('[PWA] Service Worker registration failed:', err);
@@ -59,4 +99,3 @@ if (rootElement) {
     </ErrorBoundary>
   );
 }
-

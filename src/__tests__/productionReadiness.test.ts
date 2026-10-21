@@ -188,7 +188,7 @@ describe('AL-BURHANI POS Production Readiness & Delivery Verification', () => {
       // Verify security rules
       expect(swContent).toContain('turso.io');
       expect(swContent).toContain("request.method !== 'GET'");
-      expect(swContent).toContain('albhurani-pos-v1');
+      expect(swContent).toMatch(/albhurani-pos-v\d+/);
     });
   });
 });

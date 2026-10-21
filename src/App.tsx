@@ -347,9 +347,23 @@ export function App() {
         // 3. Synchronize expenses
         const remoteExpenses = await fetchExpensesFromTurso();
         if (remoteExpenses !== null) {
-          setExpenses(remoteExpenses);
+          const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_expenses') : null;
+          let localExpenses: ExpenseItem[] = [];
+          if (localSaved) {
+            try {
+              const parsed = JSON.parse(localSaved);
+              if (Array.isArray(parsed)) localExpenses = parsed;
+            } catch {}
+          }
+          const remoteExpSet = new Set(remoteExpenses.map((e) => e.id));
+          const unsyncedExp = localExpenses.filter((le) => le && le.id && !remoteExpSet.has(le.id));
+          for (const exp of unsyncedExp) {
+            await saveExpenseToTurso(exp).catch(() => {});
+          }
+          const mergedExpenses = [...remoteExpenses, ...unsyncedExp];
+          setExpenses(mergedExpenses);
           try {
-            localStorage.setItem('albhurani_expenses', JSON.stringify(remoteExpenses));
+            localStorage.setItem('albhurani_expenses', JSON.stringify(mergedExpenses));
           } catch {}
         }
 
@@ -640,6 +654,9 @@ export function App() {
         const orderSaved = await saveOrderToTurso(newOrder);
         if (!orderSaved) {
           console.warn('Turso saveOrder returned false — order may not be visible on other devices');
+          syncManager.setStatus('error');
+        } else {
+          syncManager.setStatus('connected');
         }
         // Update stock on cloud for each item in the bill
         for (const it of newOrder.items) {
@@ -653,6 +670,7 @@ export function App() {
       }
     } catch (tursoErr) {
       console.warn('Turso dispatch error:', tursoErr);
+      syncManager.setStatus('error');
     }
 
     return { success: true, order: newOrder };

@@ -145,6 +145,20 @@ async function ensureSchema(client: Client): Promise<void> {
     }
   }
 
+  // Idempotent column migrations for tables created in earlier versions
+  const columnMigrations = [
+    'ALTER TABLE orders ADD COLUMN timestamp INTEGER;',
+    'ALTER TABLE orders ADD COLUMN revised_timestamp INTEGER;',
+  ];
+
+  for (const alterSql of columnMigrations) {
+    try {
+      await client.execute(alterSql);
+    } catch {
+      // Ignore if column already exists
+    }
+  }
+
   isSchemaInitialized = true;
 }
 

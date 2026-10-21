@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { OrderBill } from '../types';
+import { OrderBill, ExpenseItem } from '../types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -52,6 +52,24 @@ export function playBeep(type: 'scan' | 'error' | 'success' = 'scan') {
 }
 
 /**
+ * Returns date in YYYY-MM-DD format in Asia/Kolkata timezone
+ */
+export function getKolkataDateString(dateOrTimestamp: number | Date = Date.now()): string {
+  try {
+    const d = typeof dateOrTimestamp === 'number' ? new Date(dateOrTimestamp) : dateOrTimestamp;
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    const d = typeof dateOrTimestamp === 'number' ? new Date(dateOrTimestamp) : dateOrTimestamp;
+    return d.toISOString().split('T')[0];
+  }
+}
+
+/**
  * Extracts a reliable epoch millisecond timestamp from an order
  */
 export function extractOrderTimestamp(order: OrderBill): number | null {
@@ -81,7 +99,7 @@ export function extractOrderTimestamp(order: OrderBill): number | null {
 
 /**
  * Determines whether an order falls within the requested date range:
- * - 'today': calendar day of today
+ * - 'today': calendar day of today in Asia/Kolkata
  * - '7days': last 7 calendar days
  * - 'month': last 30 calendar days
  * - 'all': all orders
@@ -96,27 +114,75 @@ export function isOrderInDateRange(
   // Fail-safe: if date cannot be resolved, include the order so real sales are never lost
   if (timestamp === null) return true;
 
-  const orderDate = new Date(timestamp);
-  const now = new Date();
-
   if (range === 'today') {
-    return (
-      orderDate.getFullYear() === now.getFullYear() &&
-      orderDate.getMonth() === now.getMonth() &&
-      orderDate.getDate() === now.getDate()
-    );
+    return getKolkataDateString(timestamp) === getKolkataDateString(Date.now());
   }
 
+  const now = Date.now();
   if (range === '7days') {
-    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).getTime();
-    return timestamp >= cutoff;
+    return timestamp >= now - 7 * 24 * 60 * 60 * 1000;
   }
 
   if (range === 'month') {
-    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30).getTime();
-    return timestamp >= cutoff;
+    return timestamp >= now - 30 * 24 * 60 * 60 * 1000;
   }
 
   return true;
 }
 
+/**
+ * Extracts a reliable epoch millisecond timestamp from an expense
+ */
+export function extractExpenseTimestamp(expense: ExpenseItem): number | null {
+  if (typeof (expense as any).timestamp === 'number' && !isNaN((expense as any).timestamp)) {
+    return (expense as any).timestamp;
+  }
+
+  if (expense.id && expense.id.startsWith('expense-')) {
+    const parts = expense.id.split('-');
+    const parsed = parseInt(parts[1], 10);
+    if (!isNaN(parsed) && parsed > 1600000000000) {
+      return parsed;
+    }
+  }
+
+  if (expense.date) {
+    if (expense.date.toLowerCase().startsWith('today')) {
+      return Date.now();
+    }
+    const parsed = Date.parse(expense.date);
+    if (!isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Determines whether an expense falls within the requested date range
+ */
+export function isExpenseInDateRange(
+  expense: ExpenseItem,
+  range: 'today' | '7days' | 'month' | 'all'
+): boolean {
+  if (range === 'all') return true;
+
+  const timestamp = extractExpenseTimestamp(expense);
+  if (timestamp === null) return true;
+
+  if (range === 'today') {
+    return getKolkataDateString(timestamp) === getKolkataDateString(Date.now());
+  }
+
+  const now = Date.now();
+  if (range === '7days') {
+    return timestamp >= now - 7 * 24 * 60 * 60 * 1000;
+  }
+
+  if (range === 'month') {
+    return timestamp >= now - 30 * 24 * 60 * 60 * 1000;
+  }
+
+  return true;
+}
