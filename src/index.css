@@ -86,17 +86,38 @@
     background: rgba(201, 154, 24, 0.5);
   }
 
-  :where(input[type="text"],
-  input[type="number"],
-  input[type="email"],
-  input[type="search"],
-  input[type="tel"],
-  select,
-  textarea):not([data-login-input]) {
+  :where(
+    input[type="text"]:not([data-login-input]),
+    input[type="number"]:not([data-login-input]),
+    input[type="email"]:not([data-login-input]),
+    input[type="search"]:not([data-login-input]),
+    input[type="tel"]:not([data-login-input]),
+    select:not([data-login-input]),
+    textarea:not([data-login-input])
+  ) {
     @apply w-full rounded-xl transition-all duration-200 py-2 px-3.5;
     background: #FFFFFF;
     border: 1px solid rgba(201, 154, 24, 0.28);
     color: #1C1917;
+  }
+
+  /* Universal Contrast Safety Rules: Guarantee typed text is always 100% visible */
+  :where(input, select, textarea).text-white,
+  :where(input, select, textarea)[class*="text-white"],
+  :where(input, select, textarea)[class*="bg-black"],
+  :where(input, select, textarea)[class*="bg-zinc-9"],
+  :where(input, select, textarea)[class*="bg-zinc-8"],
+  :where(input, select, textarea)[class*="bg-[#1"] {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+  }
+
+  :where(input, select, textarea).text-stone-900,
+  :where(input, select, textarea)[class*="text-stone"],
+  :where(input, select, textarea)[class*="bg-white"],
+  :where(input, select, textarea)[class*="bg-[#FAF8F5]"] {
+    color: #1C1917 !important;
+    -webkit-text-fill-color: #1C1917 !important;
   }
   input:focus,
   select:focus,

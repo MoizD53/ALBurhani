@@ -1045,7 +1045,8 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                   placeholder="Scan USB barcode or search name/SKU..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-black/50 border border-white/[0.1] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:border-[#D4AF37] focus:outline-none"
+                  style={{ color: '#FFFFFF' }}
+                  className="w-full bg-black/50 border border-white/[0.1] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:border-[#D4AF37] focus:outline-none"
                 />
               </div>
 

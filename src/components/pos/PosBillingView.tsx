@@ -639,8 +639,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
           <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             
             {/* Search Input */}
-            <div className="relative w-full sm:w-56 shrink-0">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+            <div className="relative w-full sm:w-64 shrink-0">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search name or SKU..."
@@ -649,13 +649,16 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.preventDefault();
                 }}
-                style={{ paddingLeft: '34px' }}
-                className="w-full pr-7 py-1.5 text-xs bg-[#111115] border border-white/[0.08] rounded-xl text-white placeholder:text-zinc-500 focus:border-[#D4AF37]/50 focus:outline-none transition-colors"
+                style={{ paddingLeft: '34px', color: '#1C1917', backgroundColor: '#FFFFFF' }}
+                className="w-full pr-8 py-2 text-xs bg-white border border-[#E8DEC8] rounded-xl text-stone-900 placeholder:text-stone-400 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18]/25 focus:outline-none transition-colors shadow-sm"
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 rounded transition-colors"
+                  title="Clear search"
+                  aria-label="Clear search"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -672,8 +675,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                     onClick={() => setSelectedCategory(cat)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                       isSelected
-                        ? 'bg-[#D4AF37] text-black font-semibold shadow-sm'
-                        : 'bg-white/[0.03] text-zinc-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06]'
+                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white font-bold shadow-sm'
+                        : 'bg-white text-stone-600 hover:text-[#B8860B] hover:bg-stone-50 border border-[#E8DEC8]'
                     }`}
                   >
                     {cat}
