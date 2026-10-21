@@ -12,7 +12,7 @@ import {
 } from '../lib/pricing';
 import { Product, OrderBill } from '../types';
 
-describe('AL-BHURANI Comprehensive Product & POS Audit', () => {
+describe('AL-BURHANI Comprehensive Product & POS Audit', () => {
 
   // ─── 1. Product Catalog Data Integrity ───
   describe('1. Catalog Data Integrity (All Products)', () => {

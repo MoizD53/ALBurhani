@@ -1,5 +1,5 @@
 /**
- * AL-BHURANI POS — Production Service Worker
+ * AL-BURHANI POS — Production Service Worker
  * Version: albhurani-pos-v1
  * 
  * Safety & Integrity Constraints:

@@ -3,7 +3,7 @@ import { CustomerRecord } from './customers';
 import { migrateCatalogPrices } from './catalogMigration';
 
 /**
- * AL-BHURANI POS — Production Database Client
+ * AL-BURHANI POS — Production Database Client
  * 
  * SECURITY ARCHITECTURE CONSTRAINTS:
  * 1. Database credentials (TURSO_DB_URL and TURSO_AUTH_TOKEN) MUST remain strictly server-side.

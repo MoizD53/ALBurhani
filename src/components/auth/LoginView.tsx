@@ -202,7 +202,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           {/* Subtle top edge champagne highlight line */}
           <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-[#E7C75A]/70 to-transparent" />
 
-          {/* Official AL-BHURANI Round Logo */}
+          {/* Official AL-BURHANI Round Logo */}
           <div className="mx-auto mb-3 sm:mb-3.5 w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-b from-[#E7C75A]/60 via-[#D4AF37]/30 to-transparent shadow-[0_0_24px_rgba(212,175,55,0.38)] flex items-center justify-center">
             <div className="w-full h-full rounded-full overflow-hidden bg-white/95 border border-[#D4AF37]/60 shadow-inner flex items-center justify-center">
               <img
@@ -216,7 +216,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           {/* Brand Name */}
           <div className="text-center">
             <h1 className="font-serif text-3xl sm:text-4xl font-black tracking-[0.22em] uppercase leading-none text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-100 to-zinc-300 drop-shadow-[0_2px_12px_rgba(255,255,255,0.1)]">
-              AL-BHURANI
+              AL-BURHANI
             </h1>
             {/* Brighter champagne gold decorative divider */}
             <div className="w-16 h-[1.5px] mx-auto bg-gradient-to-r from-transparent via-[#E7C75A] to-transparent mt-2.5 mb-3.5 sm:mb-4 shadow-[0_0_8px_rgba(231,199,90,0.4)]" />
@@ -342,7 +342,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       {/* Slim Bottom Footer matching reference style */}
       <footer className="w-full max-w-xl py-2 px-4 rounded-full bg-[#121215]/90 border border-white/[0.1] hover:border-[#D4AF37]/30 flex items-center justify-center gap-2.5 text-[11px] sm:text-xs text-zinc-400 text-center relative z-10 shadow-lg backdrop-blur-md transition-all shrink-0">
         <Lock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-        <span className="truncate">© 2026 AL-BHURANI. All rights reserved.</span>
+        <span className="truncate">© 2026 AL-BURHANI. All rights reserved.</span>
         <span className="text-zinc-600">|</span>
         <span className="text-[#E7C75A] font-semibold tracking-wide shrink-0">Powered by Duokarma</span>
       </footer>

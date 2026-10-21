@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { OrderBill } from '../types';
 
-describe('AL-BHURANI POS — Standardized Billing History Architecture', () => {
+describe('AL-BURHANI POS — Standardized Billing History Architecture', () => {
   const sampleWithGstOrder1: OrderBill = {
     id: 'sale-gst-1',
     billNumber: 'ALB-INV-1001',

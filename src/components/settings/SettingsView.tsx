@@ -68,9 +68,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [storeName, setStoreName] = useState(() => {
     try {
       const saved = localStorage.getItem('albhurani_store_profile');
-      if (saved) return JSON.parse(saved).storeName || 'AL-BHURANI Sweets & Dry Items';
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.storeName && parsed.storeName !== 'AL-BHURANI Sweets & Dry Items') {
+          return parsed.storeName;
+        }
+      }
     } catch {}
-    return 'AL-BHURANI Sweets & Dry Items';
+    return 'AL-BURHANI Sweets & Dry Items';
   });
   const [branchName, setBranchName] = useState(() => {
     try {
@@ -106,7 +111,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     fetchSettingsFromTurso('store_profile').then((res) => {
       if (res && res.store_profile) {
         const p = res.store_profile;
-        if (p.storeName) setStoreName(p.storeName);
+        if (p.storeName) {
+          const sName = p.storeName === 'AL-BHURANI Sweets & Dry Items' ? 'AL-BURHANI Sweets & Dry Items' : p.storeName;
+          setStoreName(sName);
+        }
         if (p.branchName) setBranchName(p.branchName);
         if (p.gstin) setGstin(p.gstin);
         if (p.phone) setPhone(p.phone);

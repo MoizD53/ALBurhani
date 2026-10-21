@@ -1,5 +1,5 @@
 /**
- * AL-BHURANI POS — Central Real-Time Synchronization Engine
+ * AL-BURHANI POS — Central Real-Time Synchronization Engine
  * 
  * Provides 1–3 second cross-device convergence for:
  * - Customer Tax Invoices & No-Bill Sales

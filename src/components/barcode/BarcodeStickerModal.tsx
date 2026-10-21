@@ -71,7 +71,7 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
             {/* Store Branding */}
             <div className="text-center border-b border-dashed border-gray-400 pb-1 w-full">
               <span className="font-extrabold text-xs tracking-wider text-black block uppercase font-serif">
-                AL-BHURANI SWEETS & DRY ITEMS
+                AL-BURHANI SWEETS & DRY ITEMS
               </span>
               <span className="text-[9px] text-gray-600 block font-medium">
                 Pure Ghee Mithai · Fresh Namkeen · Dry Fruits

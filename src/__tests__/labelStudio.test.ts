@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { validateBatchDates, PRESETS } from '../components/labels/LabelStudioView';
 import { Product, UserProfile } from '../types';
 
-describe('AL-BHURANI POS — Label Studio Specification & Verification', () => {
+describe('AL-BURHANI POS — Label Studio Specification & Verification', () => {
   const mockProducts: Product[] = [
     {
       id: 'prod-1',

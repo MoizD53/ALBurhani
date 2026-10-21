@@ -333,7 +333,7 @@ export interface OrderCalculation {
 }
 
 /**
- * Shared money/tax calculation for AL-BHURANI POS.
+ * Shared money/tax calculation for AL-BURHANI POS.
  * 
  * Critical Requirement: GST-Inclusive Pricing.
  * For "With GST" (CUSTOMER_BILL):

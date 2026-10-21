@@ -11,7 +11,7 @@ import {
 import { computeStockAdjustments } from '../lib/orders';
 import { generateReceiptPdfBytes } from '../lib/pdfReceipt';
 
-describe('AL-BHURANI POS — Bill Modification, Quantity Pricing & Security Audit', () => {
+describe('AL-BURHANI POS — Bill Modification, Quantity Pricing & Security Audit', () => {
 
   // Test product fixtures
   const sampleProductA: Product = {

@@ -5,7 +5,7 @@ import { IMPORTED_PRODUCTS } from '../data/importedProducts';
 import { lookupProduct, isWeightBasedProduct } from '../lib/pricing';
 import { Product, OrderBill, ExpenseItem } from '../types';
 
-describe('AL-BHURANI POS Production Readiness & Delivery Verification', () => {
+describe('AL-BURHANI POS Production Readiness & Delivery Verification', () => {
 
   describe('1. Inventory Reset & Stock Zeroing Verification', () => {
     it('verifies all 305 imported products have stock = 0 for fresh manual opening entry', () => {
@@ -156,8 +156,8 @@ describe('AL-BHURANI POS Production Readiness & Delivery Verification', () => {
       const raw = fs.readFileSync(manifestPath, 'utf8');
       const manifest = JSON.parse(raw);
 
-      expect(manifest.name).toBe('AL-BHURANI POS');
-      expect(manifest.short_name).toBe('AL-BHURANI');
+      expect(manifest.name).toBe('AL-BURHANI POS');
+      expect(manifest.short_name).toBe('AL-BURHANI');
       expect(manifest.display).toBe('standalone');
       expect(manifest.start_url).toBe('/');
       expect(manifest.theme_color).toBe('#080808');

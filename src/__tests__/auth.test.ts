@@ -25,7 +25,7 @@ beforeAll(() => {
   globalThis.sessionStorage = mockSessionStorage;
 });
 
-describe('AL-BHURANI Authentication Service & Session Routing', () => {
+describe('AL-BURHANI Authentication Service & Session Routing', () => {
   beforeEach(() => {
     mockLocalStorage.clear();
     mockSessionStorage.clear();
@@ -148,7 +148,7 @@ describe('AL-BHURANI Authentication Service & Session Routing', () => {
     const expiredTime = new Date(Date.now() - (MAX_SESSION_AGE_MS + 1000)).toISOString();
     const expiredSession: AuthSession = {
       token: 'expired-token',
-      user: { id: 'admin', email: 'admin@albhurani.com', name: 'Owner', role: 'Owner', counter: 'Godi Road Store' },
+      user: { id: 'admin', email: 'admin@alburhani.com', name: 'Owner', role: 'Owner', counter: 'Godi Road Store' },
       createdAt: expiredTime,
     };
 

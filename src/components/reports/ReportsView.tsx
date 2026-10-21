@@ -74,7 +74,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const handleExportCurrentReport = () => {
     let headers: string[] = [];
     let rows: (string | number)[][] = [];
-    let filename = `AL_BHURANI_${reportType}_${new Date().toISOString().split('T')[0]}.csv`;
+    let filename = `AL_BURHANI_${reportType}_${new Date().toISOString().split('T')[0]}.csv`;
 
     if (reportType === 'combined-sales' || reportType === 'customer-bills' || reportType === 'no-bill-sales') {
       const targetOrders = reportType === 'customer-bills'

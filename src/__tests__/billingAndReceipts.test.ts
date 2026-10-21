@@ -3,7 +3,7 @@ import { calculateOrderTotals, buildCartItem } from '../lib/pricing';
 import { generateReceiptPdfBytes, generateReceiptHtml, printReceiptViaIframe } from '../lib/pdfReceipt';
 import { Product, OrderBill } from '../types';
 
-describe('AL-BHURANI POS — Billing Modes, GST-Inclusive Calculations & Receipts', () => {
+describe('AL-BURHANI POS — Billing Modes, GST-Inclusive Calculations & Receipts', () => {
   const sampleProduct60: Product = {
     id: 'prod-60',
     sku: 'SKU-060',

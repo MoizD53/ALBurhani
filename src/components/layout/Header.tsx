@@ -74,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
     'settings': { title: 'Settings', subtitle: 'Hardware Diagnostics & Store Preferences' },
   };
 
-  const currentTabInfo = tabTitles[activeTab] || { title: 'AL-BHURANI POS', subtitle: 'Retail POS' };
+  const currentTabInfo = tabTitles[activeTab] || { title: 'AL-BURHANI POS', subtitle: 'Retail POS' };
 
   // Format today's date like "Monday, Oct 19"
   const todayFormatted = new Date().toLocaleDateString('en-US', {
@@ -225,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
           {isProfileMenuOpen && (
             <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl py-2 z-50 animate-fade-in text-xs">
               <div className="px-3.5 py-2.5 border-b border-[#F0EBE0] mb-1">
-                <span className="font-bold text-[#1C1917] block truncate">AL-BHURANI</span>
+                <span className="font-bold text-[#1C1917] block truncate">AL-BURHANI</span>
                 <span className="text-[10px] text-[#A67D0C] font-semibold uppercase tracking-wider block mt-0.5">
                   Owner · Godi Road Store
                 </span>

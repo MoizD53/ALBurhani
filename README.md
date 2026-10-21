@@ -1,7 +1,7 @@
-# AL-BHURANI — Sweets & Dry Items Franchise POS & Barcode System
+# AL-BURHANI — Sweets & Dry Items Franchise POS & Barcode System
 
 > **Luxury Black & Royal Gold Theme (TENS11 Design System)**  
-> Built for **AL-BHURANI Sweets, Namkeen & Indian Dry Items** franchise outlets with complete Barcode Integration, POS Quick-Billing, Stock Tracking, and Daily Accounts.
+> Built for **AL-BURHANI Sweets, Namkeen & Indian Dry Items** franchise outlets with complete Barcode Integration, POS Quick-Billing, Stock Tracking, and Daily Accounts.
 
 ---
 
@@ -16,7 +16,7 @@
 ### 2. 🏷️ In-House Barcode Sticker & Thermal Label Generator
 - Generate crisp **50mm × 35mm** or **50mm × 25mm** thermal labels for fresh in-store sweets packs and loose namkeen pouches.
 - Contains:
-  - **AL-BHURANI SWEETS & DRY ITEMS** branding
+  - **AL-BURHANI SWEETS & DRY ITEMS** branding
   - Product Name & Net Weight (250g, 500g, 1kg)
   - Batch Number, Packaging Date, and Expiry Date
   - High-precision scannable **CODE128** Barcode
@@ -46,7 +46,7 @@
 
 1. Open PowerShell or Command Prompt in the project folder:
    ```powershell
-   cd C:\$$$\AL-BHURANI
+   cd C:\$$$\AL-BURHANI
    ```
 
 2. Start the local server:

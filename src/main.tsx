@@ -21,7 +21,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
     if (this.state.hasError) {
       return (
         <div style={{ padding: 40, background: '#0a0a0a', color: '#ff6b6b', fontFamily: 'monospace', minHeight: '100vh' }}>
-          <h2 style={{ color: '#D4AF37' }}>AL-BHURANI POS Error:</h2>
+          <h2 style={{ color: '#D4AF37' }}>AL-BURHANI POS Error:</h2>
           <pre style={{ whiteSpace: 'pre-wrap', marginTop: 15, background: '#141414', padding: 20, borderRadius: 8, border: '1px solid #333' }}>
             {this.state.error?.stack || this.state.error?.message}
           </pre>

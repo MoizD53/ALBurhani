@@ -61,7 +61,7 @@ export const BarcodeGuideView: React.FC = () => {
           Barcode System Hardware Guide & Live Tester
         </h2>
         <p className="text-xs text-gray-400 mt-0.5">
-          Everything you need to demonstrate & set up barcode scanning for AL-BHURANI Franchise
+          Everything you need to demonstrate & set up barcode scanning for AL-BURHANI Franchise
         </p>
       </div>
 
@@ -136,7 +136,7 @@ export const BarcodeGuideView: React.FC = () => {
           </div>
           <h4 className="font-bold text-white text-sm">1. How Scanners Work</h4>
           <p className="text-xs text-gray-300 mt-2 leading-relaxed">
-            Barcode guns act as an <strong>HID Keyboard</strong>. When pointed at any sweets box or snack pouch, they read the bars and type the numbers into AL-BHURANI POS at lightning speed.
+            Barcode guns act as an <strong>HID Keyboard</strong>. When pointed at any sweets box or snack pouch, they read the bars and type the numbers into AL-BURHANI POS at lightning speed.
           </p>
           <div className="mt-3 text-[11px] text-[#D4AF37] font-medium flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" /> Zero software drivers needed
@@ -174,7 +174,7 @@ export const BarcodeGuideView: React.FC = () => {
       {/* Recommended Hardware Section for Franchise Client */}
       <div className="p-4 sm:p-6 rounded-2xl liquid-glass border border-white/10">
         <h3 className="font-bold text-white text-sm sm:text-base mb-4 font-serif">
-          Recommended Hardware for AL-BHURANI Franchise Outlets
+          Recommended Hardware for AL-BURHANI Franchise Outlets
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

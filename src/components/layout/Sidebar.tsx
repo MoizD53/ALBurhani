@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 <div className="min-w-0">
                   <h1 className="font-extrabold text-xs tracking-[0.16em] uppercase font-serif text-[#1C1917] leading-none truncate">
-                    AL-BHURANI
+                    AL-BURHANI
                   </h1>
                   <p className="text-[9px] tracking-[0.18em] text-[#A67D0C] uppercase font-bold mt-1 truncate">
                     Sweets & Dry Items
@@ -149,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           ) : (
             <div 
-              title="AL-BHURANI Sweets & Dry Items"
+              title="AL-BURHANI Sweets & Dry Items"
               className="w-10 h-10 rounded-full bg-white border border-[#C99A18]/50 flex items-center justify-center overflow-hidden shadow-[0_0_10px_rgba(201,154,24,0.25)] cursor-pointer hover:scale-105 transition-transform"
               onClick={() => setIsCollapsed(false)}
             >
@@ -240,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="min-w-0 flex-1">
               <span className="text-xs font-bold text-[#1C1917] block truncate leading-none">
-                AL-BHURANI
+                AL-BURHANI
               </span>
               <span className="text-[10px] text-[#A67D0C] block truncate font-semibold uppercase tracking-wider mt-1">
                 Owner · Main Store
@@ -250,7 +250,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ) : (
           <div className="flex flex-col items-center gap-1.5 py-0.5">
             <div 
-              title="AL-BHURANI · Owner"
+              title="AL-BURHANI · Owner"
               className="w-8 h-8 rounded-full bg-[#FAF8F5] border border-[#C99A18]/30 flex items-center justify-center text-[#C99A18]"
             >
               <ShieldCheck className="w-4 h-4" />

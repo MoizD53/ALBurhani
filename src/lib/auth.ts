@@ -150,7 +150,7 @@ export async function authenticate(
 
     const user: AuthUser = {
       id: normalizedId === 'admin' ? 'user-owner' : normalizedId,
-      email: normalizedId.includes('@') ? normalizedId : `${normalizedId}@albhurani.com`,
+      email: normalizedId.includes('@') ? normalizedId : `${normalizedId}@alburhani.com`,
       name: 'Owner',
       role: 'Owner',
       counter: 'Godi Road Store',

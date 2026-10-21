@@ -11,7 +11,7 @@ import {
 import { IMPORTED_PRODUCTS, EXCEL_IMPORT_SUMMARY } from '../data/importedProducts';
 import { Product, OrderBill } from '../types';
 
-describe('AL-BHURANI POS Pricing & Quantity Calculations', () => {
+describe('AL-BURHANI POS Pricing & Quantity Calculations', () => {
   const kajuKatli: Product = {
     id: 'prod-kk',
     sku: '00101',

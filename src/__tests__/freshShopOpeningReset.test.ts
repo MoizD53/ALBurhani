@@ -31,7 +31,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   writable: true,
 });
 
-describe('AL-BHURANI POS Fresh Shop Opening Data Architecture & Reset Verification', () => {
+describe('AL-BURHANI POS Fresh Shop Opening Data Architecture & Reset Verification', () => {
   beforeEach(() => {
     localStorageMock.clear();
   });

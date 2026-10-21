@@ -31,7 +31,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   writable: true,
 });
 
-describe('AL-BHURANI POS — Customer Tax Invoice Deletion & Data Integrity', () => {
+describe('AL-BURHANI POS — Customer Tax Invoice Deletion & Data Integrity', () => {
   beforeEach(() => {
     localStorageMock.clear();
   });

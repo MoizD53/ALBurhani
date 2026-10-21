@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { IMPORTED_PRODUCTS } from '../data/importedProducts';
 import { lookupProduct, buildCartItem, isWeightBasedProduct } from '../lib/pricing';
 
-describe('AL-BHURANI POS — Universal USB Barcode Scanner Compatibility', () => {
+describe('AL-BURHANI POS — Universal USB Barcode Scanner Compatibility', () => {
 
   // ─── 1. Exact Barcode String & Leading Zero Preservation ───
   describe('1. Exact Barcode & Leading Zero Integrity', () => {

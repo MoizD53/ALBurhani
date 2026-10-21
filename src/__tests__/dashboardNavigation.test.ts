@@ -31,7 +31,7 @@ function getTabFromHash(): string {
   return VALID_TABS.includes(raw) ? raw : 'pos';
 }
 
-describe('AL-BHURANI POS — Dashboard Navigation & Route Routing', () => {
+describe('AL-BURHANI POS — Dashboard Navigation & Route Routing', () => {
   beforeEach(() => {
     mockLocation.hash = '';
   });

@@ -14,7 +14,7 @@ import {
 } from '../lib/pricing';
 import { Product, OrderBill } from '../types';
 
-describe('AL-BHURANI POS — Catalog KG Price Unit Conversion Audit', () => {
+describe('AL-BURHANI POS — Catalog KG Price Unit Conversion Audit', () => {
 
   describe('1. Exact 41-Item Conversion', () => {
     it('verifies TARGET_41_KG_CONVERSIONS contains exactly 41 approved products', () => {
