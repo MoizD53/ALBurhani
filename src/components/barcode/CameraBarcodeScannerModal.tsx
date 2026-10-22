@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Camera, X, AlertCircle, RefreshCw } from 'lucide-react';
 import { playBeep } from '../../lib/utils';
 
@@ -34,12 +34,35 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
 
         if (!document.getElementById(scannerId)) return;
 
-        const html5QrCode = new Html5Qrcode(scannerId);
+        // Comprehensive barcode symbologies for Phones & Tablets
+        const html5QrCode = new Html5Qrcode(scannerId, {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
+            Html5QrcodeSupportedFormats.CODABAR,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.QR_CODE,
+          ],
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
+          verbose: false,
+        });
         qrScannerRef.current = html5QrCode;
 
         const config = {
-          fps: 15,
-          qrbox: { width: 280, height: 160 },
+          fps: 20,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            // Wide scanning box suited for 1D product barcodes (88% width)
+            const width = Math.floor(viewfinderWidth * 0.88);
+            const height = Math.floor(Math.min(viewfinderHeight * 0.65, 220));
+            return { width: Math.max(width, 240), height: Math.max(height, 140) };
+          },
           aspectRatio: 1.3333,
         };
 

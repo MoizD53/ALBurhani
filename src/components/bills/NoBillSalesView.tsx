@@ -72,6 +72,8 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         s.billNumber.toLowerCase().includes(q) ||
         s.createdAt.toLowerCase().includes(q) ||
         (s.cashierName && s.cashierName.toLowerCase().includes(q)) ||
+        (s.customerName && s.customerName.toLowerCase().includes(q)) ||
+        (s.customerPhone && s.customerPhone.includes(q)) ||
         s.paymentMethod.toLowerCase().includes(q) ||
         s.items.some((it) => it.product.name.toLowerCase().includes(q));
 
@@ -238,6 +240,11 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
               <div className="flex items-center justify-between text-xs py-1.5 border-t border-b border-[#F5F2EB]">
                 <div>
                   <span className="text-stone-500 font-medium">Cashier: {s.cashierName}</span>
+                  {s.customerName && (
+                    <span className="block text-xs font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 w-fit">
+                      Customer: {s.customerName}{s.customerPhone ? ` (${s.customerPhone})` : ''}
+                    </span>
+                  )}
                   <span className="text-[10px] text-stone-400 block font-mono">{s.items.length} items sold</span>
                 </div>
                 <div className="text-right">
@@ -343,9 +350,16 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
                         {s.createdAt}
                       </td>
 
-                      {/* 3. Cashier */}
+                      {/* 3. Cashier & Customer */}
                       <td className="py-3 px-4 text-stone-700 font-semibold whitespace-nowrap">
-                        {s.cashierName || 'Owner'}
+                        <div>{s.cashierName || 'Owner'}</div>
+                        {s.customerName && (
+                          <div className="text-[11px] text-amber-800 font-bold flex items-center gap-1 mt-0.5">
+                            <span className="px-1.5 py-0.5 bg-amber-50 rounded border border-amber-200">
+                              👤 {s.customerName}{s.customerPhone ? ` · ${s.customerPhone}` : ''}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* 4. Items Sold with Toggle Button */}

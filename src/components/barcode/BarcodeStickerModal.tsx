@@ -19,12 +19,13 @@ export const BarcodeStickerModal: React.FC<BarcodeStickerModalProps> = ({ produc
           format: 'CODE128',
           lineColor: '#000000',
           width: 2,
-          height: 48,
+          height: 52,
           displayValue: true,
           fontSize: 13,
           font: 'monospace',
-          margin: 3,
+          margin: 6,
           background: '#FFFFFF',
+          flat: true,
         });
       } catch (err) {
         console.error('Failed to generate barcode SVG:', err);

@@ -21,7 +21,8 @@ import {
 import { Product, ProductCategory, SellingUnit, CategoryItem } from '../../types';
 import { 
   formatPriceWithBasis, 
-  isWeightBasedProduct 
+  isWeightBasedProduct,
+  generateEan13Barcode
 } from '../../lib/pricing';
 import { 
   validateCategoryName, 
@@ -100,8 +101,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setName('');
     const randomSkuNum = Math.floor(100 + Math.random() * 900);
     setSku(`00${randomSkuNum}`);
-    const randomBarcode = Math.floor(100000 + Math.random() * 900000);
-    setBarcode(`890100${randomBarcode}`);
+    setBarcode(generateEan13Barcode());
     setProductCategory(activeCategoryList[0] || 'SWEETS');
     setUnit('KG');
     setSellingPrice(100);
@@ -751,7 +751,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                     <label className="text-xs font-bold text-stone-700">Barcode Number <span className="text-rose-600">*</span></label>
                     <button
                       type="button"
-                      onClick={() => setBarcode(`890100${Math.floor(100000 + Math.random() * 900000)}`)}
+                      onClick={() => setBarcode(generateEan13Barcode())}
                       className="text-[10px] text-[#A67D0C] hover:underline font-bold"
                     >
                       Regenerate

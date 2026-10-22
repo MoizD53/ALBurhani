@@ -211,6 +211,107 @@ export function validateQuantity(
 }
 
 /**
+ * Parses user input for product quantities like:
+ * - "300", "300g", "300gm", "300 gm", "300 grams" -> grams: 300, quantity: 0.3
+ * - "0.3", "0.3kg", "0.3 kg" -> grams: 300, quantity: 0.3
+ * - "1.5kg", "1.5" -> grams: 1500, quantity: 1.5
+ * - "5", "5 pcs", "5pc" -> quantity: 5
+ */
+export function parseQuantityInput(
+  rawInput: string,
+  isWeight: boolean
+): {
+  isValid: boolean;
+  quantity: number;
+  grams?: number;
+  error?: string;
+} {
+  const trimmed = rawInput.trim().toLowerCase();
+  if (!trimmed) {
+    return { isValid: false, quantity: 0, error: 'Quantity cannot be empty' };
+  }
+
+  if (isWeight) {
+    const isKgExplicit = trimmed.includes('kg') || trimmed.includes('kilo');
+    const isGramsExplicit = (trimmed.includes('g') || trimmed.includes('gm')) && !isKgExplicit;
+
+    const cleanNumStr = trimmed
+      .replace(/kg|kilo|kilograms?|grams?|gms?|gm|g/g, '')
+      .trim();
+
+    const num = parseFloat(cleanNumStr);
+    if (isNaN(num) || num <= 0) {
+      return { isValid: false, quantity: 0, error: 'Please enter a valid weight (e.g. 300g or 0.5kg)' };
+    }
+
+    let grams = 0;
+    if (isKgExplicit) {
+      grams = Math.round(num * 1000);
+    } else if (isGramsExplicit) {
+      grams = Math.round(num);
+    } else {
+      // Numbers < 10 with decimal points, or values like 0.25, 0.5, 1.5 -> KG
+      // Whole numbers >= 10 like 50, 100, 250, 300, 500 -> Grams
+      // Whole numbers 1..9 without unit in a mithai/farsan shop: 1 = 1kg, 2 = 2kg
+      if (num < 10 && (num % 1 !== 0 || cleanNumStr.includes('.'))) {
+        grams = Math.round(num * 1000);
+      } else if (num >= 10) {
+        grams = Math.round(num);
+      } else {
+        grams = Math.round(num * 1000);
+      }
+    }
+
+    if (grams <= 0) {
+      return { isValid: false, quantity: 0, error: 'Weight must be greater than 0 grams' };
+    }
+
+    return {
+      isValid: true,
+      quantity: grams / 1000,
+      grams,
+    };
+  } else {
+    const cleanNumStr = trimmed
+      .replace(/pcs|pc|pieces?|packs?|nos?|no/g, '')
+      .trim();
+    const num = parseInt(cleanNumStr, 10);
+    if (isNaN(num) || num <= 0) {
+      return { isValid: false, quantity: 0, error: 'Please enter a valid piece count' };
+    }
+    return {
+      isValid: true,
+      quantity: num,
+    };
+  }
+}
+
+/**
+ * Calculates standard EAN-13 check digit for 12 digits
+ */
+export function calculateEan13CheckDigit(digits12: string): number {
+  if (digits12.length !== 12) return 0;
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    const digit = parseInt(digits12[i], 10);
+    sum += i % 2 === 0 ? digit : digit * 3;
+  }
+  const remainder = sum % 10;
+  return remainder === 0 ? 0 : 10 - remainder;
+}
+
+/**
+ * Generates a valid 13-digit EAN-13 barcode with Indian country prefix (890)
+ * and correct checksum, readable by any smartphone, tablet, or handheld scanner.
+ */
+export function generateEan13Barcode(): string {
+  const randomNine = Math.floor(100000000 + Math.random() * 900000000).toString();
+  const base12 = `890${randomNine}`;
+  const checkDigit = calculateEan13CheckDigit(base12);
+  return `${base12}${checkDigit}`;
+}
+
+/**
  * Deducts stock safely:
  * - for weight products: rounds to 3 decimal places
  * - for piece products: integer subtraction

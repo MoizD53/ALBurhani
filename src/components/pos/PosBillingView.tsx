@@ -29,7 +29,8 @@ import {
   lookupProduct, 
   buildCartItem, 
   isWeightBasedProduct,
-  calculateOrderTotals
+  calculateOrderTotals,
+  parseQuantityInput
 } from '../../lib/pricing';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 import { QuantitySelectorModal } from './QuantitySelectorModal';
@@ -70,7 +71,14 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   
   // Modals for quantity & disambiguation
   const [selectedProductForQuantity, setSelectedProductForQuantity] = useState<Product | null>(null);
+  const [quantityModalInitialGrams, setQuantityModalInitialGrams] = useState<number | undefined>(undefined);
+  const [quantityModalInitialQty, setQuantityModalInitialQty] = useState<number | undefined>(undefined);
+  const [isQuantityModalEditMode, setIsQuantityModalEditMode] = useState<boolean>(false);
   const [multipleMatchedProducts, setMultipleMatchedProducts] = useState<Product[]>([]);
+
+  // Cart item inline manual editing state
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
+  const [editingQuantityVal, setEditingQuantityVal] = useState<string>('');
   
   // Checkout & Customer State
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
@@ -217,9 +225,58 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     setTimeout(() => setScannerNotification(null), 3000);
   };
 
-  // Called when product is chosen to open quantity selector
+  // Called when product is chosen to open quantity selector (fresh add mode)
   const handleInitiateQuantitySelection = (product: Product) => {
     setSelectedProductForQuantity(product);
+    setQuantityModalInitialGrams(undefined);
+    setQuantityModalInitialQty(undefined);
+    setIsQuantityModalEditMode(false);
+  };
+
+  // Called to edit existing cart item quantity (edit mode)
+  const handleOpenEditModalForCartItem = (item: CartItem) => {
+    setSelectedProductForQuantity(item.product);
+    setQuantityModalInitialGrams(item.weightInGrams);
+    setQuantityModalInitialQty(item.quantity);
+    setIsQuantityModalEditMode(true);
+  };
+
+  // Direct manual quantity typing commit (e.g. "300gm", "300", "0.3kg")
+  const handleCommitManualQuantity = (productId: string, rawVal: string) => {
+    setEditingCartItemId(null);
+    const trimmed = rawVal.trim();
+    if (!trimmed) return;
+
+    setCart((prev) => {
+      const idx = prev.findIndex((it) => it.product.id === productId);
+      if (idx === -1) return prev;
+
+      const currentItem = prev[idx];
+      const isWeight = isWeightBasedProduct(currentItem.product);
+      const parsed = parseQuantityInput(trimmed, isWeight);
+
+      if (!parsed.isValid || parsed.quantity <= 0) {
+        playBeep('error');
+        triggerScanFeedback(`⚠️ Invalid quantity: "${rawVal}"`, true);
+        return prev;
+      }
+
+      const updatedItem = buildCartItem(
+        currentItem.product,
+        parsed.quantity,
+        parsed.grams,
+        currentItem.discountPercent
+      );
+
+      playBeep('scan');
+      triggerScanFeedback(`Updated: ${currentItem.product.name} (${updatedItem.formattedQuantity})`);
+
+      const next = [...prev];
+      next[idx] = updatedItem;
+      return next;
+    });
+
+    refocusBarcode();
   };
 
   // Unified Barcode/SKU lookup function used by:
@@ -275,8 +332,13 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     processBarcode(barcodeInput);
   };
 
-  // Adding confirmed item to cart (with automatic quantity merging for repeat scans)
-  const handleConfirmQuantity = (product: Product, quantity: number, weightInGrams?: number) => {
+  // Adding confirmed item to cart (with automatic quantity merging for repeat scans or direct replace for edit)
+  const handleConfirmQuantity = (
+    product: Product,
+    quantity: number,
+    weightInGrams?: number,
+    isEditMode = false
+  ) => {
     playBeep('scan');
 
     setCart((prev) => {
@@ -285,8 +347,17 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         (it) => it.product.id === product.id && it.discountPercent === 0
       );
 
+      if (isEditMode && existingIdx !== -1) {
+        // Direct replacement in edit mode
+        const updatedItem = buildCartItem(product, quantity, weightInGrams, 0);
+        triggerScanFeedback(`Updated: ${product.name} (${updatedItem.formattedQuantity})`);
+        const next = [...prev];
+        next[existingIdx] = updatedItem;
+        return next;
+      }
+
       if (existingIdx !== -1) {
-        // Merge quantities
+        // Merge quantities in add mode
         const existing = prev[existingIdx];
         const isWeight = isWeightBasedProduct(product);
 
@@ -850,22 +921,35 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
             className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col relative bg-white"
           >
 
-          {/* Customer Details Inputs (only for Customer Bill) */}
-          {transactionType === 'CUSTOMER_BILL' && (
-            <div className="px-3 py-2 border-b border-[#E8DEC8] bg-[#FAF8F5] grid grid-cols-2 gap-2 shrink-0">
+          {/* Customer Details Inputs (Available for Customer Bills and No-Bill / Credit Sales) */}
+          <div className={`px-3 py-2 border-b border-[#E8DEC8] grid grid-cols-2 gap-2 shrink-0 transition-colors ${
+            paymentMethod === 'CREDIT' ? 'bg-amber-50 border-amber-300' : 'bg-[#FAF8F5]'
+          }`}>
+            <div className="relative">
               <input
                 type="text"
-                placeholder="Customer Name (optional)"
+                placeholder={paymentMethod === 'CREDIT' ? "Customer Name (for Udhar/Credit) *" : "Customer Name (optional)"}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.preventDefault();
                 }}
-                className="text-xs py-1.5 px-2.5 bg-white border border-[#E8DEC8] rounded-lg text-stone-900 placeholder:text-stone-400 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
+                className={`w-full text-xs py-1.5 px-2.5 bg-white border rounded-lg text-stone-900 placeholder:text-stone-400 focus:outline-none shadow-sm ${
+                  paymentMethod === 'CREDIT'
+                    ? 'border-amber-400 focus:border-amber-600 focus:ring-1 focus:ring-amber-500'
+                    : 'border-[#E8DEC8] focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18]'
+                }`}
               />
+              {paymentMethod === 'CREDIT' && !customerName.trim() && (
+                <span className="text-[9px] text-amber-700 font-semibold block mt-0.5">
+                  Udhar ka naam likhein (Khata record)
+                </span>
+              )}
+            </div>
+            <div>
               <input
                 type="tel"
-                placeholder="Phone (optional)"
+                placeholder={paymentMethod === 'CREDIT' ? "Phone (for Udhar reminder)" : "Phone (optional)"}
                 value={customerPhone}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -882,10 +966,14 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.preventDefault();
                 }}
-                className="text-xs py-1.5 px-2.5 bg-white border border-[#E8DEC8] rounded-lg text-stone-900 font-mono placeholder:text-stone-400 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
+                className={`w-full text-xs py-1.5 px-2.5 bg-white border rounded-lg text-stone-900 font-mono placeholder:text-stone-400 focus:outline-none shadow-sm ${
+                  paymentMethod === 'CREDIT'
+                    ? 'border-amber-400 focus:border-amber-600 focus:ring-1 focus:ring-amber-500'
+                    : 'border-[#E8DEC8] focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18]'
+                }`}
               />
             </div>
-          )}
+          </div>
 
           {/* Cart Items List */}
           <div className="flex-1 min-h-[140px] overflow-y-auto px-3 py-2 space-y-1.5 custom-scrollbar bg-white">
@@ -910,23 +998,71 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                     <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-stone-500 font-mono">
                       <span>{item.formattedRate}</span>
                       <span>·</span>
-                      <span className="text-[#B8860B] font-bold">{item.formattedQuantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModalForCartItem(item)}
+                        className="text-[#B8860B] hover:text-[#996515] font-bold underline cursor-pointer"
+                        title="Click to edit quantity via modal"
+                      >
+                        {item.formattedQuantity}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Quantity Controls */}
+                  {/* Quantity Controls: With direct manual typing (e.g. 300gm) */}
                   <div className="flex items-center gap-1 shrink-0 bg-white border border-[#E8DEC8] rounded-lg p-0.5 shadow-sm">
                     <button
+                      type="button"
                       onClick={() => updateQuantity(item.product.id, -1)}
                       className="w-5 h-5 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center transition-colors"
                       title="Decrease quantity"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <span className="w-12 text-center text-[11px] font-bold text-stone-900 font-mono truncate px-0.5">
-                      {item.formattedQuantity}
-                    </span>
+
+                    {editingCartItemId === item.product.id ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        data-barcode-input="false"
+                        value={editingQuantityVal}
+                        onChange={(e) => setEditingQuantityVal(e.target.value)}
+                        onBlur={() => handleCommitManualQuantity(item.product.id, editingQuantityVal)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCommitManualQuantity(item.product.id, editingQuantityVal);
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setEditingCartItemId(null);
+                          }
+                        }}
+                        placeholder={item.formattedQuantity}
+                        className="w-14 text-center text-[11px] font-bold text-stone-900 font-mono bg-amber-50 border border-amber-400 rounded px-0.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-inner"
+                        title="Type exact quantity (e.g. 300gm, 300g, 0.3kg, 5) and press Enter"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCartItemId(item.product.id);
+                          const isWeight = isWeightBasedProduct(item.product);
+                          setEditingQuantityVal(
+                            isWeight
+                              ? `${item.weightInGrams || Math.round(item.quantity * 1000)}g`
+                              : `${item.quantity}`
+                          );
+                        }}
+                        onDoubleClick={() => handleOpenEditModalForCartItem(item)}
+                        className="w-14 text-center text-[11px] font-bold text-stone-900 font-mono truncate px-0.5 hover:bg-amber-100/70 hover:text-amber-950 rounded transition-colors cursor-text"
+                        title="Click to type quantity manually (e.g. 300gm), or double-click for modal"
+                      >
+                        {item.formattedQuantity}
+                      </button>
+                    )}
+
                     <button
+                      type="button"
                       onClick={() => updateQuantity(item.product.id, 1)}
                       className="w-5 h-5 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center transition-colors"
                       title="Increase quantity"
@@ -1175,15 +1311,19 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
       </div>
 
-      {/* ─── Scan-Time Quantity Selector Modal ─── */}
+      {/* ─── Scan-Time / Manual Quantity Selector Modal ─── */}
       <QuantitySelectorModal
         product={selectedProductForQuantity}
         isOpen={Boolean(selectedProductForQuantity)}
         onClose={() => {
           setSelectedProductForQuantity(null);
+          setIsQuantityModalEditMode(false);
           refocusBarcode();
         }}
         onConfirm={handleConfirmQuantity}
+        initialWeightInGrams={quantityModalInitialGrams}
+        initialQuantity={quantityModalInitialQty}
+        isEditMode={isQuantityModalEditMode}
         existingCartQuantity={
           selectedProductForQuantity
             ? cart

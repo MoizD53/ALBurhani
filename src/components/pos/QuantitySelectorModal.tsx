@@ -13,8 +13,11 @@ interface QuantitySelectorModalProps {
   product: Product | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (product: Product, quantity: number, weightInGrams?: number) => void;
+  onConfirm: (product: Product, quantity: number, weightInGrams?: number, isEditMode?: boolean) => void;
   existingCartQuantity?: number;
+  initialWeightInGrams?: number;
+  initialQuantity?: number;
+  isEditMode?: boolean;
 }
 
 export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
@@ -23,6 +26,9 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
   onClose,
   onConfirm,
   existingCartQuantity = 0,
+  initialWeightInGrams,
+  initialQuantity,
+  isEditMode = false,
 }) => {
   const isWeight = isWeightBasedProduct(product);
 
@@ -38,10 +44,24 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
     if (isOpen && product) {
       const weight = isWeightBasedProduct(product);
       if (weight) {
-        setUnitMode('g');
-        setInputValue('250');
+        if (initialWeightInGrams && initialWeightInGrams > 0) {
+          if (initialWeightInGrams >= 1000 && initialWeightInGrams % 1000 === 0) {
+            setUnitMode('kg');
+            setInputValue((initialWeightInGrams / 1000).toString());
+          } else {
+            setUnitMode('g');
+            setInputValue(initialWeightInGrams.toString());
+          }
+        } else {
+          setUnitMode('g');
+          setInputValue('250');
+        }
       } else {
-        setInputValue('1');
+        if (initialQuantity && initialQuantity > 0) {
+          setInputValue(initialQuantity.toString());
+        } else {
+          setInputValue('1');
+        }
       }
       setError(null);
       const timer = setTimeout(() => {
@@ -50,10 +70,10 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, product]);
+  }, [isOpen, product, initialWeightInGrams, initialQuantity]);
 
-  // Quick select presets
-  const weightPresetsGrams = [50, 100, 250, 500, 1000];
+  // Quick select presets (includes 300g)
+  const weightPresetsGrams = [50, 100, 200, 250, 300, 500, 1000];
   const piecePresets = [1, 2, 5, 10, 20];
 
   // Real-time calculation
@@ -90,9 +110,9 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
     if (isWeight) {
       const grams = unitMode === 'g' ? numericVal : Math.round(numericVal * 1000);
       const kg = grams / 1000;
-      onConfirm(product, kg, grams);
+      onConfirm(product, kg, grams, isEditMode);
     } else {
-      onConfirm(product, numericVal);
+      onConfirm(product, numericVal, undefined, isEditMode);
     }
     onClose();
   };
@@ -149,7 +169,7 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
             </div>
             <div className="min-w-0">
               <span className="text-[10px] uppercase font-bold tracking-wider text-[#A67D0C] block leading-none">
-                {isWeight ? 'Weight Quantity (KG / Grams)' : 'Piece Quantity (Count)'}
+                {isEditMode ? 'Edit Bill Quantity' : (isWeight ? 'Weight Quantity (KG / Grams)' : 'Piece Quantity (Count)')}
               </span>
               <h3 className="font-bold text-stone-900 text-sm sm:text-base truncate leading-snug mt-0.5">
                 {product.name}
@@ -358,7 +378,7 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
             className="btn-gold px-5 py-2 text-xs font-bold flex items-center gap-1.5 shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Check className="w-4 h-4 stroke-[2.5]" />
-            <span>Confirm & Add to Bill (Enter)</span>
+            <span>{isEditMode ? 'Update Quantity (Enter)' : 'Confirm & Add to Bill (Enter)'}</span>
           </button>
         </div>
 

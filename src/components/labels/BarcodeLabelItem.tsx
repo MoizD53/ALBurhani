@@ -28,18 +28,20 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
   useEffect(() => {
     if (hasBarcode && svgRef.current) {
       try {
-        JsBarcode(svgRef.current, product.barcode.trim(), {
+        const rawCode = product.barcode.trim();
+        JsBarcode(svgRef.current, rawCode, {
           format: 'CODE128',
           lineColor: '#000000',
-          width: isCompact ? 1.05 : 1.25,
-          height: isCompact ? 9 : 14,
+          width: isCompact ? 1.2 : 1.35,
+          height: isCompact ? 24 : 34,
           displayValue: true,
           fontOptions: 'bold',
-          fontSize: isCompact ? 6 : 7.5,
+          fontSize: isCompact ? 6.5 : 8,
           font: 'monospace',
-          margin: 0,
+          margin: 4,
           textMargin: 1,
           background: '#FFFFFF',
+          flat: true,
         });
       } catch (err) {
         console.warn('JsBarcode render error:', err);
@@ -103,12 +105,12 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
         </span>
       </div>
 
-      {/* 3. Barcode Graphic + Human-Readable Number (Strictly Bounded Inside Sticker) */}
-      <div className="w-full flex-1 flex items-center justify-center overflow-hidden bg-white my-0.5">
+      {/* 3. Barcode Graphic + Human-Readable Number (High-Clarity for Phone/Tablet Scanners) */}
+      <div className="w-full flex-1 min-h-0 flex items-center justify-center overflow-hidden bg-white my-0.5">
         {hasBarcode ? (
           <svg
             ref={svgRef}
-            className={`max-w-[96%] ${isCompact ? 'max-h-[16px]' : 'max-h-[22px]'}`}
+            className={`w-full ${isCompact ? 'max-h-[30px]' : 'max-h-[46px]'} object-contain`}
           />
         ) : (
           <div className="text-[6.5px] text-black font-extrabold border border-black bg-white px-1 py-0.5 rounded">
