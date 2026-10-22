@@ -26,7 +26,6 @@ import { Product, CartItem, OrderBill, PaymentMethod, TransactionType, CompleteS
 import { playBeep } from '../../lib/utils';
 import { 
   formatPriceWithBasis, 
-  formatStock, 
   lookupProduct, 
   buildCartItem, 
   isWeightBasedProduct,
@@ -324,19 +323,11 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               const newGrams = currentGrams + (delta > 0 ? 100 : -100);
               if (newGrams <= 0) return null;
               const newKg = newGrams / 1000;
-              if (item.product.stock > 0 && newKg > item.product.stock) {
-                triggerScanFeedback(`Stock limit (${formatStock(item.product.stock, item.product.unit)}) reached!`, true);
-                return item;
-              }
               return buildCartItem(item.product, newKg, newGrams, item.discountPercent);
             } else {
               // Adjust by 1 piece
               const newQty = item.quantity + delta;
               if (newQty <= 0) return null;
-              if (item.product.stock > 0 && newQty > item.product.stock) {
-                triggerScanFeedback(`Stock limit (${item.product.stock} pcs) reached!`, true);
-                return item;
-              }
               return buildCartItem(item.product, newQty, undefined, item.discountPercent);
             }
           }

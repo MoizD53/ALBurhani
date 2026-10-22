@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Product } from '../../types';
-import { 
-  isWeightBasedProduct, 
-  calculateLineTotal, 
-  validateQuantity, 
-  formatQuantity, 
-  formatPriceWithBasis, 
-  formatStock 
+import {
+  isWeightBasedProduct,
+  calculateLineTotal,
+  validateQuantity,
+  formatQuantity,
+  formatPriceWithBasis
 } from '../../lib/pricing';
 import { Scale, PackageCheck, AlertCircle, Check, X } from 'lucide-react';
 
@@ -178,11 +177,9 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-stone-500 uppercase font-semibold tracking-wider block">Available Stock</span>
-              <span className={`text-xs font-mono font-bold ${
-                product.stock <= product.minStock ? 'text-amber-600' : 'text-emerald-600'
-              }`}>
-                {formatStock(product.stock, product.unit)}
+              <span className="text-[10px] text-stone-500 uppercase font-semibold tracking-wider block">Category</span>
+              <span className="text-xs font-bold text-stone-700">
+                {product.category}
               </span>
               {existingCartQuantity > 0 && (
                 <span className="text-[10px] text-stone-500 block">

@@ -65,9 +65,10 @@ export const Header: React.FC<HeaderProps> = ({
   const tabTitles: Record<ActiveTab, { title: string; subtitle: string }> = {
     'overview': { title: 'Dashboard', subtitle: 'Executive Overview' },
     'pos': { title: 'POS Billing', subtitle: 'Barcode Scan & Rapid Checkout' },
+    'orders': { title: 'Customer Orders', subtitle: 'Advance Bookings & Scheduled Deliveries' },
     'customer-bills': { title: 'Customer Bills', subtitle: 'Tax Invoices & Receipts History' },
     'no-bill-sales': { title: 'No-Bill Sales', subtitle: 'Internal Counter Sales Records' },
-    'inventory': { title: 'Inventory Management', subtitle: 'Product Catalog, Pricing & Stock' },
+    'product-management': { title: 'Product Management', subtitle: 'Categories & Item Master Setup' },
     'label-studio': { title: 'Label Studio', subtitle: 'Barcode Label Designer & Multi-Label Sheet Printing' },
     'expenses': { title: 'Expenses Tracker', subtitle: 'Daily Shop Operating Costs' },
     'reports': { title: 'Reports & Analytics', subtitle: 'Financial Audit & Excel Exports' },
@@ -190,9 +191,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[10px] text-[#C99A18] font-bold">1 New</span>
               </div>
               <div className="p-2 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] space-y-1">
-                <span className="font-semibold text-[#1C1917] block">304 Products Synchronized</span>
+                <span className="font-semibold text-[#1C1917] block">Product Catalog Active</span>
                 <p className="text-[11px] text-stone-600">
-                  Full stock inventory catalogue is active and ready for POS counter scanning.
+                  Full product catalogue is active and ready for POS counter scanning.
                 </p>
                 <span className="text-[10px] text-stone-400 block">Just now</span>
               </div>

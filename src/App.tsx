@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Product, OrderBill, ExpenseItem, UserProfile, CompleteSaleResult } from './types';
+import { Product, OrderBill, ExpenseItem, UserProfile, CompleteSaleResult, CustomerOrder, CustomerOrderStatus, CategoryItem } from './types';
 import { IMPORTED_PRODUCTS } from './data/importedProducts';
-import { deductStock, restoreStock, isWeightBasedProduct } from './lib/pricing';
+import { isWeightBasedProduct } from './lib/pricing';
 import { 
   getTursoClient, 
   fetchOrdersFromTurso, 
@@ -9,10 +9,8 @@ import {
   batchSaveOrdersToTurso,
   saveProductToTurso,
   batchSaveProductsToTurso,
-  updateStockOnTurso,
   clearOrdersFromTurso,
   clearExpensesFromTurso,
-  resetAllStockOnTursoToZero,
   deleteOrderFromTurso,
   fetchProductsFromTurso,
   fetchExpensesFromTurso,
@@ -20,7 +18,15 @@ import {
   saveCustomerToTurso,
   fetchSettingsFromTurso,
   saveSettingToTurso,
-  saveExpenseToTurso
+  saveExpenseToTurso,
+  fetchCustomerOrdersFromTurso,
+  saveCustomerOrderToTurso,
+  updateCustomerOrderStatusOnTurso,
+  deleteCustomerOrderFromTurso,
+  fetchCategoriesFromTurso,
+  saveCategoryToTurso,
+  renameCategoryOnTurso,
+  deleteCategoryFromTurso
 } from './lib/turso';
 import { syncManager } from './lib/syncManager';
 import {
@@ -33,18 +39,20 @@ import {
   getDeletedOrderIds,
   recordDeletedOrder,
   isOrderDeleted,
-  isDemoOrTestOrder,
-  computeStockAdjustments
+  isDemoOrTestOrder
 } from './lib/orders';
+import { getSavedCustomerOrders, saveCustomerOrdersLocally } from './lib/customerOrders';
+import { getSavedCategories, saveCategoriesLocally } from './lib/categories';
 import { migrateCatalogPrices, MIGRATION_STORAGE_KEY } from './lib/catalogMigration';
 import { Sidebar, ActiveTab } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
 import { PosBillingView } from './components/pos/PosBillingView';
+import { OrdersView } from './components/orders/OrdersView';
 import { CustomerBillsView } from './components/bills/CustomerBillsView';
 import { NoBillSalesView } from './components/bills/NoBillSalesView';
 import { OverviewDashboardView } from './components/dashboard/OverviewDashboardView';
-import { InventoryView } from './components/inventory/InventoryView';
+import { ProductManagementView } from './components/product-management/ProductManagementView';
 import { ExpensesView } from './components/expenses/ExpensesView';
 import { ReportsView } from './components/reports/ReportsView';
 import { SettingsView } from './components/settings/SettingsView';
@@ -64,9 +72,10 @@ const DEFAULT_USER: UserProfile = {
 const VALID_TABS: ActiveTab[] = [
   'overview',
   'pos',
-  'customer-bills',
   'no-bill-sales',
-  'inventory',
+  'orders',
+  'customer-bills',
+  'product-management',
   'label-studio',
   'expenses',
   'reports',
@@ -78,7 +87,9 @@ function getTabFromHash(): ActiveTab {
   const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
   if (raw === 'dashboard' || raw === 'overview') return 'overview';
   if (raw === 'customer-bills' || raw === 'bills' || raw === 'counter-sales') return 'no-bill-sales';
-  if (raw === 'stock') return 'inventory';
+  if (raw === 'stock' || raw === 'inventory') return 'product-management';
+  if (raw === 'order' || raw === 'orders') return 'orders';
+  if (raw === 'product-management' || raw === 'products' || raw === 'categories') return 'product-management';
   return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'pos';
 }
 
@@ -242,6 +253,16 @@ export function App() {
   const [stickerModalProduct, setStickerModalProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<OrderBill | null>(null);
 
+  // Customer Orders State (Advance bookings, deliveries)
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(() => {
+    return getSavedCustomerOrders();
+  });
+
+  // Categories State (Unified category management)
+  const [categories, setCategories] = useState<CategoryItem[]>(() => {
+    return getSavedCategories(products);
+  });
+
   // Clean up obsolete test mode key from localStorage and sync remote data if configured
   useEffect(() => {
     try {
@@ -386,6 +407,40 @@ export function App() {
             localStorage.setItem('albhurani_store_profile', JSON.stringify(remoteSettings.store_profile));
           }
         }
+
+        // 6. Synchronize customer orders (advance bookings)
+        const remoteCustomerOrders = await fetchCustomerOrdersFromTurso();
+        if (remoteCustomerOrders !== null) {
+          const localSavedOrders = getSavedCustomerOrders();
+          const remoteMap = new Map(remoteCustomerOrders.map((o) => [o.id, o]));
+          const unsynced = localSavedOrders.filter((lo) => !remoteMap.has(lo.id));
+          for (const u of unsynced) {
+            await saveCustomerOrderToTurso(u).catch(() => {});
+          }
+          const merged = [...remoteCustomerOrders, ...unsynced];
+          setCustomerOrders(merged);
+          saveCustomerOrdersLocally(merged);
+        }
+
+        // 7. Synchronize categories
+        const remoteCategories = await fetchCategoriesFromTurso();
+        if (remoteCategories !== null && remoteCategories.length > 0) {
+          const localSavedCats = getSavedCategories(products);
+          const remoteCatMap = new Map(remoteCategories.map((c) => [c.id, c]));
+          const unsyncedCats = localSavedCats.filter((lc) => !remoteCatMap.has(lc.id));
+          for (const uc of unsyncedCats) {
+            await saveCategoryToTurso(uc).catch(() => {});
+          }
+          const mergedCats = [...remoteCategories, ...unsyncedCats];
+          setCategories(mergedCats);
+          saveCategoriesLocally(mergedCats);
+        } else if (remoteCategories !== null && remoteCategories.length === 0) {
+          const localCats = getSavedCategories(products);
+          for (const c of localCats) {
+            await saveCategoryToTurso(c).catch(() => {});
+          }
+          setCategories(localCats);
+        }
       } catch (err) {
         console.warn('Could not sync remote data from Turso:', err);
       }
@@ -418,11 +473,7 @@ export function App() {
     });
 
     const unsubProduct = syncManager.subscribe('product', (ev) => {
-      if (ev.operation === 'stock' && ev.payload) {
-        setProducts((prev) =>
-          prev.map((p) => (p.id === ev.payload.productId ? { ...p, stock: ev.payload.stock } : p))
-        );
-      } else if (ev.operation === 'save' && ev.payload) {
+      if (ev.operation === 'save' && ev.payload) {
         // Immediate local state update for zero-latency cross-device feedback
         if (ev.payload.id) {
           setProducts((prev) => {
@@ -444,8 +495,6 @@ export function App() {
             } catch {}
           }
         });
-      } else if (ev.operation === 'reset_stock') {
-        setProducts((prev) => prev.map((p) => ({ ...p, stock: 0 })));
       }
     });
 
@@ -486,6 +535,59 @@ export function App() {
       }
     });
 
+    const unsubCustomerOrder = syncManager.subscribe('customer_order', (ev) => {
+      if (ev.operation === 'save' && ev.payload) {
+        setCustomerOrders((prev) => {
+          const exists = prev.some((o) => o.id === ev.payload.id || o.orderNumber === ev.payload.orderNumber);
+          const next = exists
+            ? prev.map((o) => (o.id === ev.payload.id || o.orderNumber === ev.payload.orderNumber ? ev.payload : o))
+            : [ev.payload, ...prev];
+          saveCustomerOrdersLocally(next);
+          return next;
+        });
+      } else if (ev.operation === 'delete') {
+        setCustomerOrders((prev) => {
+          const next = prev.filter((o) => o.id !== ev.entityId);
+          saveCustomerOrdersLocally(next);
+          return next;
+        });
+      }
+    });
+
+    const unsubCategory = syncManager.subscribe('category', (ev) => {
+      if (ev.operation === 'save' && ev.payload) {
+        setCategories((prev) => {
+          const exists = prev.some((c) => c.id === ev.payload.id || c.name.toLowerCase() === ev.payload.name.toLowerCase());
+          const next = exists
+            ? prev.map((c) => (c.id === ev.payload.id ? ev.payload : c))
+            : [...prev, ev.payload];
+          saveCategoriesLocally(next);
+          return next;
+        });
+      } else if (ev.operation === 'rename' && ev.payload) {
+        setCategories((prev) => {
+          const next = prev.map((c) => (c.id === ev.payload.id ? ev.payload : c));
+          saveCategoriesLocally(next);
+          return next;
+        });
+        if (ev.payload.oldName && ev.payload.name) {
+          setProducts((prev) => {
+            const nextProds = prev.map((p) => p.category === ev.payload.oldName ? { ...p, category: ev.payload.name } : p);
+            try {
+              localStorage.setItem('albhurani_products', JSON.stringify(nextProds));
+            } catch {}
+            return nextProds;
+          });
+        }
+      } else if (ev.operation === 'delete') {
+        setCategories((prev) => {
+          const next = prev.filter((c) => c.id !== ev.entityId);
+          saveCategoriesLocally(next);
+          return next;
+        });
+      }
+    });
+
     return () => {
       syncManager.stop();
       unsubOrder();
@@ -493,6 +595,8 @@ export function App() {
       unsubExpense();
       unsubSettings();
       unsubCustomer();
+      unsubCustomerOrder();
+      unsubCategory();
     };
   }, []);
 
@@ -603,26 +707,11 @@ export function App() {
       return { success: false, error: `Duplicate order: ${newOrder.billNumber} is already recorded` };
     }
 
-    // 3. Deduct stock safely with unit support
-    const updatedProducts = products.map((prod) => {
-      const itemInBill = newOrder.items.find((i) => i.product.id === prod.id);
-      if (itemInBill) {
-        const isWeight = isWeightBasedProduct(prod);
-        const updatedStock = deductStock(prod.stock, itemInBill.quantity, isWeight);
-        return {
-          ...prod,
-          stock: updatedStock,
-        };
-      }
-      return prod;
-    });
-
     const updatedOrders = [newOrder, ...orders];
 
-    // 4. Synchronous persistent write before confirming checkout success
+    // 3. Synchronous persistent write before confirming checkout success
     try {
       localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
-      localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
     } catch (storageErr: any) {
       console.error('Failed to save to localStorage:', storageErr);
       return { 
@@ -631,9 +720,8 @@ export function App() {
       };
     }
 
-    // 5. Update component state
+    // 4. Update component state
     setOrders(updatedOrders);
-    setProducts(updatedProducts);
 
     // Save customer if real non-demo customer
     if (newOrder.customerName || newOrder.customerPhone) {
@@ -647,7 +735,7 @@ export function App() {
       }
     }
 
-    // 6. Persist to cloud database for cross-device sync (await to confirm)
+    // 5. Persist to cloud database for cross-device sync (await to confirm)
     try {
       const client = getTursoClient();
       if (client) {
@@ -657,15 +745,6 @@ export function App() {
           syncManager.setStatus('error');
         } else {
           syncManager.setStatus('connected');
-        }
-        // Update stock on cloud for each item in the bill
-        for (const it of newOrder.items) {
-          const p = updatedProducts.find((x) => x.id === it.product.id);
-          if (p) {
-            updateStockOnTurso(p.id, p.stock).catch((err) => 
-              console.warn('Turso updateStock background error:', err)
-            );
-          }
         }
       }
     } catch (tursoErr) {
@@ -716,23 +795,6 @@ export function App() {
     }
   };
 
-  /**
-   * Reset all product stock to 0 for fresh manual physical inventory entry
-   */
-  const handleResetAllStockToZero = async (): Promise<{ success: boolean; message: string }> => {
-    try {
-      const zeroStockProducts = products.map((p) => ({ ...p, stock: 0 }));
-      setProducts(zeroStockProducts);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('albhurani_products', JSON.stringify(zeroStockProducts));
-      }
-      await resetAllStockOnTursoToZero();
-      return { success: true, message: 'All 305 product stock counts have been reset to 0.' };
-    } catch (err: any) {
-      return { success: false, message: err?.message || 'Stock reset failed.' };
-    }
-  };
-
   const handleDeleteOrder = async (orderId: string): Promise<boolean> => {
     const orderToDelete = orders.find((o) => o.id === orderId);
     const billNumber = orderToDelete?.billNumber;
@@ -740,39 +802,7 @@ export function App() {
     // 1. Immediately record in persistent tombstone storage to prevent resurrection on sync/refresh
     recordDeletedOrder(orderId, billNumber);
 
-    // 2. Immediately restore inventory stock for all products in this deleted order
-    let updatedProducts = products;
-    if (orderToDelete && Array.isArray(orderToDelete.items) && orderToDelete.items.length > 0) {
-      const quantityByProductId = new Map<string, number>();
-      for (const it of orderToDelete.items) {
-        if (it?.product?.id) {
-          const prev = quantityByProductId.get(it.product.id) || 0;
-          quantityByProductId.set(it.product.id, prev + (Number(it.quantity) || 0));
-        }
-      }
-
-      updatedProducts = products.map((prod) => {
-        const qtyToRestore = quantityByProductId.get(prod.id);
-        if (qtyToRestore && qtyToRestore > 0) {
-          const isWeight = isWeightBasedProduct(prod);
-          const restored = restoreStock(prod.stock, qtyToRestore, isWeight);
-          return {
-            ...prod,
-            stock: restored,
-          };
-        }
-        return prod;
-      });
-
-      setProducts(updatedProducts);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
-        } catch {}
-      }
-    }
-
-    // 3. Immediately update state and localStorage consistently
+    // 2. Immediately update state and localStorage consistently
     let updatedOrders: OrderBill[] = [];
     setOrders((prev) => {
       updatedOrders = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
@@ -784,21 +814,11 @@ export function App() {
       return updatedOrders;
     });
 
-    // 4. Delete from Turso database and sync restored stock remotely
+    // 3. Delete from Turso database
     try {
       const ok = await deleteOrderFromTurso(orderId, billNumber);
       if (!ok) {
         console.warn(`Turso deletion for order ${orderId} (${billNumber || ''}) failed or offline. Tombstone will clean it up on sync.`);
-      }
-      if (orderToDelete && Array.isArray(orderToDelete.items)) {
-        for (const it of orderToDelete.items) {
-          const p = updatedProducts.find((x) => x.id === it.product.id);
-          if (p) {
-            updateStockOnTurso(p.id, p.stock).catch((err) =>
-              console.warn('Turso updateStock after delete error:', err)
-            );
-          }
-        }
       }
       return true;
     } catch (tursoErr) {
@@ -848,37 +868,21 @@ export function App() {
   };
 
   const handleSaveModifiedOrder = async (
-    updatedOrder: OrderBill,
-    originalOrder: OrderBill
+    updatedOrder: OrderBill
   ): Promise<CompleteSaleResult> => {
     try {
-      // 1. Calculate net stock difference between original and updated order
-      const adjustments = computeStockAdjustments(originalOrder.items, updatedOrder.items);
-
-      const updatedProducts = products.map((p) => {
-        const adj = adjustments.find((a) => a.productId === p.id);
-        if (!adj) return p;
-        const newStock = Math.max(0, p.stock - adj.deltaQuantity);
-        return {
-          ...p,
-          stock: adj.isWeight ? Math.round(newStock * 1000) / 1000 : Math.round(newStock),
-        };
-      });
-
-      // 2. Update orders array atomically replacing the original order
+      // 1. Update orders array replacing the original order
       const updatedOrders = orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
 
-      // 3. Persist to localStorage immediately
+      // 2. Persist to localStorage immediately
       if (typeof window !== 'undefined') {
         localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
-        localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
       }
 
       setOrders(updatedOrders);
-      setProducts(updatedProducts);
       setEditingOrder(null);
 
-      // 4. Update customer spend if additional payment was made
+      // 3. Update customer spend if additional payment was made
       if (
         (updatedOrder.customerName || updatedOrder.customerPhone) &&
         updatedOrder.additionalAmountPaid &&
@@ -890,7 +894,6 @@ export function App() {
           updatedOrder.additionalAmountPaid
         );
         setCustomers(getSavedCustomers());
-        // Persist customer to cloud for cross-device sync
         if (updatedCustomer) {
           saveCustomerToTurso(updatedCustomer).catch((err) =>
             console.warn('Turso saveCustomer background error:', err)
@@ -898,19 +901,11 @@ export function App() {
         }
       }
 
-      // 5. Remote backup if configured
+      // 4. Remote backup if configured
       try {
         saveOrderToTurso(updatedOrder).catch((err) =>
           console.warn('Turso saveOrder background error:', err)
         );
-        for (const adj of adjustments) {
-          const p = updatedProducts.find((x) => x.id === adj.productId);
-          if (p) {
-            updateStockOnTurso(p.id, p.stock).catch((err) =>
-              console.warn('Turso updateStock background error:', err)
-            );
-          }
-        }
       } catch (tursoErr) {
         console.warn('Turso dispatch error:', tursoErr);
       }
@@ -955,16 +950,197 @@ export function App() {
     }
   };
 
-  const handleUpdateStock = async (productId: string, newStock: number) => {
-    const validStock = Math.max(0, newStock);
-    const updated = products.map((p) => (p.id === productId ? { ...p, stock: validStock } : p));
-    setProducts(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('albhurani_products', JSON.stringify(updated));
+  // Customer Orders Handlers
+  const handleCreateCustomerOrder = async (newOrder: CustomerOrder): Promise<boolean> => {
+    try {
+      const updated = [newOrder, ...customerOrders];
+      setCustomerOrders(updated);
+      saveCustomerOrdersLocally(updated);
+
+      const ok = await saveCustomerOrderToTurso(newOrder);
+      if (!ok) {
+        console.warn('Failed to save customer order to Turso cloud');
+      }
+
+      syncManager.broadcast({
+        entityType: 'customer_order',
+        operation: 'save',
+        entityId: newOrder.id,
+        payload: newOrder,
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error creating customer order:', err);
+      return false;
     }
-    const ok = await updateStockOnTurso(productId, validStock);
-    if (!ok) {
-      console.warn('Failed to sync updated stock to Turso cloud');
+  };
+
+  const handleUpdateCustomerOrder = async (updatedOrder: CustomerOrder): Promise<boolean> => {
+    try {
+      const updated = customerOrders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o));
+      setCustomerOrders(updated);
+      saveCustomerOrdersLocally(updated);
+
+      const ok = await saveCustomerOrderToTurso(updatedOrder);
+      if (!ok) {
+        console.warn('Failed to update customer order on Turso cloud');
+      }
+
+      syncManager.broadcast({
+        entityType: 'customer_order',
+        operation: 'save',
+        entityId: updatedOrder.id,
+        payload: updatedOrder,
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error updating customer order:', err);
+      return false;
+    }
+  };
+
+  const handleUpdateCustomerOrderStatus = async (
+    orderId: string,
+    status: CustomerOrderStatus
+  ): Promise<boolean> => {
+    try {
+      const target = customerOrders.find((o) => o.id === orderId);
+      if (!target) return false;
+
+      const updatedOrder: CustomerOrder = {
+        ...target,
+        status,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updated = customerOrders.map((o) => (o.id === orderId ? updatedOrder : o));
+      setCustomerOrders(updated);
+      saveCustomerOrdersLocally(updated);
+
+      const ok = await updateCustomerOrderStatusOnTurso(orderId, status);
+      if (!ok) {
+        console.warn('Failed to update customer order status on Turso');
+      }
+
+      syncManager.broadcast({
+        entityType: 'customer_order',
+        operation: 'save',
+        entityId: orderId,
+        payload: updatedOrder,
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error updating customer order status:', err);
+      return false;
+    }
+  };
+
+  const handleCancelCustomerOrder = async (orderId: string): Promise<boolean> => {
+    return handleUpdateCustomerOrderStatus(orderId, 'Cancelled');
+  };
+
+  // Categories Handlers
+  const handleAddCategory = async (newCategory: CategoryItem): Promise<boolean> => {
+    try {
+      const exists = categories.some(
+        (c) => c.name.trim().toLowerCase() === newCategory.name.trim().toLowerCase()
+      );
+      if (exists) {
+        return false;
+      }
+
+      const updated = [...categories, newCategory];
+      setCategories(updated);
+      saveCategoriesLocally(updated);
+
+      const ok = await saveCategoryToTurso(newCategory);
+      if (!ok) {
+        console.warn('Failed to save category to Turso cloud');
+      }
+
+      syncManager.broadcast({
+        entityType: 'category',
+        operation: 'save',
+        entityId: newCategory.id,
+        payload: newCategory,
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error adding category:', err);
+      return false;
+    }
+  };
+
+  const handleUpdateCategory = async (
+    updatedCategory: CategoryItem,
+    oldName?: string
+  ): Promise<boolean> => {
+    try {
+      const updated = categories.map((c) => (c.id === updatedCategory.id ? updatedCategory : c));
+      setCategories(updated);
+      saveCategoriesLocally(updated);
+
+      if (oldName && oldName !== updatedCategory.name) {
+        // Cascade rename to existing products in memory & localStorage
+        const updatedProducts = products.map((p) =>
+          p.category === oldName ? { ...p, category: updatedCategory.name } : p
+        );
+        setProducts(updatedProducts);
+        try {
+          localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
+        } catch {}
+
+        await renameCategoryOnTurso(updatedCategory.id, updatedCategory.name, oldName);
+      } else {
+        await saveCategoryToTurso(updatedCategory);
+      }
+
+      syncManager.broadcast({
+        entityType: 'category',
+        operation: 'rename',
+        entityId: updatedCategory.id,
+        payload: { ...updatedCategory, oldName },
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error updating category:', err);
+      return false;
+    }
+  };
+
+  const handleToggleCategoryActive = async (categoryId: string): Promise<boolean> => {
+    try {
+      const target = categories.find((c) => c.id === categoryId);
+      if (!target) return false;
+
+      const updatedCat: CategoryItem = {
+        ...target,
+        isActive: !target.isActive,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updated = categories.map((c) => (c.id === categoryId ? updatedCat : c));
+      setCategories(updated);
+      saveCategoriesLocally(updated);
+
+      await saveCategoryToTurso(updatedCat);
+
+      syncManager.broadcast({
+        entityType: 'category',
+        operation: 'save',
+        entityId: categoryId,
+        payload: updatedCat,
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error toggling category status:', err);
+      return false;
     }
   };
 
@@ -1002,8 +1178,6 @@ export function App() {
     setActiveTab(targetTab);
   };
 
-  const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
-
   if (!isAuthenticated) {
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
@@ -1015,7 +1189,6 @@ export function App() {
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        lowStockCount={lowStockCount}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
         isMobileOpen={isMobileMenuOpen}
@@ -1048,6 +1221,7 @@ export function App() {
               products={products}
               orders={orders}
               expenses={expenses}
+              customerOrders={customerOrders}
               onNavigateToTab={setActiveTab}
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
@@ -1064,6 +1238,18 @@ export function App() {
               editingOrder={editingOrder}
               onCancelEditOrder={handleCancelModifyOrder}
               onSaveModifiedOrder={handleSaveModifiedOrder}
+            />
+          )}
+
+          {activeTab === 'orders' && (
+            <OrdersView
+              orders={customerOrders}
+              products={products}
+              currentUser={currentUser}
+              onCreateOrder={handleCreateCustomerOrder}
+              onUpdateOrder={handleUpdateCustomerOrder}
+              onUpdateOrderStatus={handleUpdateCustomerOrderStatus}
+              onCancelOrder={handleCancelCustomerOrder}
             />
           )}
 
@@ -1085,13 +1271,16 @@ export function App() {
             />
           )}
 
-          {activeTab === 'inventory' && (
-            <InventoryView
+          {activeTab === 'product-management' && (
+            <ProductManagementView
               products={products}
+              categories={categories}
               onAddProduct={handleAddProduct}
               onUpdateProduct={handleUpdateProduct}
-              onUpdateStock={handleUpdateStock}
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
+              onAddCategory={handleAddCategory}
+              onUpdateCategory={handleUpdateCategory}
+              onToggleCategoryActive={handleToggleCategoryActive}
             />
           )}
 
@@ -1127,7 +1316,6 @@ export function App() {
               totalExpenses={expenses.reduce((sum, e) => sum + e.amount, 0)}
               savedCustomersCount={customers.length}
               onResetStoreData={handleResetStoreData}
-              onResetAllStockToZero={handleResetAllStockToZero}
             />
           )}
         </main>
@@ -1137,7 +1325,6 @@ export function App() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          lowStockCount={lowStockCount}
         />
       </div>
 

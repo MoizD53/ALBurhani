@@ -155,8 +155,8 @@ describe('Real Sales Persistence & Checkout Verification', () => {
 
   // ─── 2. Inventory Decreases Correctly ───
   it('2. Decreases inventory accurately for sold piece and weight products', async () => {
-    let stockPcs = sampleProduct.stock; // 50
-    let stockKg = sampleWeightProduct.stock; // 25.5
+    let stockPcs = sampleProduct.stock ?? 50;
+    let stockKg = sampleWeightProduct.stock ?? 25.5;
 
     const handleCompleteSale = (order: OrderBill): CompleteSaleResult => {
       for (const item of order.items) {

@@ -1,11 +1,10 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  ShoppingBag, 
-  FileText, 
-  Package, 
-  Menu,
-  AlertTriangle
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  ReceiptText,
+  ClipboardList,
+  Menu
 } from 'lucide-react';
 import { ActiveTab } from './Sidebar';
 
@@ -13,7 +12,6 @@ interface BottomNavProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   onOpenMobileMenu: () => void;
-  lowStockCount?: number;
   totalCartCount?: number;
 }
 
@@ -21,7 +19,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   setActiveTab,
   onOpenMobileMenu,
-  lowStockCount = 0,
   totalCartCount = 0,
 }) => {
   const tabs = [
@@ -38,17 +35,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       badgeColor: 'bg-[#C99A18] text-white',
     },
     {
-      id: 'customer-bills' as ActiveTab,
+      id: 'no-bill-sales' as ActiveTab,
       label: 'Bills',
-      icon: FileText,
+      icon: ReceiptText,
     },
     {
-      id: 'inventory' as ActiveTab,
-      label: 'Stock',
-      icon: Package,
-      badge: lowStockCount > 0 ? lowStockCount : undefined,
-      badgeColor: 'bg-amber-500 text-white',
-      badgeIcon: AlertTriangle,
+      id: 'orders' as ActiveTab,
+      label: 'Orders',
+      icon: ClipboardList,
     },
   ];
 

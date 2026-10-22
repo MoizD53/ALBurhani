@@ -187,18 +187,6 @@ export function validateQuantity(
     }
 
     const kg = grams / 1000;
-    const totalNeededKg = kg + existingInCart;
-
-    if (product.stock > 0 && totalNeededKg > product.stock) {
-      const remainingAvailable = Math.max(0, product.stock - existingInCart);
-      const remainingLabel = formatQuantity(remainingAvailable, 'KG');
-      return {
-        isValid: false,
-        error: `Insufficient stock! Only ${remainingLabel} available${existingInCart > 0 ? ` (${formatQuantity(existingInCart, 'KG')} already in cart)` : ''}.`,
-        quantity: kg,
-        grams,
-      };
-    }
 
     return {
       isValid: true,
@@ -213,16 +201,6 @@ export function validateQuantity(
       isValid: false,
       error: 'Piece quantity must be a whole positive number',
       quantity: 0,
-    };
-  }
-
-  const totalNeededPcs = quantityInput + existingInCart;
-  if (product.stock > 0 && totalNeededPcs > product.stock) {
-    const remainingAvailable = Math.max(0, product.stock - existingInCart);
-    return {
-      isValid: false,
-      error: `Insufficient stock! Only ${remainingAvailable} pcs available${existingInCart > 0 ? ` (${existingInCart} pcs already in cart)` : ''}.`,
-      quantity: quantityInput,
     };
   }
 

@@ -28,7 +28,6 @@ interface SettingsViewProps {
   totalExpenses?: number;
   savedCustomersCount?: number;
   onResetStoreData?: () => Promise<{ success: boolean; message: string }>;
-  onResetAllStockToZero?: () => Promise<{ success: boolean; message: string }>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({

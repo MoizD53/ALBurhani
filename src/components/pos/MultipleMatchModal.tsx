@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product } from '../../types';
-import { formatPriceWithBasis, formatStock } from '../../lib/pricing';
+import { formatPriceWithBasis } from '../../lib/pricing';
 import { Barcode, Check, X } from 'lucide-react';
 
 interface MultipleMatchModalProps {
@@ -58,7 +58,7 @@ export const MultipleMatchModal: React.FC<MultipleMatchModalProps> = ({
                     {p.barcode}
                   </span>
                   <span>•</span>
-                  <span>{formatStock(p.stock, p.unit)} in stock</span>
+                  <span>{p.category}</span>
                 </div>
               </div>
 

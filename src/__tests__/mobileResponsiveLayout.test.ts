@@ -53,14 +53,14 @@ describe('Mobile-First & iPhone PWA Responsive Layout Audit', () => {
     expect(code).toContain('min-h-[44px]');
   });
 
-  it('verifies InventoryView renders responsive cards for mobile screens (<640px)', () => {
-    const invPath = path.resolve(__dirname, '../components/inventory/InventoryView.tsx');
-    const code = fs.readFileSync(invPath, 'utf8');
+  it('verifies ProductManagementView renders responsive cards for mobile screens (<640px)', () => {
+    const prodMgmtPath = path.resolve(__dirname, '../components/product-management/ProductManagementView.tsx');
+    const code = fs.readFileSync(prodMgmtPath, 'utf8');
 
     expect(code).toContain('sm:hidden');
     expect(code).toContain('hidden sm:block');
-    expect(code).toContain('Products Total');
-    expect(code).toContain('Low Stock Alerts');
+    expect(code).toContain('Items / Products');
+    expect(code).toContain('Categories');
   });
 
   it('verifies CustomerBillsView and NoBillSalesView support mobile card views', () => {

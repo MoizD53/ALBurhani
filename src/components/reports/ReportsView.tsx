@@ -4,8 +4,8 @@ import {
   BarChart3, 
   Download 
 } from 'lucide-react';
-import { formatStock } from '../../lib/pricing';
 import { isOrderInDateRange } from '../../lib/utils';
+import { formatQuantity } from '../../lib/pricing';
 
 interface ReportsViewProps {
   products: Product[];
@@ -20,8 +20,7 @@ export type ReportType =
   | 'product-sales' 
   | 'category-sales' 
   | 'payment-reconciliation' 
-  | 'expenses' 
-  | 'inventory-stock';
+  | 'expenses';
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
   products,
@@ -132,20 +131,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         e.paymentMode,
         `"${e.paidTo || ''}"`,
       ]);
-    } else if (reportType === 'inventory-stock') {
-      headers = ['SKU', 'Barcode', 'Product Name', 'Category', 'Unit', 'Price Basis', 'Cost Price', 'Selling Price', 'Current Stock', 'Stock Status'];
-      rows = products.map((p) => [
-        `="${p.sku}"`,
-        `="${p.barcode}"`,
-        `"${p.name.replace(/"/g, '""')}"`,
-        `"${p.category}"`,
-        p.unit,
-        p.priceBasis || 'Rs./pc',
-        p.costPrice,
-        p.sellingPrice,
-        p.stock,
-        p.stock <= 0 ? 'Out of Stock' : p.stock <= p.minStock ? 'Low Stock' : 'In Stock',
-      ]);
     }
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -216,7 +201,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           { id: 'category-sales', label: 'Category-Wise Sales' },
           { id: 'payment-reconciliation', label: 'Payment Reconciliation' },
           { id: 'expenses', label: 'Expenses Audit' },
-          { id: 'inventory-stock', label: 'Inventory Stock Valuation' },
         ].map((tab) => {
           const isSelected = reportType === tab.id;
           return (
@@ -349,7 +333,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         {item.product.unit}
                       </td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-stone-900">
-                        {formatStock(item.totalQty, item.product.unit)}
+                        {formatQuantity(item.totalQty, item.product.unit)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-[#A67D0C] text-sm">
                         Rs. {item.totalRevenue.toFixed(2)}
@@ -428,43 +412,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* 5. Inventory Stock Valuation Report */}
-      {reportType === 'inventory-stock' && (
-        <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
-                <th className="py-3 px-4">SKU</th>
-                <th className="py-3 px-4">Barcode</th>
-                <th className="py-3 px-4">Product Name</th>
-                <th className="py-3 px-4 text-center">Unit Basis</th>
-                <th className="py-3 px-4 text-right">Cost Price</th>
-                <th className="py-3 px-4 text-right">Selling Price</th>
-                <th className="py-3 px-4 text-center">Current Stock</th>
-                <th className="py-3 px-4 text-right">Stock Valuation</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E8DEC8]">
-              {products.map((p) => (
-                <tr key={p.id} className="hover:bg-[#FAF8F5] transition-colors">
-                  <td className="py-3 px-4 font-mono font-bold text-[#A67D0C]">{p.sku}</td>
-                  <td className="py-3 px-4 font-mono text-stone-600">{p.barcode}</td>
-                  <td className="py-3 px-4 font-bold text-stone-900">{p.name}</td>
-                  <td className="py-3 px-4 text-center font-bold text-stone-700">{p.unit}</td>
-                  <td className="py-3 px-4 text-right font-mono text-stone-500">Rs. {p.costPrice}</td>
-                  <td className="py-3 px-4 text-right font-mono text-stone-900">Rs. {p.sellingPrice}</td>
-                  <td className="py-3 px-4 text-center font-mono font-bold text-emerald-600">{formatStock(p.stock, p.unit)}</td>
-                  <td className="py-3 px-4 text-right font-mono font-bold text-[#A67D0C]">
-                    Rs. {(p.stock * p.sellingPrice).toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* 6. Expenses Audit Report */}
+      {/* 5. Expenses Audit Report */}
       {reportType === 'expenses' && (
         <div className="rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
           <table className="w-full text-left text-xs">

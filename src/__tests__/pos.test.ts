@@ -96,21 +96,21 @@ describe('AL-BURHANI POS Pricing & Quantity Calculations', () => {
     expect(fracPcsRes.isValid).toBe(false);
   });
 
-  // Test Requirement: Insufficient stock
-  it('rejects quantities that exceed available stock', () => {
-    const excessKgRes = validateQuantity(kajuKatli, 30000, 'g');
-    expect(excessKgRes.isValid).toBe(false);
-    expect(excessKgRes.error).toContain('Insufficient stock');
+  // Test Requirement: Stock removal - validateQuantity allows any positive quantity without stock limitations
+  it('allows quantities without stock limitations in the refactored billing system', () => {
+    const largeKgRes = validateQuantity(kajuKatli, 30000, 'g');
+    expect(largeKgRes.isValid).toBe(true);
+    expect(largeKgRes.error).toBeUndefined();
 
-    const excessPcsRes = validateQuantity(gulabJamun, 150, 'pcs');
-    expect(excessPcsRes.isValid).toBe(false);
-    expect(excessPcsRes.error).toContain('Insufficient stock');
+    const largePcsRes = validateQuantity(gulabJamun, 150, 'pcs');
+    expect(largePcsRes.isValid).toBe(true);
+    expect(largePcsRes.error).toBeUndefined();
   });
 
-  it('validates stock considering items already in cart', () => {
+  it('allows items in cart without stock boundary restrictions', () => {
     const cartRes = validateQuantity(kajuKatli, 1000, 'g', 25.0);
-    expect(cartRes.isValid).toBe(false);
-    expect(cartRes.error).toContain('already in cart');
+    expect(cartRes.isValid).toBe(true);
+    expect(cartRes.error).toBeUndefined();
   });
 
   // Test Requirement: Repeated scans and separate quantity confirmations (quantity merging)
@@ -317,7 +317,7 @@ describe('AL-BURHANI POS Pricing & Quantity Calculations', () => {
 
   // Test Requirement: Real Persistent Checkout (Stock deduction & financial record persistence)
   it('records real persistent sale and deducts inventory accurately upon checkout', () => {
-    const originalStock = kajuKatli.stock;
+    const originalStock = kajuKatli.stock ?? 25.5;
     const initialOrders: OrderBill[] = [];
 
     // Real cart item creation

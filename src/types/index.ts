@@ -13,8 +13,8 @@ export interface Product {
   netWeight?: string;
   costPrice: number;
   sellingPrice: number; // Price per KG or price per piece
-  stock: number; // in KG (decimals allowed) or pieces (integer)
-  minStock: number;
+  stock?: number; // legacy optional (stock management removed)
+  minStock?: number; // legacy optional
   shelfLifeDays?: number;
   batchNo?: string;
   mfgDate?: string;
@@ -104,7 +104,68 @@ export interface StoreSummary {
   cashCollected: number;
   upiCollected: number;
   cardCollected: number;
-  lowStockCount: number;
   totalProductsCount: number;
   estimatedProfit: number;
+}
+
+// ---------------------------------------------------------------------------
+// Customer Booking & Scheduled Delivery Orders
+// ---------------------------------------------------------------------------
+
+export type CustomerOrderStatus =
+  | 'Pending'
+  | 'Confirmed'
+  | 'Preparing'
+  | 'Ready for Delivery'
+  | 'Delivered'
+  | 'Cancelled';
+
+export interface CustomerOrderItem {
+  productId: string;
+  productName: string;
+  sku?: string;
+  barcode?: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  notes?: string;
+}
+
+export interface CustomerOrder {
+  id: string;
+  orderNumber: string; // e.g. "ORD-20261022-001"
+  customerName: string;
+  customerPhone: string;
+  items: CustomerOrderItem[];
+  subtotal: number;
+  discountAmount: number;
+  gstAmount: number;
+  totalAmount: number;
+  advancePaid: number;
+  balanceDue: number;
+  orderDate: string; // YYYY-MM-DD
+  deliveryDate: string; // YYYY-MM-DD (Required)
+  deliveryTime?: string; // Optional time or time slot (e.g. "Morning", "4:00 PM")
+  deliveryAddress?: string;
+  status: CustomerOrderStatus;
+  paymentMethod?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Product Category Master
+// ---------------------------------------------------------------------------
+
+export interface CategoryItem {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  displayOrder?: number;
+  productCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }

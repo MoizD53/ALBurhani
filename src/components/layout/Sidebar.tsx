@@ -12,27 +12,28 @@ import {
   ChevronRight, 
   X, 
   ShieldCheck, 
-  AlertTriangle,
-  Tag
+  Tag,
+  ClipboardList,
+  Layers
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { InstallPwaButton } from '../common/InstallPwaButton';
 
-export type ActiveTab = 
-  | 'overview' 
-  | 'pos' 
-  | 'customer-bills' 
-  | 'no-bill-sales' 
-  | 'inventory' 
+export type ActiveTab =
+  | 'overview'
+  | 'pos'
+  | 'no-bill-sales'
+  | 'orders'
+  | 'customer-bills'
+  | 'product-management'
   | 'label-studio'
-  | 'expenses' 
-  | 'reports' 
+  | 'expenses'
+  | 'reports'
   | 'settings';
 
 interface SidebarProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
-  lowStockCount: number;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
   isMobileOpen: boolean;
@@ -43,7 +44,6 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ 
   activeTab, 
   setActiveTab, 
-  lowStockCount,
   isCollapsed,
   setIsCollapsed,
   isMobileOpen,
@@ -61,22 +61,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'POS Billing',
       icon: ShoppingBag,
     },
-    // Temporarily hidden: GST Tax Invoices entry disabled by default
-    // {
-    //   id: 'customer-bills' as ActiveTab,
-    //   label: 'Customer Bills',
-    //   icon: FileText,
-    // },
     {
       id: 'no-bill-sales' as ActiveTab,
       label: 'Bills / Counter Sales',
       icon: ReceiptText,
     },
     {
-      id: 'inventory' as ActiveTab,
-      label: 'Inventory',
-      icon: Package,
-      alertCount: lowStockCount,
+      id: 'orders' as ActiveTab,
+      label: 'Orders',
+      icon: ClipboardList,
+    },
+    {
+      id: 'product-management' as ActiveTab,
+      label: 'Product Management',
+      icon: Layers,
     },
     ...(currentUser.role === 'Owner'
       ? [
@@ -200,23 +198,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                 </div>
 
-                {/* Badges */}
-                {showLabels && item.alertCount !== undefined && item.alertCount > 0 && (
-                  <span 
-                    title={`${item.alertCount} products at or below minimum stock alert`}
-                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 border border-amber-500/25 flex items-center gap-0.5 shrink-0 ml-1"
-                  >
-                    <AlertTriangle className="w-2.5 h-2.5" />
-                    {item.alertCount}
-                  </span>
-                )}
-
                 {/* Collapsed dot */}
                 {!showLabels && isActive && (
                   <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-[#C99A18]" />
-                )}
-                {!showLabels && item.alertCount !== undefined && item.alertCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500" />
                 )}
               </button>
             );

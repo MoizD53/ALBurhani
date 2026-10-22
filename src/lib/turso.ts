@@ -1,4 +1,4 @@
-import { Product, OrderBill, ExpenseItem } from '../types';
+import { Product, OrderBill, ExpenseItem, CustomerOrder, CustomerOrderStatus, CategoryItem } from '../types';
 import { CustomerRecord } from './customers';
 import { migrateCatalogPrices } from './catalogMigration';
 
@@ -578,5 +578,236 @@ export async function clearExpensesFromTurso(): Promise<{ success: boolean; coun
     return { success: Boolean(data.success), count: data.count, error: data.error };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Network error' };
+  }
+}
+// ---------------------------------------------------------------------------
+// Customer Booking & Scheduled Delivery Orders Remote API
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch customer orders from remote database
+ */
+export async function fetchCustomerOrdersFromTurso(): Promise<CustomerOrder[] | null> {
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-customer-orders`);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.rows)) return null;
+
+    const orders: CustomerOrder[] = data.rows.map((row: any) => ({
+      id: String(row.id),
+      orderNumber: String(row.order_number),
+      customerName: String(row.customer_name),
+      customerPhone: String(row.customer_phone),
+      items: row.items_json ? (typeof row.items_json === 'string' ? JSON.parse(row.items_json) : row.items_json) : [],
+      subtotal: Number(row.subtotal) || 0,
+      discountAmount: Number(row.discount_amount) || 0,
+      gstAmount: Number(row.gst_amount) || 0,
+      totalAmount: Number(row.total_amount) || 0,
+      advancePaid: Number(row.advance_paid) || 0,
+      balanceDue: Number(row.balance_due) || 0,
+      orderDate: String(row.order_date || ''),
+      deliveryDate: String(row.delivery_date || ''),
+      deliveryTime: row.delivery_time ? String(row.delivery_time) : undefined,
+      deliveryAddress: row.delivery_address ? String(row.delivery_address) : undefined,
+      status: row.status as CustomerOrderStatus,
+      paymentMethod: row.payment_method ? String(row.payment_method) : undefined,
+      notes: row.notes ? String(row.notes) : undefined,
+      createdAt: String(row.created_at || ''),
+      updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+    }));
+
+    return orders;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save / Update a customer order on remote database
+ */
+export async function saveCustomerOrderToTurso(order: CustomerOrder): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'save-customer-order',
+        payload: order,
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Update customer order status on remote database
+ */
+export async function updateCustomerOrderStatusOnTurso(
+  orderId: string,
+  status: CustomerOrderStatus
+): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'update-customer-order-status',
+        payload: { orderId, status },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Delete / Cancel customer order on remote database
+ */
+export async function deleteCustomerOrderFromTurso(orderId: string): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'delete-customer-order',
+        payload: { orderId },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Categories Remote API
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch categories from remote database
+ */
+export async function fetchCategoriesFromTurso(): Promise<CategoryItem[] | null> {
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-categories`);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.rows)) return null;
+
+    const categories: CategoryItem[] = data.rows.map((row: any) => ({
+      id: String(row.id),
+      name: String(row.name),
+      description: row.description ? String(row.description) : '',
+      isActive: Boolean(row.is_active !== 0),
+      displayOrder: Number(row.display_order) || 0,
+      createdAt: row.created_at ? String(row.created_at) : undefined,
+      updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+    }));
+
+    return categories;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save / Update category on remote database
+ */
+export async function saveCategoryToTurso(category: CategoryItem): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'save-category',
+        payload: category,
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rename category on remote database and cascade to products
+ */
+export async function renameCategoryOnTurso(
+  oldName: string,
+  newName: string,
+  categoryId?: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'rename-category',
+        payload: { oldName, newName, categoryId },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Delete category from remote database
+ */
+export async function deleteCategoryFromTurso(categoryId: string): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'delete-category',
+        payload: { categoryId },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
   }
 }

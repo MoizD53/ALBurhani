@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Product, OrderBill, ExpenseItem } from '../../types';
+import { Product, OrderBill, ExpenseItem, CustomerOrder } from '../../types';
 import { 
   IndianRupee, 
   Users, 
@@ -20,17 +20,28 @@ import {
   Printer,
   ChevronRight,
   Trash2,
-  Edit2
+  Edit2,
+  CalendarClock,
+  AlertTriangle,
+  ClipboardList
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
 import { DueBillsModal } from './DueBillsModal';
-import { isOrderInDateRange, isExpenseInDateRange, calculateDueSummary } from '../../lib/utils';
+import { isOrderInDateRange, isExpenseInDateRange, calculateDueSummary, getKolkataDateString } from '../../lib/utils';
+import {
+  isOrderActive,
+  getNearestUpcomingDeliveryDate,
+  getOrderTimingStatus,
+  formatOrderItemsSummary,
+  ORDER_STATUS_CONFIG
+} from '../../lib/customerOrders';
 
 interface OverviewDashboardViewProps {
   products: Product[];
   orders: OrderBill[];
   expenses: ExpenseItem[];
-  onNavigateToTab: (tab: any) => void;
+  customerOrders?: CustomerOrder[];
+  onNavigateToTab: (tab: any, params?: any) => void;
   onDeleteOrder?: (orderId: string) => void;
   onModifyOrder?: (order: OrderBill) => void;
   onSettleOrder?: (order: OrderBill) => Promise<void> | void;
@@ -40,6 +51,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   products,
   orders,
   expenses,
+  customerOrders = [],
   onNavigateToTab,
   onDeleteOrder,
   onModifyOrder,
@@ -110,6 +122,58 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
   const topProducts = Array.from(productSalesMap.values()).sort((a, b) => b.amount - a.amount);
   const topProduct = topProducts[0] || { name: 'Kaju Katli Special', qty: 0, amount: 0 };
 
+  // Customer Orders Metrics
+  const todayStr = getKolkataDateString();
+
+  const activeCustomerOrders = React.useMemo(() => {
+    return customerOrders.filter((o) => isOrderActive(o.status));
+  }, [customerOrders]);
+
+  const futureCustomerOrders = React.useMemo(() => {
+    return activeCustomerOrders.filter((o) => o.deliveryDate > todayStr);
+  }, [activeCustomerOrders, todayStr]);
+
+  const dueTodayCustomerOrders = React.useMemo(() => {
+    return activeCustomerOrders.filter((o) => o.deliveryDate === todayStr);
+  }, [activeCustomerOrders, todayStr]);
+
+  const overdueCustomerOrders = React.useMemo(() => {
+    return activeCustomerOrders.filter((o) => o.deliveryDate < todayStr);
+  }, [activeCustomerOrders, todayStr]);
+
+  const nearestUpcomingDate = React.useMemo(() => {
+    return getNearestUpcomingDeliveryDate(customerOrders, todayStr);
+  }, [customerOrders, todayStr]);
+
+  const nearestDeliveryFormatted = React.useMemo(() => {
+    return nearestUpcomingDate || 'None scheduled';
+  }, [nearestUpcomingDate]);
+
+  // Nearest deliveries list: Overdue first, then Today, then future ordered chronologically
+  const nearestScheduledDeliveries = React.useMemo(() => {
+    const list = [...activeCustomerOrders];
+    list.sort((a, b) => {
+      // Overdue first (< todayStr)
+      const aOverdue = a.deliveryDate < todayStr;
+      const bOverdue = b.deliveryDate < todayStr;
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+
+      // Due today next (=== todayStr)
+      const aToday = a.deliveryDate === todayStr;
+      const bToday = b.deliveryDate === todayStr;
+      if (aToday && !bToday) return -1;
+      if (!aToday && bToday) return 1;
+
+      // Chronological by deliveryDate then deliveryTime
+      if (a.deliveryDate !== b.deliveryDate) {
+        return a.deliveryDate.localeCompare(b.deliveryDate);
+      }
+      return (a.deliveryTime || '').localeCompare(b.deliveryTime || '');
+    });
+    return list.slice(0, 5);
+  }, [activeCustomerOrders, todayStr]);
+
   // Helper for masking numbers
   const formatAmount = (val: number) => {
     if (isMasked) return 'Rs. * * , * * *';
@@ -159,7 +223,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
       </div>
 
       {/* 2. Top Primary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         
         {/* Card 1: TODAY'S REVENUE */}
         <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/60 transition-all group bg-white border border-[#E8DEC8] shadow-sm">
@@ -286,8 +350,53 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
           </div>
         </div>
 
-      </div>
+        {/* Card 5: UPCOMING ORDERS */}
+        <div
+          onClick={() => onNavigateToTab('orders')}
+          className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37] transition-all group bg-white border border-[#E8DEC8] shadow-sm cursor-pointer hover:shadow-md relative overflow-hidden"
+          title="Click to view all scheduled orders"
+        >
+          {dueTodayCustomerOrders.length > 0 && (
+            <div className="absolute top-3.5 right-3.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-800 text-[10px] font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+              {dueTodayCustomerOrders.length} Due Today
+            </div>
+          )}
+          {overdueCustomerOrders.length > 0 && dueTodayCustomerOrders.length === 0 && (
+            <div className="absolute top-3.5 right-3.5 px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-800 text-[10px] font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              {overdueCustomerOrders.length} Overdue
+            </div>
+          )}
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="w-10 h-10 rounded-full bg-[#FAF8F5] border border-[#C99A18]/30 flex items-center justify-center text-[#C99A18] group-hover:border-[#C99A18] transition-colors shadow-sm">
+                <CalendarClock className="w-4 h-4" />
+              </div>
+            </div>
 
+            <div className="mt-4">
+              <span className="text-[11px] font-bold tracking-wider text-stone-500 uppercase block">
+                Upcoming Orders
+              </span>
+              <div className="text-2xl sm:text-3xl font-bold text-[#1C1917] mt-1 font-mono tracking-tight">
+                {formatNumber(futureCustomerOrders.length)}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
+            <span className="text-[#A67D0C] font-semibold text-[11px] flex items-center gap-1 group-hover:underline">
+              {nearestUpcomingDate ? `Next: ${nearestDeliveryFormatted}` : 'None scheduled'}
+            </span>
+            <span className="text-stone-400 text-[10px] flex items-center gap-0.5">
+              <span>View All</span>
+              <ChevronRight className="w-3 h-3 inline" />
+            </span>
+          </div>
+        </div>
+
+      </div>
 
       {/* 5. Two Column Breakdown: Tender Reconciliation & Recent Sales Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
@@ -478,6 +587,167 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
           )}
         </div>
 
+      </div>
+
+      {/* 6. Upcoming Deliveries View */}
+      <div className="ten-card p-5 rounded-2xl space-y-4 bg-white border border-[#E8DEC8] shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#FAF8F5] border border-[#C99A18]/30 flex items-center justify-center text-[#C99A18]">
+              <CalendarClock className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#1C1917] flex items-center gap-2">
+                <span>Upcoming Scheduled Deliveries</span>
+                {activeCustomerOrders.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-[#FAF8F5] border border-[#C99A18]/30 text-[#A67D0C] text-[10px] font-bold">
+                    {activeCustomerOrders.length} Active
+                  </span>
+                )}
+              </h3>
+              <p className="text-[11px] text-stone-500">
+                Advance customer bookings, delivery slots, and balance collection
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onNavigateToTab('orders')}
+              className="text-xs font-bold text-[#C99A18] hover:text-[#A67D0C] flex items-center gap-1 transition-colors px-2.5 py-1.5 rounded-lg hover:bg-[#FAF8F5]"
+            >
+              <span>View All Orders</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {nearestScheduledDeliveries.length === 0 ? (
+          <div className="h-40 flex flex-col items-center justify-center text-center p-6 bg-[#FAF8F5] rounded-xl border border-[#E8DEC8]">
+            <ClipboardList className="w-8 h-8 text-stone-400 mb-2 stroke-1" />
+            <p className="text-xs font-bold text-stone-700">No pending deliveries scheduled</p>
+            <p className="text-[11px] text-stone-500 mt-0.5">
+              Customer orders taken for advance deliveries will appear here automatically.
+            </p>
+            <button
+              onClick={() => onNavigateToTab('orders')}
+              className="mt-3 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white text-xs font-bold shadow-sm hover:opacity-95 transition-opacity"
+            >
+              + Create Customer Order
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="text-[10px] font-bold text-stone-500 uppercase tracking-wider border-b border-[#F0EBE0] pb-2">
+                  <th className="pb-2 font-semibold">Order / Customer</th>
+                  <th className="pb-2 font-semibold">Scheduled Delivery</th>
+                  <th className="pb-2 font-semibold">Items</th>
+                  <th className="pb-2 font-semibold">Status</th>
+                  <th className="pb-2 text-right font-semibold">Amount / Due</th>
+                  <th className="pb-2 text-right font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F0EBE0]">
+                {nearestScheduledDeliveries.map((co) => {
+                  const timing = getOrderTimingStatus(co, todayStr);
+                  const statusConf = ORDER_STATUS_CONFIG[co.status] || {
+                    label: co.status,
+                    badgeClass: 'bg-stone-100 text-stone-700 border-stone-200',
+                  };
+                  const itemsSummary = formatOrderItemsSummary(co.items);
+
+                  return (
+                    <tr key={co.id} className="hover:bg-[#FAF8F5] transition-colors">
+                      <td className="py-2.5">
+                        <div className="font-bold text-[#1C1917] flex items-center gap-1.5">
+                          <span>{co.customerName}</span>
+                          <span className="font-mono text-[10px] font-normal text-stone-500">
+                            ({co.orderNumber})
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-stone-500 mt-0.5 flex items-center gap-1 font-mono">
+                          <span>{co.customerPhone}</span>
+                          {co.deliveryAddress && (
+                            <span className="text-stone-400 truncate max-w-[150px]">
+                              • {co.deliveryAddress}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-semibold text-stone-800">
+                            {co.deliveryDate}
+                          </span>
+                          {timing === 'overdue' && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-800 border border-rose-500/30 flex items-center gap-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              Overdue
+                            </span>
+                          )}
+                          {timing === 'due_today' && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-800 border border-amber-500/30 flex items-center gap-0.5">
+                              <Clock className="w-2.5 h-2.5" />
+                              Due Today
+                            </span>
+                          )}
+                          {timing === 'upcoming' && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-800 border border-emerald-500/30">
+                              Upcoming
+                            </span>
+                          )}
+                        </div>
+                        {co.deliveryTime && (
+                          <div className="text-[10px] text-stone-500 mt-0.5 flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5 text-stone-400" />
+                            <span>{co.deliveryTime}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2.5">
+                        <div className="text-stone-700 font-medium truncate max-w-[220px]" title={itemsSummary}>
+                          {itemsSummary}
+                        </div>
+                        <div className="text-[10px] text-stone-400 mt-0.5">
+                          {co.items.length} {co.items.length === 1 ? 'item' : 'items'}
+                        </div>
+                      </td>
+                      <td className="py-2.5 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusConf.badgeClass}`}>
+                          {statusConf.label}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right whitespace-nowrap">
+                        <div className="font-mono font-bold text-[#1C1917]">
+                          Rs. {co.totalAmount.toFixed(2)}
+                        </div>
+                        {co.balanceDue > 0 ? (
+                          <div className="text-[10px] font-mono font-bold text-amber-700">
+                            Due: Rs. {co.balanceDue.toFixed(2)}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] font-mono font-bold text-emerald-700">
+                            Paid in Full
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2.5 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => onNavigateToTab('orders')}
+                          className="px-2.5 py-1 rounded-lg border border-[#E8DEC8] hover:border-[#D4AF37] hover:bg-[#FAF8F5] text-[11px] font-bold text-stone-700 transition-colors flex items-center gap-1 ml-auto"
+                        >
+                          <span>Manage</span>
+                          <ChevronRight className="w-3 h-3 text-[#C99A18]" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Thermal Receipt Preview Modal */}

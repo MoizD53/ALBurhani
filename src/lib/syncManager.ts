@@ -13,9 +13,9 @@ export type SyncStatus = 'connected' | 'syncing' | 'offline' | 'error';
 
 export interface SyncEvent {
   id: number;
-  entityType: 'order' | 'product' | 'expense' | 'customer' | 'settings';
+  entityType: 'order' | 'product' | 'expense' | 'customer' | 'settings' | 'customer_order' | 'category';
   entityId: string;
-  operation: 'save' | 'stock' | 'delete' | 'batch_save' | 'reset_stock' | 'clear_orders' | 'clear_expenses';
+  operation: 'save' | 'stock' | 'delete' | 'batch_save' | 'reset_stock' | 'clear_orders' | 'clear_expenses' | 'status_update' | 'rename';
   payload?: any;
   serverTimestamp: number;
 }
@@ -111,7 +111,7 @@ class SyncManager {
   }
 
   public subscribe(
-    entityType: 'order' | 'product' | 'expense' | 'customer' | 'settings' | 'all',
+    entityType: 'order' | 'product' | 'expense' | 'customer' | 'settings' | 'customer_order' | 'category' | 'all',
     callback: EntityChangeListener
   ): () => void {
     if (!this.entityListeners.has(entityType)) {
@@ -123,6 +123,16 @@ class SyncManager {
     return () => {
       set.delete(callback);
     };
+  }
+
+  public broadcast(event: Omit<SyncEvent, 'id' | 'serverTimestamp'>): void {
+    const fullEvent: SyncEvent = {
+      ...event,
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      serverTimestamp: Date.now(),
+    };
+    this.processedEventIds.add(fullEvent.id);
+    this.dispatchEntityEvent(fullEvent);
   }
 
   /**

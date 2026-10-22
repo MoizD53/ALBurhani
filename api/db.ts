@@ -127,6 +127,45 @@ async function ensureSchema(client: Client): Promise<void> {
       updated_by TEXT DEFAULT 'Owner'
     );`,
 
+    `CREATE TABLE IF NOT EXISTS customer_orders (
+      id TEXT PRIMARY KEY,
+      order_number TEXT UNIQUE NOT NULL,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      subtotal REAL NOT NULL DEFAULT 0,
+      discount_amount REAL NOT NULL DEFAULT 0,
+      gst_amount REAL NOT NULL DEFAULT 0,
+      total_amount REAL NOT NULL DEFAULT 0,
+      advance_paid REAL NOT NULL DEFAULT 0,
+      balance_due REAL NOT NULL DEFAULT 0,
+      order_date TEXT NOT NULL,
+      delivery_date TEXT NOT NULL,
+      delivery_time TEXT,
+      delivery_address TEXT,
+      status TEXT NOT NULL DEFAULT 'Pending',
+      payment_method TEXT DEFAULT 'CASH',
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );`,
+
+    `CREATE INDEX IF NOT EXISTS idx_cust_orders_delivery ON customer_orders (delivery_date ASC);`,
+    `CREATE INDEX IF NOT EXISTS idx_cust_orders_status ON customer_orders (status);`,
+    `CREATE INDEX IF NOT EXISTS idx_cust_orders_number ON customer_orders (order_number);`,
+
+    `CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT DEFAULT '',
+      is_active INTEGER DEFAULT 1,
+      display_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );`,
+
+    `CREATE INDEX IF NOT EXISTS idx_categories_name ON categories (name);`,
+
     `CREATE TABLE IF NOT EXISTS sync_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       entity_type TEXT NOT NULL,
@@ -309,6 +348,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'fetch-customers') {
       try {
         const result = await client.execute('SELECT * FROM customers ORDER BY total_spent DESC LIMIT 200;');
+        return res.status(200).json({ success: true, rows: result.rows });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    if (action === 'fetch-customer-orders') {
+      try {
+        const result = await client.execute('SELECT * FROM customer_orders ORDER BY delivery_date ASC, created_at DESC LIMIT 500;');
+        return res.status(200).json({ success: true, rows: result.rows });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    if (action === 'fetch-categories') {
+      try {
+        const result = await client.execute('SELECT * FROM categories ORDER BY display_order ASC, name ASC;');
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -760,6 +817,196 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         await logSyncEvent(client, 'settings', key, 'save', { key, value });
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Save Customer Order (Advance Booking / Scheduled Delivery)
+    if (action === 'save-customer-order') {
+      const o = payload;
+      if (!o || !o.id || !o.orderNumber || !o.customerName || !o.deliveryDate) {
+        return res.status(400).json({ success: false, error: 'Invalid customer order payload' });
+      }
+
+      try {
+        const items = Array.isArray(o.items) ? o.items : [];
+        const subtotal = Number(o.subtotal) || items.reduce((s: number, i: any) => s + (Number(i.subtotal) || (Number(i.unitPrice) * Number(i.quantity))), 0);
+        const discountAmount = Number(o.discountAmount) || 0;
+        const gstAmount = Number(o.gstAmount) || 0;
+        const totalAmount = Number(o.totalAmount) || Math.max(0, subtotal - discountAmount + gstAmount);
+        const advancePaid = Number(o.advancePaid) || 0;
+        const balanceDue = Number(o.balanceDue) !== undefined ? Number(o.balanceDue) : Math.max(0, totalAmount - advancePaid);
+
+        await client.execute({
+          sql: `INSERT INTO customer_orders (
+            id, order_number, customer_name, customer_phone, items_json, subtotal, discount_amount,
+            gst_amount, total_amount, advance_paid, balance_due, order_date, delivery_date,
+            delivery_time, delivery_address, status, payment_method, notes, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET
+            order_number=excluded.order_number,
+            customer_name=excluded.customer_name,
+            customer_phone=excluded.customer_phone,
+            items_json=excluded.items_json,
+            subtotal=excluded.subtotal,
+            discount_amount=excluded.discount_amount,
+            gst_amount=excluded.gst_amount,
+            total_amount=excluded.total_amount,
+            advance_paid=excluded.advance_paid,
+            balance_due=excluded.balance_due,
+            order_date=excluded.order_date,
+            delivery_date=excluded.delivery_date,
+            delivery_time=excluded.delivery_time,
+            delivery_address=excluded.delivery_address,
+            status=excluded.status,
+            payment_method=excluded.payment_method,
+            notes=excluded.notes,
+            updated_at=CURRENT_TIMESTAMP;`,
+          args: [
+            o.id,
+            o.orderNumber,
+            o.customerName,
+            o.customerPhone,
+            JSON.stringify(items),
+            subtotal,
+            discountAmount,
+            gstAmount,
+            totalAmount,
+            advancePaid,
+            balanceDue,
+            o.orderDate || new Date().toISOString().split('T')[0],
+            o.deliveryDate,
+            o.deliveryTime || '',
+            o.deliveryAddress || '',
+            o.status || 'Pending',
+            o.paymentMethod || 'CASH',
+            o.notes || '',
+            o.createdAt || new Date().toISOString(),
+          ],
+        });
+
+        await logSyncEvent(client, 'customer_order', o.id, 'save', o);
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Update Customer Order Status
+    if (action === 'update-customer-order-status') {
+      const { orderId, status } = payload || {};
+      if (!orderId || !status) {
+        return res.status(400).json({ success: false, error: 'Missing orderId or status' });
+      }
+
+      try {
+        await client.execute({
+          sql: 'UPDATE customer_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+          args: [status, orderId],
+        });
+
+        await logSyncEvent(client, 'customer_order', orderId, 'status_update', { orderId, status });
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Delete Customer Order
+    if (action === 'delete-customer-order') {
+      const { orderId } = payload || {};
+      if (!orderId) {
+        return res.status(400).json({ success: false, error: 'Missing orderId' });
+      }
+
+      try {
+        await client.execute({
+          sql: 'DELETE FROM customer_orders WHERE id = ?;',
+          args: [orderId],
+        });
+
+        await logSyncEvent(client, 'customer_order', orderId, 'delete', { orderId });
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Save Category
+    if (action === 'save-category') {
+      const cat = payload;
+      if (!cat || !cat.id || !cat.name) {
+        return res.status(400).json({ success: false, error: 'Invalid category payload' });
+      }
+
+      try {
+        await client.execute({
+          sql: `INSERT INTO categories (id, name, description, is_active, display_order, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(id) DO UPDATE SET
+                  name=excluded.name,
+                  description=excluded.description,
+                  is_active=excluded.is_active,
+                  display_order=excluded.display_order,
+                  updated_at=CURRENT_TIMESTAMP;`,
+          args: [
+            cat.id,
+            cat.name.trim(),
+            cat.description || '',
+            cat.isActive !== false ? 1 : 0,
+            Number(cat.displayOrder) || 0,
+          ],
+        });
+
+        await logSyncEvent(client, 'category', cat.id, 'save', cat);
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Rename Category (and cascade to products)
+    if (action === 'rename-category') {
+      const { oldName, newName, categoryId } = payload || {};
+      if (!oldName || !newName) {
+        return res.status(400).json({ success: false, error: 'Missing oldName or newName' });
+      }
+
+      try {
+        if (categoryId) {
+          await client.execute({
+            sql: 'UPDATE categories SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+            args: [newName.trim(), categoryId],
+          });
+        }
+        await client.execute({
+          sql: 'UPDATE products SET category = ?, updated_at = CURRENT_TIMESTAMP WHERE category = ?;',
+          args: [newName.trim(), oldName.trim()],
+        });
+
+        await logSyncEvent(client, 'category', categoryId || 'rename', 'rename', { oldName, newName });
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Delete Category
+    if (action === 'delete-category') {
+      const { categoryId } = payload || {};
+      if (!categoryId) {
+        return res.status(400).json({ success: false, error: 'Missing categoryId' });
+      }
+
+      try {
+        await client.execute({
+          sql: 'DELETE FROM categories WHERE id = ?;',
+          args: [categoryId],
+        });
+
+        await logSyncEvent(client, 'category', categoryId, 'delete', { categoryId });
         return res.status(200).json({ success: true });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });

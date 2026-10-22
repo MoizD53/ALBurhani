@@ -142,7 +142,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
       <BillingPageHeader
         icon={ReceiptText}
         title="No-Bill Counter Sales Audit"
-        subtitle="Internal recorded sales without customer tax invoice · Inventory deducted accurately · 0% GST"
+        subtitle="Internal recorded sales without customer tax invoice · Direct counter billing · 0% GST"
         badge={{ text: 'Without GST (0%) · Cloud Synced', variant: 'zinc' }}
       />
 
@@ -173,9 +173,9 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
           icon={IndianRupee}
         />
         <BillingSummaryCard
-          label="Inventory Deductions"
+          label="Total Items Sold"
           value={`${totalItemsDeducted} Items`}
-          subtext="deducted"
+          subtext="sold"
           accent="zinc"
           icon={Package}
         />
@@ -447,7 +447,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
                           <div className="p-3.5 rounded-xl bg-white border border-[#E8DEC8] space-y-2 shadow-sm">
                             <div className="flex items-center justify-between pb-1 border-b border-[#F0EBE0]">
                               <span className="text-[10px] uppercase font-bold tracking-wider text-[#A67D0C]">
-                                Deducted Inventory Line Items ({s.items.length})
+                                Bill Line Items ({s.items.length})
                               </span>
                               <span className="text-[10px] text-stone-500 font-mono font-semibold">
                                 Total: Rs. {s.grandTotal.toFixed(2)}
