@@ -252,6 +252,7 @@ export function App() {
 
   const [stickerModalProduct, setStickerModalProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<OrderBill | null>(null);
+  const [barcodeToRegister, setBarcodeToRegister] = useState<string | null>(null);
 
   // Customer Orders State (Advance bookings, deliveries)
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(() => {
@@ -1238,6 +1239,10 @@ export function App() {
               editingOrder={editingOrder}
               onCancelEditOrder={handleCancelModifyOrder}
               onSaveModifiedOrder={handleSaveModifiedOrder}
+              onNavigateToProducts={(code) => {
+                setBarcodeToRegister(code || null);
+                setActiveTab('product-management');
+              }}
             />
           )}
 
@@ -1281,6 +1286,8 @@ export function App() {
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}
               onToggleCategoryActive={handleToggleCategoryActive}
+              initialBarcodeToRegister={barcodeToRegister}
+              onClearInitialBarcode={() => setBarcodeToRegister(null)}
             />
           )}
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { Camera, X, AlertCircle, RefreshCw } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { Camera, X, AlertCircle, RefreshCw, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { playBeep } from '../../lib/utils';
+import { ALL_SUPPORTED_BARCODE_FORMATS } from '../../lib/barcodeFormats';
 
 interface CameraBarcodeScannerModalProps {
   isOpen: boolean;
@@ -17,11 +18,14 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
   const [error, setError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
+  const isStoppingRef = useRef(false);
+  const lastScannedRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
 
   useEffect(() => {
     if (!isOpen) return;
 
     let isMounted = true;
+    isStoppingRef.current = false;
     const scannerId = 'camera-barcode-reader';
 
     const startCamera = async () => {
@@ -34,20 +38,10 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
 
         if (!document.getElementById(scannerId)) return;
 
-        // Comprehensive barcode symbologies for Phones & Tablets
+        // Comprehensive barcode symbologies for Phones & Tablets:
+        // Enables all 17 genuinely supported formats from html5-qrcode
         const html5QrCode = new Html5Qrcode(scannerId, {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.CODE_93,
-            Html5QrcodeSupportedFormats.CODABAR,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.QR_CODE,
-          ],
+          formatsToSupport: ALL_SUPPORTED_BARCODE_FORMATS,
           experimentalFeatures: {
             useBarCodeDetectorIfSupported: true,
           },
@@ -70,15 +64,28 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
           { facingMode: 'environment' },
           config,
           (decodedText) => {
-            if (isMounted) {
-              playBeep('scan');
-              onScanSuccess(decodedText);
-              html5QrCode.stop().then(() => {
-                onClose();
-              }).catch(() => {
-                onClose();
-              });
+            if (!isMounted || isStoppingRef.current) return;
+
+            const now = Date.now();
+            // Suppress rapid duplicate frames for the same decoded barcode
+            if (lastScannedRef.current.code === decodedText && now - lastScannedRef.current.time < 1500) {
+              return;
             }
+
+            isStoppingRef.current = true;
+            lastScannedRef.current = { code: decodedText, time: now };
+
+            playBeep('scan');
+            onScanSuccess(decodedText);
+
+            html5QrCode
+              .stop()
+              .catch(() => {})
+              .finally(() => {
+                if (isMounted) {
+                  onClose();
+                }
+              });
           },
           () => {
             // Frame scan failure (quietly keep searching)
@@ -91,11 +98,16 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
       } catch (err: any) {
         console.error('Camera Scanner Error:', err);
         if (isMounted) {
-          setError(
-            err?.message?.includes('Permission') 
-              ? 'Camera permission denied. Please allow camera access in browser.'
-              : 'Could not access camera. Ensure your webcam is connected or try another device.'
-          );
+          const errMsg = err?.message || String(err);
+          let userFacingError = 'Could not access camera. Ensure your webcam is connected or try another device.';
+          if (errMsg.includes('Permission') || errMsg.includes('NotAllowedError') || errMsg.includes('denied')) {
+            userFacingError = 'Camera permission denied. Please allow camera access in browser settings.';
+          } else if (errMsg.includes('NotFound') || errMsg.includes('DevicesNotFoundError')) {
+            userFacingError = 'No camera found on this device. Please connect a webcam or use a phone/tablet.';
+          } else if (errMsg.includes('NotReadable') || errMsg.includes('TrackStartError')) {
+            userFacingError = 'Camera is currently in use by another tab or app. Please close other camera apps and retry.';
+          }
+          setError(userFacingError);
           setIsStarting(false);
         }
       }
@@ -105,16 +117,26 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
 
     return () => {
       isMounted = false;
+      isStoppingRef.current = true;
       if (qrScannerRef.current) {
+        const scanner = qrScannerRef.current;
+        qrScannerRef.current = null;
         try {
-          if (qrScannerRef.current.isScanning) {
-            qrScannerRef.current.stop().catch(() => {});
+          if (scanner.isScanning) {
+            scanner
+              .stop()
+              .catch(() => {})
+              .finally(() => {
+                try {
+                  scanner.clear();
+                } catch {}
+              });
+          } else {
+            scanner.clear();
           }
-          qrScannerRef.current.clear();
         } catch (e) {
           // ignore cleanup err
         }
-        qrScannerRef.current = null;
       }
     };
   }, [isOpen, onScanSuccess, onClose]);
@@ -133,7 +155,7 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
             </div>
             <div>
               <h3 className="font-bold text-stone-900">Live Camera Barcode Scanner</h3>
-              <p className="text-xs text-stone-500">Point product barcode inside the box</p>
+              <p className="text-xs text-stone-500">Universal recognition: 1D Retail & 2D Matrix</p>
             </div>
           </div>
           <button 
@@ -154,7 +176,7 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
                 <p className="font-bold">Camera Notice</p>
                 <p className="text-xs text-rose-700 mt-1">{error}</p>
                 <p className="text-xs text-stone-500 mt-2">
-                  (Tip: For demo, you can also use a physical USB Barcode Gun or click any product in the Quick-Zap tray!)
+                  (Tip: You can also use a physical USB/Bluetooth Barcode Scanner or type barcodes manually in POS!)
                 </p>
               </div>
             </div>
@@ -170,15 +192,22 @@ export const CameraBarcodeScannerModal: React.FC<CameraBarcodeScannerModalProps>
             </div>
           )}
 
-          <div className="mt-4 flex items-center gap-2 text-xs text-stone-600 text-center">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Real-time continuous decoding active (EAN-13, CODE128, UPC-A, QR)</span>
+          {/* Formats status badge */}
+          <div className="mt-4 flex flex-col items-center gap-1 text-center">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>17 Universal Formats Enabled (EAN-13, EAN-8, UPC, Code 128, Code 39, ITF, QR, Data Matrix)</span>
+            </div>
+            <span className="text-[11px] text-stone-400">Point phone/tablet camera 10–20 cm away in steady lighting</span>
           </div>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-[#E8DEC8] bg-[#FAF8F5]">
-          <span className="text-xs text-stone-500">Audio beep chime enabled</span>
+          <span className="text-xs text-stone-500 flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#A67D0C]" />
+            Audio beep on detection
+          </span>
           <button
             onClick={onClose}
             className="btn-dark text-xs py-1.5 px-4 font-semibold"

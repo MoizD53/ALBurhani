@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Layers, 
   Package, 
@@ -38,6 +38,8 @@ interface ProductManagementViewProps {
   onAddCategory: (category: CategoryItem) => Promise<boolean>;
   onUpdateCategory: (category: CategoryItem, oldName?: string) => Promise<boolean>;
   onToggleCategoryActive?: (categoryId: string) => Promise<boolean>;
+  initialBarcodeToRegister?: string | null;
+  onClearInitialBarcode?: () => void;
 }
 
 export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
@@ -49,6 +51,8 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   onAddCategory,
   onUpdateCategory,
   onToggleCategoryActive,
+  initialBarcodeToRegister,
+  onClearInitialBarcode,
 }) => {
   // Main view active tab: 'items' or 'categories' (Default to 'items')
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'categories'>('items');
@@ -109,6 +113,15 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setPriceTiers([]);
     setIsProductModalOpen(true);
   };
+
+  // Handle prefilled registration barcode passed from POS
+  useEffect(() => {
+    if (initialBarcodeToRegister) {
+      handleOpenAddProduct();
+      setBarcode(initialBarcodeToRegister);
+      onClearInitialBarcode?.();
+    }
+  }, [initialBarcodeToRegister]);
 
   // Open Edit Product Modal
   const handleOpenEditProduct = (product: Product) => {

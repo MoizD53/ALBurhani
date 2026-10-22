@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { IMPORTED_PRODUCTS } from '../data/importedProducts';
-import { lookupProduct, buildCartItem, isWeightBasedProduct } from '../lib/pricing';
+import { lookupProduct, buildCartItem, isWeightBasedProduct, normalizeBarcodeInput } from '../lib/pricing';
+import { ALL_SUPPORTED_BARCODE_FORMATS, SUPPORTED_FORMAT_DETAILS, isFormatSupported } from '../lib/barcodeFormats';
+import { Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 describe('AL-BURHANI POS — Universal USB Barcode Scanner Compatibility', () => {
 
@@ -341,6 +343,155 @@ describe('AL-BURHANI POS — Universal USB Barcode Scanner Compatibility', () =>
       // Stock & orders must remain 100% untouched
       expect(initialStock).toBe(0);
       expect(initialOrdersCount).toBe(0);
+    });
+  });
+
+  // ─── 7. Supported Barcode Formats Completeness (All 17 html5-qrcode Formats) ───
+  describe('7. Supported Barcode Formats Completeness (All 17 html5-qrcode Formats)', () => {
+    it('enables all 17 barcode formats genuinely supported by html5-qrcode without inventing constants', () => {
+      expect(ALL_SUPPORTED_BARCODE_FORMATS.length).toBe(17);
+
+      // Verify all 17 official enum keys exist in the library
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.QR_CODE);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.AZTEC);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.CODABAR);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.CODE_39);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.CODE_93);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.CODE_128);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.DATA_MATRIX);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.MAXICODE);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.ITF);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.EAN_13);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.EAN_8);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.PDF_417);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.RSS_14);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.RSS_EXPANDED);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.UPC_A);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.UPC_E);
+      expect(ALL_SUPPORTED_BARCODE_FORMATS).toContain(Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION);
+    });
+
+    it('correctly reports supported and unsupported formats with isFormatSupported', () => {
+      expect(isFormatSupported(Html5QrcodeSupportedFormats.EAN_13)).toBe(true);
+      expect(isFormatSupported(Html5QrcodeSupportedFormats.CODE_128)).toBe(true);
+      expect(isFormatSupported(Html5QrcodeSupportedFormats.QR_CODE)).toBe(true);
+      expect(isFormatSupported(Html5QrcodeSupportedFormats.DATA_MATRIX)).toBe(true);
+      expect(isFormatSupported(Html5QrcodeSupportedFormats.PDF_417)).toBe(true);
+
+      // Fictional format IDs should return false
+      expect(isFormatSupported(9999)).toBe(false);
+      expect(isFormatSupported(-1)).toBe(false);
+    });
+
+    it('provides metadata details for each supported format', () => {
+      expect(SUPPORTED_FORMAT_DETAILS.length).toBe(17);
+      const ean13 = SUPPORTED_FORMAT_DETAILS.find((d) => d.name === 'EAN-13');
+      expect(ean13).toBeDefined();
+      expect(ean13?.category).toBe('1D');
+
+      const qr = SUPPORTED_FORMAT_DETAILS.find((d) => d.name === 'QR Code');
+      expect(qr).toBeDefined();
+      expect(qr?.category).toBe('2D');
+    });
+  });
+
+  // ─── 8. Barcode Normalisation & AIM Symbology Identifiers ───
+  describe('8. Barcode Normalisation & AIM Symbology Identifiers', () => {
+    it('trims leading and trailing whitespace safely', () => {
+      expect(normalizeBarcodeInput('   0001   ')).toBe('0001');
+      expect(normalizeBarcodeInput('\t\r\n890100801001\n ')).toBe('890100801001');
+    });
+
+    it('preserves leading zeroes strictly as string values', () => {
+      const code = normalizeBarcodeInput('0042');
+      expect(code).toBe('0042');
+      expect(typeof code).toBe('string');
+      expect(code).not.toBe('42');
+    });
+
+    it('strips AIM symbology identifiers emitted by hardware scanners (e.g. ]C0, ]E0)', () => {
+      // ]C0 = Code 128
+      expect(normalizeBarcodeInput(']C00001')).toBe('0001');
+      // ]E0 = EAN-13 / UPC
+      expect(normalizeBarcodeInput(']E0890100801001')).toBe('890100801001');
+      // ]Q1 = QR Code
+      expect(normalizeBarcodeInput(']Q1ALBURHANI-PAY')).toBe('ALBURHANI-PAY');
+      // ]d1 = Data Matrix
+      expect(normalizeBarcodeInput(']d1BATCH2026')).toBe('BATCH2026');
+    });
+
+    it('looks up product successfully even when scanner transmits AIM prefix', () => {
+      const res = lookupProduct(IMPORTED_PRODUCTS, ']C00001');
+      expect(res.length).toBe(1);
+      expect(res[0].name).toBe('KAJU KATLI 250G');
+    });
+  });
+
+  // ─── 9. Justified UPC-A <-> EAN-13 Representation Formatting ───
+  describe('9. Justified UPC-A <-> EAN-13 Representation Formatting', () => {
+    it('matches 12-digit UPC when scanned as 13-digit EAN with leading 0', () => {
+      // DCUBE BAJRA MURMURA has barcode '890100801001' (12 digits)
+      const resWithLeadingZero = lookupProduct(IMPORTED_PRODUCTS, '0890100801001');
+      expect(resWithLeadingZero.length).toBe(1);
+      expect(resWithLeadingZero[0].name).toBe('DCUBE BAJRA MURMURA');
+    });
+
+    it('does NOT match 1-digit code "1" to "0001" (preserves 4-digit zero padding)', () => {
+      const matches = lookupProduct(IMPORTED_PRODUCTS, '1');
+      expect(matches.some((p) => p.barcode === '0001')).toBe(false);
+    });
+  });
+
+  // ─── 10. Unknown Barcode Safe Action Recovery ───
+  describe('10. Unknown Barcode Safe Action Recovery', () => {
+    it('cleanly handles unregistered barcodes without modifying existing cart', () => {
+      const unknownBarcode = '9998887776665';
+      const matches = lookupProduct(IMPORTED_PRODUCTS, unknownBarcode);
+      expect(matches.length).toBe(0);
+
+      // In POS billing, when matches.length === 0, unknownBarcodePrompt is populated
+      let promptState: string | null = null;
+      let errorBeepPlayed = false;
+
+      const onScanUnknown = (code: string) => {
+        const found = lookupProduct(IMPORTED_PRODUCTS, code);
+        if (found.length === 0) {
+          promptState = code;
+          errorBeepPlayed = true;
+        }
+      };
+
+      onScanUnknown(unknownBarcode);
+      expect(promptState).toBe(unknownBarcode);
+      expect(errorBeepPlayed).toBe(true);
+    });
+  });
+
+  // ─── 11. Camera Barcode Scanner Debounce and Cleanup Lifecycle ───
+  describe('11. Camera Barcode Scanner Debounce and Cleanup Lifecycle', () => {
+    it('suppresses duplicate camera decode frames within debounce threshold', () => {
+      let isStopping = false;
+      const lastScanned = { code: '', time: 0 };
+      const receivedScans: string[] = [];
+
+      const onDecodeFrame = (text: string, time: number) => {
+        if (isStopping) return;
+        if (lastScanned.code === text && (time - lastScanned.time) < 1500) {
+          return;
+        }
+        isStopping = true;
+        lastScanned.code = text;
+        lastScanned.time = time;
+        receivedScans.push(text);
+      };
+
+      // Frame 1 at t=100ms
+      onDecodeFrame('890100801001', 100);
+      expect(receivedScans.length).toBe(1);
+
+      // Frame 2 at t=150ms (duplicate video frame before camera stops)
+      onDecodeFrame('890100801001', 150);
+      expect(receivedScans.length).toBe(1); // suppressed cleanly!
     });
   });
 

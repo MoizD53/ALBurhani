@@ -47,6 +47,7 @@ interface PosBillingViewProps {
   editingOrder?: OrderBill | null;
   onCancelEditOrder?: () => void;
   onSaveModifiedOrder?: (updatedOrder: OrderBill, originalOrder: OrderBill) => Promise<CompleteSaleResult | void> | CompleteSaleResult | void;
+  onNavigateToProducts?: (prefillBarcode?: string) => void;
 }
 
 export const PosBillingView: React.FC<PosBillingViewProps> = ({
@@ -57,6 +58,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   editingOrder = null,
   onCancelEditOrder,
   onSaveModifiedOrder,
+  onNavigateToProducts,
 }) => {
   // Billing Mode: Formal Customer Bill vs Internal No-Bill Sale
   const [transactionType, setTransactionType] = useState<TransactionType>(
@@ -68,6 +70,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [unknownBarcodePrompt, setUnknownBarcodePrompt] = useState<string | null>(null);
   
   // Modals for quantity & disambiguation
   const [selectedProductForQuantity, setSelectedProductForQuantity] = useState<Product | null>(null);
@@ -306,9 +309,9 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       setBarcodeInput('');
     } else {
       playBeep('error');
+      setUnknownBarcodePrompt(code);
       triggerScanFeedback(`Product not found for "${code}"`, true);
       setBarcodeInput('');
-      refocusBarcode();
     }
   };
 
@@ -316,7 +319,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   useBarcodeScanner({
     onScan: (scannedCode) => {
       // Only process when no modal is currently taking user focus
-      if (!selectedProductForQuantity && multipleMatchedProducts.length === 0 && !completedOrder && !isCameraOpen) {
+      if (!selectedProductForQuantity && multipleMatchedProducts.length === 0 && !completedOrder && !isCameraOpen && !unknownBarcodePrompt) {
         processBarcode(scannedCode);
       }
     },
@@ -1376,6 +1379,86 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
           setCompletedOrder(updated);
         }}
       />
+
+      {/* ─── Unknown Barcode Safe Action Modal ─── */}
+      {unknownBarcodePrompt && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setUnknownBarcodePrompt(null);
+              refocusBarcode();
+            }
+          }}
+          tabIndex={-1}
+        >
+          <div className="relative w-full max-w-md rounded-2xl bg-white border border-[#E8DEC8] shadow-2xl p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 shrink-0 mt-0.5">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-stone-900 text-sm">Unknown Barcode Scanned</h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  The scanned barcode is not linked to any existing product:
+                </p>
+                <div className="mt-2 py-1.5 px-2.5 bg-[#FAF8F5] border border-[#E8DEC8] rounded-lg font-mono font-bold text-stone-800 text-xs truncate select-all">
+                  {unknownBarcodePrompt}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUnknownBarcodePrompt(null);
+                  refocusBarcode();
+                }}
+                className="p-1 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-600">
+              Would you like to search for the product manually by name, or register this barcode as a new item in your catalog?
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const bc = unknownBarcodePrompt;
+                  setUnknownBarcodePrompt(null);
+                  setSearchQuery(bc);
+                  setMobileTab('catalog');
+                }}
+                className="py-2 px-3 rounded-xl bg-[#FAF8F5] hover:bg-[#F5F2EB] text-stone-800 border border-[#E8DEC8] font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Search Catalog</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const bc = unknownBarcodePrompt;
+                  setUnknownBarcodePrompt(null);
+                  if (onNavigateToProducts) {
+                    onNavigateToProducts(bc);
+                  } else {
+                    setSearchQuery(bc);
+                    setMobileTab('catalog');
+                  }
+                }}
+                className="btn-gold py-2 px-3 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Register Product</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

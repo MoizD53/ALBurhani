@@ -336,13 +336,35 @@ export function restoreStock(currentStock: number, restoredQuantity: number, isW
 }
 
 /**
+ * Normalises barcode strings safely:
+ * - Trims leading/trailing whitespace and control chars
+ * - Preserves leading zeroes (e.g. '0001', '0042')
+ * - Strips standard AIM symbology identifiers (e.g. ']C0', ']E0', ']d1', ']Q1')
+ * - Never converts barcode strings to numbers
+ */
+export function normalizeBarcodeInput(rawInput: string): string {
+  if (!rawInput) return '';
+  let str = rawInput.trim();
+  if (!str) return '';
+
+  // 1. Strip AIM Symbology Identifier prefix if emitted by advanced scanners
+  // Standard AIM format: ']' followed by 1 code character and 1 modifier character (e.g. ']C0', ']E0', ']d1', ']Q1')
+  if (/^\][a-zA-Z0-9]{2}/.test(str)) {
+    str = str.substring(3).trim();
+  }
+
+  return str;
+}
+
+/**
  * Searches product catalogue for exact match on:
- * 1. Barcode (preserves leading zeroes)
- * 2. SKU / Product Code (preserves leading zeroes)
- * 3. Case-insensitive fallback
+ * 1. Barcode (preserves leading zeroes strictly)
+ * 2. SKU / Product Code (preserves leading zeroes strictly)
+ * 3. Justified UPC-A (12-digit) <-> EAN-13 (13-digit) representation difference
+ * 4. Case-insensitive Name search fallback (non-numeric queries only)
  */
 export function lookupProduct(products: Product[], rawInput: string): Product[] {
-  const code = rawInput.trim();
+  const code = normalizeBarcodeInput(rawInput);
   if (!code) return [];
 
   // 1. Exact barcode match (string comparison, case-insensitive, preserves leading zeros strictly)
@@ -357,7 +379,24 @@ export function lookupProduct(products: Product[], rawInput: string): Product[] 
   );
   if (exactSku.length > 0) return exactSku;
 
-  // 3. Name search fallback (case-insensitive substring) - only if input is not a pure numeric barcode
+  // 3. Justified UPC-A (12-digit) <-> EAN-13 (13-digit) normalization:
+  // If a 13-digit code begins with '0' (standard GS1 representation of a 12-digit UPC), check 12-digit code
+  if (/^[0-9]{13}$/.test(code) && code.startsWith('0')) {
+    const upcCode = code.substring(1);
+    const upcMatch = products.filter(
+      (p) => p.barcode && p.barcode.toLowerCase() === upcCode.toLowerCase()
+    );
+    if (upcMatch.length > 0) return upcMatch;
+  } else if (/^[0-9]{12}$/.test(code)) {
+    // If scanner emitted 12 digits but product was stored as 13-digit EAN (0 + 12 digits)
+    const eanCode = `0${code}`;
+    const eanMatch = products.filter(
+      (p) => p.barcode && p.barcode.toLowerCase() === eanCode.toLowerCase()
+    );
+    if (eanMatch.length > 0) return eanMatch;
+  }
+
+  // 4. Name search fallback (case-insensitive substring) - only if input is not a pure numeric barcode
   const isNumericBarcode = /^[0-9]{4,}$/.test(code);
   if (!isNumericBarcode) {
     const nameMatches = products.filter((p) =>
