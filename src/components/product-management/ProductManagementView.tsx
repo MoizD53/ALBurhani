@@ -348,7 +348,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                 onClick={() => setSelectedCategoryFilter('All')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
                   selectedCategoryFilter === 'All'
-                    ? 'bg-stone-900 text-white shadow-xs'
+                    ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
                     : 'bg-[#FAF8F5] text-stone-600 hover:text-stone-900 border border-[#E8DEC8]'
                 }`}
               >

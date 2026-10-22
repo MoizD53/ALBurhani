@@ -17,7 +17,6 @@ import {
   Layers
 } from 'lucide-react';
 import { UserProfile } from '../../types';
-import { InstallPwaButton } from '../common/InstallPwaButton';
 
 export type ActiveTab =
   | 'overview'
@@ -208,14 +207,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Footer: Install App, User Profile & Collapse */}
+      {/* Footer: User Profile & Collapse */}
       <div className="pt-3 border-t border-[#F0EBE0] shrink-0 space-y-2">
         
-        {/* Install App Button when expanded */}
-        {showLabels && (
-          <InstallPwaButton variant="sidebar" />
-        )}
-
         {/* User Profile Card */}
         {showLabels ? (
           <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] flex items-center gap-2.5 min-w-0 shadow-sm">

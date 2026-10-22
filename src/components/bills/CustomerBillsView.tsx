@@ -135,7 +135,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         icon={FileText}
         title="Customer Tax Invoices"
         subtitle="Formal customer billing records with 5% GST compliance, bill modification, and thermal reprint"
-        badge={{ text: 'With GST · Cloud Synced', variant: 'gold' }}
+        badge={{ text: 'With GST (5%)', variant: 'gold' }}
       />
 
       {/* 2. Unified Metric Summary Cards */}

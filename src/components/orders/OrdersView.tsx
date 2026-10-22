@@ -527,7 +527,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
               onClick={() => setStatusFilter(st)}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors shrink-0 ${
                 statusFilter === st
-                  ? 'bg-stone-900 text-white shadow-xs'
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs font-bold'
                   : 'bg-[#FAF8F5] text-stone-600 hover:text-stone-900 border border-[#E8DEC8]'
               }`}
             >
@@ -1282,7 +1282,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                       }}
                       className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
                         selectedOrderForView.status === st
-                          ? 'bg-stone-900 text-white border-stone-900 shadow-xs'
+                          ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-xs'
                           : 'bg-white text-stone-600 border-[#E8DEC8] hover:bg-stone-50'
                       }`}
                     >
@@ -1328,7 +1328,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedOrderForView(null)}
-                  className="px-4 py-2 rounded-xl bg-stone-900 text-white text-xs font-bold hover:bg-stone-800"
+                  className="px-4 py-2 rounded-xl bg-stone-700 text-white text-xs font-bold hover:bg-stone-800"
                 >
                   Close
                 </button>
