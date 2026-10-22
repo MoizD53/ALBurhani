@@ -67,10 +67,8 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   const [barcode, setBarcode] = useState('');
   const [productCategory, setProductCategory] = useState<string>('SWEETS');
   const [unit, setUnit] = useState<SellingUnit>('KG');
-  const [costPrice, setCostPrice] = useState<number>(0);
   const [sellingPrice, setSellingPrice] = useState<number>(100);
   const [mrp, setMrp] = useState<number>(100);
-  const [taxRate, setTaxRate] = useState<number>(5);
   const [priceTiers, setPriceTiers] = useState<{ minQuantity: number; price: number }[]>([]);
 
   // Category Quick Add Modal (inside Product form)
@@ -106,10 +104,8 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setBarcode(`890100${randomBarcode}`);
     setProductCategory(activeCategoryList[0] || 'SWEETS');
     setUnit('KG');
-    setCostPrice(0);
     setSellingPrice(100);
     setMrp(100);
-    setTaxRate(5);
     setPriceTiers([]);
     setIsProductModalOpen(true);
   };
@@ -122,10 +118,8 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setBarcode(product.barcode);
     setProductCategory(product.category);
     setUnit(product.unit as SellingUnit);
-    setCostPrice(product.costPrice);
     setSellingPrice(product.sellingPrice);
     setMrp(product.mrp || product.sellingPrice);
-    setTaxRate(product.taxRate || 5);
     setPriceTiers(product.priceTiers || []);
     setIsProductModalOpen(true);
   };
@@ -146,10 +140,10 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
       category: productCategory,
       unit,
       priceBasis,
-      costPrice: Number(costPrice) || 0,
+      costPrice: editingProduct?.costPrice ?? 0,
       sellingPrice: Number(sellingPrice) || 0,
       mrp: Number(mrp) || Number(sellingPrice),
-      taxRate: Number(taxRate) || 0,
+      taxRate: editingProduct?.taxRate ?? 5,
       isActive: editingProduct ? (editingProduct.isActive ?? true) : true,
       priceTiers: priceTiers.filter((t) => t.minQuantity > 0 && t.price > 0),
     };
@@ -442,9 +436,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                         Rs. {p.sellingPrice.toFixed(2)}
                         <span className="text-xs font-normal text-stone-500 ml-1">/{p.unit}</span>
                       </div>
-                      <div className="text-[10px] text-stone-400">
-                        Cost: Rs. {(p.costPrice || 0).toFixed(2)}
-                      </div>
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -494,7 +485,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                     <th className="py-3 px-4">SKU / Code</th>
                     <th className="py-3 px-4">Barcode</th>
                     <th className="py-3 px-4 text-center">Unit Basis</th>
-                    <th className="py-3 px-4 text-right">Cost Price</th>
                     <th className="py-3 px-4 text-right">Selling Price</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
@@ -528,11 +518,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                         {/* Unit */}
                         <td className="py-3 px-4 text-center font-bold text-stone-700">
                           {p.unit}
-                        </td>
-
-                        {/* Cost Price */}
-                        <td className="py-3 px-4 text-right font-mono text-stone-500">
-                          Rs. {(p.costPrice || 0).toFixed(2)}
                         </td>
 
                         {/* Selling Price */}
@@ -821,8 +806,8 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                 </p>
               </div>
 
-              {/* Unit, Selling Price, Cost Price Row */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* Unit, Selling Price, MRP Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-stone-700 block mb-1">
                     Selling Unit
@@ -844,7 +829,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
 
                 <div>
                   <label className="text-xs font-bold text-stone-700 block mb-1">
-                    Selling Price (₹)
+                    Selling Price (₹) <span className="text-rose-600">*</span>
                   </label>
                   <input
                     type="number"
@@ -855,39 +840,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                     onChange={(e) => setSellingPrice(parseFloat(e.target.value) || 0)}
                     className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-mono font-bold focus:bg-white focus:border-[#C99A18] focus:outline-none"
                   />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">
-                    Cost Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={costPrice}
-                    onChange={(e) => setCostPrice(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-mono focus:bg-white focus:border-[#C99A18] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* GST Rate & MRP Row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">
-                    GST Rate (%)
-                  </label>
-                  <select
-                    value={taxRate}
-                    onChange={(e) => setTaxRate(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 focus:bg-white focus:border-[#C99A18] focus:outline-none font-semibold"
-                  >
-                    <option value="0">0% (Nil / Exempt)</option>
-                    <option value="5">5% (Sweets & Confectionery)</option>
-                    <option value="12">12% (Standard Namkeen / Bakery)</option>
-                    <option value="18">18% (Special Packaging)</option>
-                  </select>
                 </div>
 
                 <div>

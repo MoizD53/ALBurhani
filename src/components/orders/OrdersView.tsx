@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   ClipboardList, 
   Plus, 
@@ -88,6 +88,36 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   const [itemQty, setItemQty] = useState<number>(1);
   const [itemPrice, setItemPrice] = useState<number>(0);
   const [itemNotes, setItemNotes] = useState<string>('');
+  const [productSearchQuery, setProductSearchQuery] = useState<string>('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState<boolean>(false);
+  const productPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close product dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (productPickerRef.current && !productPickerRef.current.contains(event.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter products for dropdown
+  const pickerFilteredProducts = useMemo(() => {
+    const q = productSearchQuery.trim().toLowerCase();
+    if (!q) return products.slice(0, 50);
+    return products.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+      (p.category && p.category.toLowerCase().includes(q))
+    );
+  }, [products, productSearchQuery]);
+
+  const selectedProductObj = useMemo(() => {
+    return products.find((p) => p.id === selectedProductId) || null;
+  }, [products, selectedProductId]);
 
   // Synchronize item price when product is selected
   const handleProductSelect = (prodId: string) => {
@@ -96,6 +126,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     if (prod) {
       setItemPrice(prod.sellingPrice || 0);
     }
+    setProductSearchQuery('');
+    setIsProductDropdownOpen(false);
   };
 
   // Add item to order
@@ -142,6 +174,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     setItemQty(1);
     setItemPrice(0);
     setItemNotes('');
+    setProductSearchQuery('');
+    setIsProductDropdownOpen(false);
   };
 
   // Remove item from order
@@ -168,6 +202,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     setItemQty(1);
     setItemPrice(0);
     setItemNotes('');
+    setProductSearchQuery('');
+    setIsProductDropdownOpen(false);
     setIsFormModalOpen(true);
   };
 
@@ -190,6 +226,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     setItemQty(1);
     setItemPrice(0);
     setItemNotes('');
+    setProductSearchQuery('');
+    setIsProductDropdownOpen(false);
     setIsFormModalOpen(true);
   };
 
@@ -722,7 +760,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                     required
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="e.g. Murtaza Bhai, Fatima Behn"
+                    placeholder="Enter customer name"
                     className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 focus:bg-white focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none"
                   />
                 </div>
@@ -796,7 +834,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   type="text"
                   value={deliveryAddress}
                   onChange={(e) => setDeliveryAddress(e.target.value)}
-                  placeholder="e.g. Godi Road, Near Jamaat Khana, Dahod"
+                  placeholder="Enter delivery address or venue (optional)"
                   className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 focus:bg-white focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none"
                 />
               </div>
@@ -808,25 +846,103 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                     <Package className="w-3.5 h-3.5 text-[#B8860B]" />
                     <span>Order Items ({orderItems.length})</span>
                   </h4>
-                  <span className="text-[10px] text-stone-500">Pick from existing inventory</span>
+                  <span className="text-[10px] text-stone-500">Pick from existing products</span>
                 </div>
 
-                {/* Add Item Row */}
+                {/* Add Item Row with Searchable Combobox */}
                 <div className="grid grid-cols-12 gap-2 bg-white p-2.5 rounded-xl border border-[#E8DEC8]">
-                  <div className="col-span-12 sm:col-span-5">
-                    <label className="text-[10px] font-bold text-stone-500 uppercase block mb-1">Product</label>
-                    <select
-                      value={selectedProductId}
-                      onChange={(e) => handleProductSelect(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-lg text-stone-900 focus:bg-white focus:border-[#C99A18] focus:outline-none"
-                    >
-                      <option value="">-- Choose Item --</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.unit}) - Rs. {p.sellingPrice}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="col-span-12 sm:col-span-5 relative" ref={productPickerRef}>
+                    <label className="text-[10px] font-bold text-stone-500 uppercase block mb-1">
+                      Product <span className="text-[#A67D0C] font-normal normal-case">(Type to search)</span>
+                    </label>
+
+                    {selectedProductObj ? (
+                      <div className="flex items-center justify-between w-full px-2.5 py-1.5 text-xs bg-amber-50/80 border border-[#D4AF37] rounded-lg text-stone-900 shadow-xs">
+                        <div className="truncate pr-1">
+                          <span className="font-bold text-stone-900">{selectedProductObj.name}</span>
+                          <span className="text-[10px] text-stone-500 ml-1">({selectedProductObj.unit}) · Rs. {selectedProductObj.sellingPrice}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProductId('');
+                            setItemPrice(0);
+                            setProductSearchQuery('');
+                            setIsProductDropdownOpen(true);
+                          }}
+                          className="p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-amber-100 transition-colors shrink-0"
+                          title="Change product"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={productSearchQuery}
+                          onChange={(e) => {
+                            setProductSearchQuery(e.target.value);
+                            setIsProductDropdownOpen(true);
+                          }}
+                          onFocus={() => setIsProductDropdownOpen(true)}
+                          placeholder="Search item, SKU or barcode..."
+                          className="w-full pl-8 pr-7 py-1.5 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-lg text-stone-900 placeholder:text-stone-400 focus:bg-white focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none"
+                        />
+                        {productSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setProductSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Searchable Dropdown Popup */}
+                    {isProductDropdownOpen && !selectedProductObj && (
+                      <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-[#E8DEC8] rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+                        {pickerFilteredProducts.length === 0 ? (
+                          <div className="p-3 text-center text-xs text-stone-400">
+                            No matching products found
+                          </div>
+                        ) : (
+                          <div className="py-1 divide-y divide-stone-100">
+                            {pickerFilteredProducts.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => handleProductSelect(p.id)}
+                                className="w-full px-3 py-2 text-left hover:bg-amber-50/70 flex items-center justify-between gap-2 transition-colors group cursor-pointer"
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-bold text-xs text-stone-900 group-hover:text-[#A67D0C] truncate">
+                                    {p.name}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-[10px] text-stone-500 mt-0.5">
+                                    <span className="font-mono text-stone-600 font-semibold">{p.sku}</span>
+                                    <span>·</span>
+                                    <span className="bg-stone-100 text-stone-600 px-1 rounded">{p.unit}</span>
+                                    {p.category && (
+                                      <>
+                                        <span>·</span>
+                                        <span className="text-stone-400 truncate">{p.category}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="font-mono font-bold text-xs text-[#A67D0C] shrink-0">
+                                  Rs. {p.sellingPrice}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="col-span-4 sm:col-span-2">
