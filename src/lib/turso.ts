@@ -96,7 +96,7 @@ export function getTursoClient() {
  */
 export async function fetchProductsFromTurso(): Promise<Product[] | null> {
   try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-products`);
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-products&_t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -240,12 +240,38 @@ export async function adjustStockOnTurso(productId: string, delta: number): Prom
 }
 
 /**
+ * Fetch deleted order tombstones from remote database
+ */
+export async function fetchDeletedOrdersFromTurso(): Promise<{ id: string; billNumber?: string }[] | null> {
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-deleted-orders&_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.rows)) return null;
+
+    return data.rows.map((row: any) => ({
+      id: String(row.id),
+      billNumber: row.bill_number ? String(row.bill_number) : undefined,
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch orders from remote database
  */
 export async function fetchOrdersFromTurso(transactionType?: 'CUSTOMER_BILL' | 'NO_BILL' | 'ALL'): Promise<OrderBill[] | null> {
   try {
     const typeParam = transactionType && transactionType !== 'ALL' ? `&type=${transactionType}` : '';
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-orders${typeParam}`);
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-orders${typeParam}&_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -367,7 +393,7 @@ export async function deleteOrderFromTurso(orderId: string, billNumber?: string)
  */
 export async function fetchExpensesFromTurso(): Promise<ExpenseItem[] | null> {
   try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-expenses`);
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-expenses&_t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -418,7 +444,7 @@ export async function saveExpenseToTurso(expense: ExpenseItem): Promise<boolean>
  */
 export async function fetchCustomersFromTurso(): Promise<CustomerRecord[] | null> {
   try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-customers`);
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-customers&_t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return null;
 
     const data = await res.json();

@@ -150,9 +150,10 @@ class SyncManager {
     this.isPolling = true;
 
     try {
-      const endpoint = `/api/db?action=fetch-events&since=${this.lastTimestamp}`;
+      const endpoint = `/api/db?action=fetch-events&since=${this.lastTimestamp}&_t=${Date.now()}`;
       const res = await fetch(endpoint, {
         method: 'GET',
+        cache: 'no-store',
         headers: { Accept: 'application/json' },
       });
 
@@ -199,8 +200,8 @@ class SyncManager {
           } catch {}
         }
       } else if (data.serverTime && data.serverTime > this.lastTimestamp) {
-        // Keep timestamp roughly updated
-        this.lastTimestamp = Math.max(this.lastTimestamp, data.serverTime - 10000);
+        // Keep timestamp safely updated with a 30-second trailing safety margin to prevent jumping past uncommitted events
+        this.lastTimestamp = Math.max(this.lastTimestamp, data.serverTime - 30000);
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('albhurani_last_sync_timestamp', String(this.lastTimestamp));

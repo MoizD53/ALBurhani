@@ -17,6 +17,7 @@ interface BillingPageHeaderProps {
     text: string;
     variant?: 'gold' | 'zinc' | 'emerald';
   };
+  actions?: React.ReactNode;
 }
 
 export const BillingPageHeader: React.FC<BillingPageHeaderProps> = ({
@@ -24,6 +25,7 @@ export const BillingPageHeader: React.FC<BillingPageHeaderProps> = ({
   title,
   subtitle,
   badge,
+  actions,
 }) => {
   const badgeClasses = {
     gold: 'bg-amber-500/15 text-amber-800 border-amber-500/30 font-bold',
@@ -53,6 +55,11 @@ export const BillingPageHeader: React.FC<BillingPageHeaderProps> = ({
           </p>
         </div>
       </div>
+      {actions && (
+        <div className="shrink-0 flex items-center gap-2 self-stretch sm:self-auto justify-end">
+          {actions}
+        </div>
+      )}
     </div>
   );
 };

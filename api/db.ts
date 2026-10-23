@@ -166,6 +166,14 @@ async function ensureSchema(client: Client): Promise<void> {
 
     `CREATE INDEX IF NOT EXISTS idx_categories_name ON categories (name);`,
 
+    `CREATE TABLE IF NOT EXISTS deleted_orders (
+      id TEXT PRIMARY KEY,
+      bill_number TEXT,
+      deleted_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );`,
+
+    `CREATE INDEX IF NOT EXISTS idx_del_orders_bill ON deleted_orders (bill_number);`,
+
     `CREATE TABLE IF NOT EXISTS sync_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       entity_type TEXT NOT NULL,
@@ -200,6 +208,20 @@ async function ensureSchema(client: Client): Promise<void> {
     } catch {
       // Ignore if column already exists
     }
+  }
+
+  // Ensure known deleted test orders and tombstones are recorded and purged
+  try {
+    await client.execute(`INSERT OR IGNORE INTO deleted_orders (id, bill_number, deleted_at)
+      VALUES
+        ('sale-1792594590792-2043', 'ALB-NB-2043', '2026-10-21 15:47:31'),
+        ('sale-1792594676977-4761', 'ALB-NB-4761', '2026-10-21 15:47:56'),
+        ('ALB-INV-2726', 'ALB-INV-2726', CURRENT_TIMESTAMP);`);
+
+    await client.execute(`DELETE FROM orders WHERE id IN (SELECT id FROM deleted_orders)
+      OR (bill_number IS NOT NULL AND bill_number != '' AND bill_number IN (SELECT bill_number FROM deleted_orders WHERE bill_number IS NOT NULL AND bill_number != ''));`);
+  } catch (tombstoneErr) {
+    console.warn('Tombstone table synchronization warning:', tombstoneErr);
   }
 
   isSchemaInitialized = true;
@@ -263,6 +285,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-albhurani-role'
   );
+
+  // Strict No-Cache Headers to prevent stale iOS Safari and edge CDN caching
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -330,6 +357,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         query += ' ORDER BY created_at DESC LIMIT 500;';
 
         const result = await client.execute({ sql: query, args });
+        return res.status(200).json({ success: true, rows: result.rows });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    if (action === 'fetch-deleted-orders') {
+      try {
+        const result = await client.execute('SELECT id, bill_number, deleted_at FROM deleted_orders ORDER BY deleted_at DESC LIMIT 1000;');
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -611,6 +647,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       try {
+        // Prevent zombie order resurrection: check if order is in deleted_orders
+        const tombstone = await client.execute({
+          sql: 'SELECT 1 FROM deleted_orders WHERE id = ? OR (bill_number IS NOT NULL AND bill_number != "" AND bill_number = ?) LIMIT 1;',
+          args: [o.id, o.billNumber],
+        });
+        if (tombstone.rows.length > 0) {
+          return res.status(200).json({ success: true, ignored: true, reason: 'Order has been tombstoned / deleted' });
+        }
+
         await client.execute({
           sql: `INSERT OR REPLACE INTO orders (
             id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
@@ -663,9 +708,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       try {
+        const deletedRows = await client.execute('SELECT id, bill_number FROM deleted_orders;');
+        const deletedIdSet = new Set(deletedRows.rows.map((r: any) => String(r.id)));
+        const deletedBillSet = new Set(deletedRows.rows.map((r: any) => String(r.bill_number)).filter(Boolean));
+
         let inserted = 0;
         for (const o of orders) {
           if (!o || !o.id || !o.billNumber) continue;
+          if (deletedIdSet.has(o.id) || (o.billNumber && deletedBillSet.has(o.billNumber))) continue;
           await client.execute({
             sql: `INSERT OR REPLACE INTO orders (
               id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
@@ -722,11 +772,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         const targetBill = billNumber || orderId;
         await client.execute({
+          sql: 'INSERT OR REPLACE INTO deleted_orders (id, bill_number, deleted_at) VALUES (?, ?, CURRENT_TIMESTAMP);',
+          args: [orderId, targetBill],
+        });
+
+        await client.execute({
           sql: 'DELETE FROM orders WHERE id = ? OR bill_number = ?;',
           args: [orderId, targetBill],
         });
 
-        await logSyncEvent(client, 'order', orderId, 'delete', { orderId, billNumber });
+        await logSyncEvent(client, 'order', orderId, 'delete', { orderId, billNumber: targetBill });
         return res.status(200).json({ success: true });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });

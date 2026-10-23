@@ -43,6 +43,35 @@ export function recordDeletedOrder(id: string, billNumber?: string): void {
 }
 
 /**
+ * Synchronizes remote deleted order tombstones from Turso cloud into local device storage.
+ */
+export function syncDeletedOrdersFromRemote(remoteDeleted: { id: string; billNumber?: string }[]): Set<string> {
+  const localSet = getDeletedOrderIds();
+  let modified = false;
+
+  for (const item of remoteDeleted) {
+    if (item.id && item.id.trim() && !localSet.has(item.id.trim())) {
+      localSet.add(item.id.trim());
+      modified = true;
+    }
+    if (item.billNumber && item.billNumber.trim() && !localSet.has(item.billNumber.trim())) {
+      localSet.add(item.billNumber.trim());
+      modified = true;
+    }
+  }
+
+  if (modified && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(DELETED_ORDERS_STORAGE_KEY, JSON.stringify(Array.from(localSet)));
+    } catch (err) {
+      console.warn('Failed to save merged tombstones:', err);
+    }
+  }
+
+  return localSet;
+}
+
+/**
  * Checks whether an order ID or bill number has been deleted.
  */
 export function isOrderDeleted(id?: string, billNumber?: string): boolean {

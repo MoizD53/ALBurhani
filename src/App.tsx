@@ -5,6 +5,7 @@ import { isWeightBasedProduct } from './lib/pricing';
 import { 
   getTursoClient, 
   fetchOrdersFromTurso, 
+  fetchDeletedOrdersFromTurso,
   saveOrderToTurso, 
   batchSaveOrdersToTurso,
   saveProductToTurso,
@@ -38,6 +39,7 @@ import {
 import {
   getDeletedOrderIds,
   recordDeletedOrder,
+  syncDeletedOrdersFromRemote,
   isOrderDeleted,
   isDemoOrTestOrder
 } from './lib/orders';
@@ -265,211 +267,247 @@ export function App() {
   });
 
   // Clean up obsolete test mode key from localStorage and sync remote data if configured
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  const syncRemoteData = React.useCallback(async () => {
+    try {
+      setIsSyncing(true);
+
+      // 0. Synchronize remote deleted order tombstones first to prevent resurrection
+      const remoteDeleted = await fetchDeletedOrdersFromTurso();
+      let deletedIds = getDeletedOrderIds();
+      if (remoteDeleted && remoteDeleted.length > 0) {
+        deletedIds = syncDeletedOrdersFromRemote(remoteDeleted);
+      }
+
+      // 1. Synchronize products with safeguarding against partial catalog wipes
+      const remoteProducts = await fetchProductsFromTurso();
+      if (remoteProducts && remoteProducts.length >= 250) {
+        // Check if this device has local products that haven't reached Turso yet
+        const remoteIdSet = new Set(remoteProducts.map((p) => p.id));
+        const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_products') : null;
+        let localProducts: Product[] = [];
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) localProducts = parsed;
+          } catch {}
+        }
+
+        const unsyncedProducts = localProducts.filter(
+          (lp) => lp && lp.id && !remoteIdSet.has(lp.id)
+        );
+
+        if (unsyncedProducts.length > 0) {
+          // Upload unsynced local products to Turso cloud so other devices see them
+          for (const up of unsyncedProducts) {
+            await saveProductToTurso(up);
+          }
+        }
+
+        const mergedProducts = [...remoteProducts, ...unsyncedProducts];
+        setProducts(mergedProducts);
+        try {
+          localStorage.setItem('albhurani_products', JSON.stringify(mergedProducts));
+        } catch {}
+      } else if (remoteProducts !== null && remoteProducts.length < 250) {
+        // Safeguard: Never allow a partial or empty cloud response (<250 items) to truncate local 305-product catalog.
+        // Instead, ensure local state is complete and backfill the master catalog to Turso.
+        setProducts((currentProducts) => {
+          const catalogToPreserve = (currentProducts && currentProducts.length >= 250)
+            ? currentProducts
+            : IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
+
+          batchSaveProductsToTurso(catalogToPreserve).catch((err) =>
+            console.error('Failed to backfill catalog to Turso:', err)
+          );
+
+          try {
+            localStorage.setItem('albhurani_products', JSON.stringify(catalogToPreserve));
+          } catch {}
+          return catalogToPreserve;
+        });
+      }
+
+      // 2. Synchronize orders
+      const remoteOrders = await fetchOrdersFromTurso();
+      if (remoteOrders !== null) {
+        const validRemoteOrders = remoteOrders.filter(
+          (ro) => !isDemoOrTestOrder(ro) && !deletedIds.has(ro.id) && (!ro.billNumber || !deletedIds.has(ro.billNumber))
+        );
+
+        // Check if this device has local genuine orders that haven't reached Turso yet
+        const remoteIdSet = new Set(validRemoteOrders.map((o) => o.id));
+        const remoteBillSet = new Set(validRemoteOrders.map((o) => o.billNumber));
+
+        const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_orders') : null;
+        let localOrders: OrderBill[] = [];
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) localOrders = parsed;
+          } catch {}
+        }
+
+        // Clean out any tombstoned orders from local storage
+        const cleanLocalOrders = localOrders.filter(
+          (lo) => lo && lo.id && !isDemoOrTestOrder(lo) && !deletedIds.has(lo.id) && (!lo.billNumber || !deletedIds.has(lo.billNumber))
+        );
+
+        const unsyncedLocalOrders = cleanLocalOrders.filter(
+          (lo) => !remoteIdSet.has(lo.id) && (!lo.billNumber || !remoteBillSet.has(lo.billNumber))
+        );
+
+        if (unsyncedLocalOrders.length > 0) {
+          // Upload genuine unsynced orders to cloud so all other devices see them
+          await batchSaveOrdersToTurso(unsyncedLocalOrders);
+        }
+
+        const mergedOrders = [...validRemoteOrders, ...unsyncedLocalOrders];
+        setOrders(mergedOrders);
+        try {
+          localStorage.setItem('albhurani_orders', JSON.stringify(mergedOrders));
+        } catch {}
+      }
+
+      // 3. Synchronize expenses
+      const remoteExpenses = await fetchExpensesFromTurso();
+      if (remoteExpenses !== null) {
+        const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_expenses') : null;
+        let localExpenses: ExpenseItem[] = [];
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) localExpenses = parsed;
+          } catch {}
+        }
+        const remoteExpSet = new Set(remoteExpenses.map((e) => e.id));
+        const unsyncedExp = localExpenses.filter((le) => le && le.id && !remoteExpSet.has(le.id));
+        for (const exp of unsyncedExp) {
+          await saveExpenseToTurso(exp).catch(() => {});
+        }
+        const mergedExpenses = [...remoteExpenses, ...unsyncedExp];
+        setExpenses(mergedExpenses);
+        try {
+          localStorage.setItem('albhurani_expenses', JSON.stringify(mergedExpenses));
+        } catch {}
+      }
+
+      // 4. Synchronize customers
+      const remoteCustomers = await fetchCustomersFromTurso();
+      if (remoteCustomers && remoteCustomers.length > 0) {
+        setCustomers(remoteCustomers);
+      }
+
+      // 5. Synchronize shared settings
+      const remoteSettings = await fetchSettingsFromTurso();
+      if (remoteSettings) {
+        if (remoteSettings.label_preset) {
+          localStorage.setItem('albhurani_label_preset', remoteSettings.label_preset);
+        }
+        if (remoteSettings.label_settings) {
+          localStorage.setItem('albhurani_label_settings', JSON.stringify(remoteSettings.label_settings));
+        }
+        if (remoteSettings.store_profile) {
+          localStorage.setItem('albhurani_store_profile', JSON.stringify(remoteSettings.store_profile));
+        }
+      }
+
+      // 6. Synchronize customer orders (advance bookings)
+      const remoteCustomerOrders = await fetchCustomerOrdersFromTurso();
+      if (remoteCustomerOrders !== null) {
+        const localSavedOrders = getSavedCustomerOrders();
+        const remoteMap = new Map(remoteCustomerOrders.map((o) => [o.id, o]));
+        const unsynced = localSavedOrders.filter((lo) => !remoteMap.has(lo.id));
+        for (const u of unsynced) {
+          await saveCustomerOrderToTurso(u).catch(() => {});
+        }
+        const merged = [...remoteCustomerOrders, ...unsynced];
+        setCustomerOrders(merged);
+        saveCustomerOrdersLocally(merged);
+      }
+
+      // 7. Synchronize categories
+      const remoteCategories = await fetchCategoriesFromTurso();
+      if (remoteCategories !== null && remoteCategories.length > 0) {
+        const localSavedCats = getSavedCategories(products);
+        const remoteCatMap = new Map(remoteCategories.map((c) => [c.id, c]));
+        const unsyncedCats = localSavedCats.filter((lc) => !remoteCatMap.has(lc.id));
+        for (const uc of unsyncedCats) {
+          await saveCategoryToTurso(uc).catch(() => {});
+        }
+        const mergedCats = [...remoteCategories, ...unsyncedCats];
+        setCategories(mergedCats);
+        saveCategoriesLocally(mergedCats);
+      } else if (remoteCategories !== null && remoteCategories.length === 0) {
+        const localCats = getSavedCategories(products);
+        for (const c of localCats) {
+          await saveCategoryToTurso(c).catch(() => {});
+        }
+        setCategories(localCats);
+      }
+    } catch (err) {
+      console.warn('Could not sync remote data from Turso:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [products]);
+
   useEffect(() => {
     try {
       localStorage.removeItem('albhurani_pos_test_mode');
     } catch {}
-
-    async function syncRemoteData() {
-      try {
-        const deletedIds = getDeletedOrderIds();
-
-        // 1. Synchronize products with safeguarding against partial catalog wipes
-        const remoteProducts = await fetchProductsFromTurso();
-        if (remoteProducts && remoteProducts.length >= 250) {
-          // Check if this device has local products that haven't reached Turso yet
-          const remoteIdSet = new Set(remoteProducts.map((p) => p.id));
-          const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_products') : null;
-          let localProducts: Product[] = [];
-          if (localSaved) {
-            try {
-              const parsed = JSON.parse(localSaved);
-              if (Array.isArray(parsed)) localProducts = parsed;
-            } catch {}
-          }
-
-          const unsyncedProducts = localProducts.filter(
-            (lp) => lp && lp.id && !remoteIdSet.has(lp.id)
-          );
-
-          if (unsyncedProducts.length > 0) {
-            // Upload unsynced local products to Turso cloud so other devices see them
-            for (const up of unsyncedProducts) {
-              await saveProductToTurso(up);
-            }
-          }
-
-          const mergedProducts = [...remoteProducts, ...unsyncedProducts];
-          setProducts(mergedProducts);
-          try {
-            localStorage.setItem('albhurani_products', JSON.stringify(mergedProducts));
-          } catch {}
-        } else if (remoteProducts !== null && remoteProducts.length < 250) {
-          // Safeguard: Never allow a partial or empty cloud response (<250 items) to truncate local 305-product catalog.
-          // Instead, ensure local state is complete and backfill the master catalog to Turso.
-          setProducts((currentProducts) => {
-            const catalogToPreserve = (currentProducts && currentProducts.length >= 250)
-              ? currentProducts
-              : IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
-
-            batchSaveProductsToTurso(catalogToPreserve).catch((err) =>
-              console.error('Failed to backfill catalog to Turso:', err)
-            );
-
-            try {
-              localStorage.setItem('albhurani_products', JSON.stringify(catalogToPreserve));
-            } catch {}
-            return catalogToPreserve;
-          });
-        }
-
-        // 2. Synchronize orders
-        const remoteOrders = await fetchOrdersFromTurso();
-        if (remoteOrders !== null) {
-          const validRemoteOrders = remoteOrders.filter(
-            (ro) => !isDemoOrTestOrder(ro) && !deletedIds.has(ro.id) && (!ro.billNumber || !deletedIds.has(ro.billNumber))
-          );
-
-          // Check if this device has local genuine orders that haven't reached Turso yet
-          const remoteIdSet = new Set(validRemoteOrders.map((o) => o.id));
-          const remoteBillSet = new Set(validRemoteOrders.map((o) => o.billNumber));
-
-          const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_orders') : null;
-          let localOrders: OrderBill[] = [];
-          if (localSaved) {
-            try {
-              const parsed = JSON.parse(localSaved);
-              if (Array.isArray(parsed)) localOrders = parsed;
-            } catch {}
-          }
-
-          const unsyncedLocalOrders = localOrders.filter(
-            (lo) =>
-              lo &&
-              lo.id &&
-              !isDemoOrTestOrder(lo) &&
-              !deletedIds.has(lo.id) &&
-              (!lo.billNumber || !deletedIds.has(lo.billNumber)) &&
-              !remoteIdSet.has(lo.id) &&
-              (!lo.billNumber || !remoteBillSet.has(lo.billNumber))
-          );
-
-          if (unsyncedLocalOrders.length > 0) {
-            // Upload to cloud so all other devices see them
-            await batchSaveOrdersToTurso(unsyncedLocalOrders);
-          }
-
-          const mergedOrders = [...validRemoteOrders, ...unsyncedLocalOrders];
-          setOrders(mergedOrders);
-          try {
-            localStorage.setItem('albhurani_orders', JSON.stringify(mergedOrders));
-          } catch {}
-        }
-
-        // 3. Synchronize expenses
-        const remoteExpenses = await fetchExpensesFromTurso();
-        if (remoteExpenses !== null) {
-          const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_expenses') : null;
-          let localExpenses: ExpenseItem[] = [];
-          if (localSaved) {
-            try {
-              const parsed = JSON.parse(localSaved);
-              if (Array.isArray(parsed)) localExpenses = parsed;
-            } catch {}
-          }
-          const remoteExpSet = new Set(remoteExpenses.map((e) => e.id));
-          const unsyncedExp = localExpenses.filter((le) => le && le.id && !remoteExpSet.has(le.id));
-          for (const exp of unsyncedExp) {
-            await saveExpenseToTurso(exp).catch(() => {});
-          }
-          const mergedExpenses = [...remoteExpenses, ...unsyncedExp];
-          setExpenses(mergedExpenses);
-          try {
-            localStorage.setItem('albhurani_expenses', JSON.stringify(mergedExpenses));
-          } catch {}
-        }
-
-        // 4. Synchronize customers
-        const remoteCustomers = await fetchCustomersFromTurso();
-        if (remoteCustomers && remoteCustomers.length > 0) {
-          setCustomers(remoteCustomers);
-        }
-
-        // 5. Synchronize shared settings
-        const remoteSettings = await fetchSettingsFromTurso();
-        if (remoteSettings) {
-          if (remoteSettings.label_preset) {
-            localStorage.setItem('albhurani_label_preset', remoteSettings.label_preset);
-          }
-          if (remoteSettings.label_settings) {
-            localStorage.setItem('albhurani_label_settings', JSON.stringify(remoteSettings.label_settings));
-          }
-          if (remoteSettings.store_profile) {
-            localStorage.setItem('albhurani_store_profile', JSON.stringify(remoteSettings.store_profile));
-          }
-        }
-
-        // 6. Synchronize customer orders (advance bookings)
-        const remoteCustomerOrders = await fetchCustomerOrdersFromTurso();
-        if (remoteCustomerOrders !== null) {
-          const localSavedOrders = getSavedCustomerOrders();
-          const remoteMap = new Map(remoteCustomerOrders.map((o) => [o.id, o]));
-          const unsynced = localSavedOrders.filter((lo) => !remoteMap.has(lo.id));
-          for (const u of unsynced) {
-            await saveCustomerOrderToTurso(u).catch(() => {});
-          }
-          const merged = [...remoteCustomerOrders, ...unsynced];
-          setCustomerOrders(merged);
-          saveCustomerOrdersLocally(merged);
-        }
-
-        // 7. Synchronize categories
-        const remoteCategories = await fetchCategoriesFromTurso();
-        if (remoteCategories !== null && remoteCategories.length > 0) {
-          const localSavedCats = getSavedCategories(products);
-          const remoteCatMap = new Map(remoteCategories.map((c) => [c.id, c]));
-          const unsyncedCats = localSavedCats.filter((lc) => !remoteCatMap.has(lc.id));
-          for (const uc of unsyncedCats) {
-            await saveCategoryToTurso(uc).catch(() => {});
-          }
-          const mergedCats = [...remoteCategories, ...unsyncedCats];
-          setCategories(mergedCats);
-          saveCategoriesLocally(mergedCats);
-        } else if (remoteCategories !== null && remoteCategories.length === 0) {
-          const localCats = getSavedCategories(products);
-          for (const c of localCats) {
-            await saveCategoryToTurso(c).catch(() => {});
-          }
-          setCategories(localCats);
-        }
-      } catch (err) {
-        console.warn('Could not sync remote data from Turso:', err);
-      }
-    }
 
     syncRemoteData();
 
     // Start background sync manager (polling delta events every 2.5s and on focus/online)
     syncManager.start();
 
+    // Periodic full reconciliation every 30 seconds to guarantee zero-drift cross-device convergence
+    const reconcileInterval = setInterval(() => {
+      syncRemoteData();
+    }, 30000);
+
+    const handleWindowFocus = () => {
+      syncRemoteData();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncRemoteData();
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('online', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     // Listen for real-time events from other devices
     const unsubOrder = syncManager.subscribe('order', (ev) => {
       if (ev.operation === 'save' && ev.payload) {
         setOrders((prev) => {
           const exists = prev.some((o) => o.id === ev.payload.id || (ev.payload.billNumber && o.billNumber === ev.payload.billNumber));
-          if (exists) {
-            return prev.map((o) => (o.id === ev.payload.id || o.billNumber === ev.payload.billNumber ? ev.payload : o));
-          }
-          return [ev.payload, ...prev];
+          const updated = exists
+            ? prev.map((o) => (o.id === ev.payload.id || o.billNumber === ev.payload.billNumber ? ev.payload : o))
+            : [ev.payload, ...prev];
+          try {
+            localStorage.setItem('albhurani_orders', JSON.stringify(updated));
+          } catch {}
+          return updated;
         });
       } else if (ev.operation === 'delete') {
         const orderId = ev.entityId;
         const billNumber = ev.payload?.billNumber;
-        setOrders((prev) => prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber)));
-      } else if (ev.operation === 'batch_save' || ev.operation === 'clear_orders') {
-        fetchOrdersFromTurso().then((res) => {
-          if (res) setOrders(res);
+        recordDeletedOrder(orderId, billNumber);
+        setOrders((prev) => {
+          const updated = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
+          try {
+            localStorage.setItem('albhurani_orders', JSON.stringify(updated));
+          } catch {}
+          return updated;
         });
+      } else if (ev.operation === 'batch_save' || ev.operation === 'clear_orders') {
+        syncRemoteData();
       }
     });
 
@@ -590,6 +628,10 @@ export function App() {
     });
 
     return () => {
+      clearInterval(reconcileInterval);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('online', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       syncManager.stop();
       unsubOrder();
       unsubProduct();
@@ -599,7 +641,7 @@ export function App() {
       unsubCustomerOrder();
       unsubCategory();
     };
-  }, []);
+  }, [syncRemoteData]);
 
   // Save states to localStorage
   useEffect(() => {
@@ -1264,6 +1306,8 @@ export function App() {
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
               onSettleOrder={handleSettleOrder}
+              onSyncNow={syncRemoteData}
+              isSyncing={isSyncing}
             />
           )}
 
@@ -1273,6 +1317,8 @@ export function App() {
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
               onSettleOrder={handleSettleOrder}
+              onSyncNow={syncRemoteData}
+              isSyncing={isSyncing}
             />
           )}
 

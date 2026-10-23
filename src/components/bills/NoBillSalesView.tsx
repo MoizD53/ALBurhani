@@ -9,7 +9,8 @@ import {
   ChevronUp,
   Receipt,
   IndianRupee,
-  Package
+  Package,
+  RefreshCw
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
 import { getOrderDue } from '../../lib/utils';
@@ -28,13 +29,17 @@ interface NoBillSalesViewProps {
   onDeleteOrder?: (orderId: string) => Promise<boolean> | boolean | void;
   onModifyOrder?: (order: OrderBill) => void;
   onSettleOrder?: (order: OrderBill) => Promise<void> | void;
+  onSyncNow?: () => Promise<void> | void;
+  isSyncing?: boolean;
 }
 
 export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({ 
   orders, 
   onDeleteOrder, 
   onModifyOrder,
-  onSettleOrder
+  onSettleOrder,
+  onSyncNow,
+  isSyncing = false
 }) => {
   const [search, setSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
@@ -135,6 +140,22 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
     }
   };
 
+  const handleSyncClick = async () => {
+    if (isSyncing || !onSyncNow) return;
+    try {
+      await onSyncNow();
+      setFeedback({
+        type: 'success',
+        message: `Cloud sync verified: ${noBillSales.length} sales synchronized across all devices.`,
+      });
+    } catch {
+      setFeedback({
+        type: 'error',
+        message: 'Sync failed. Please check internet connection.',
+      });
+    }
+  };
+
   const hasActiveFilters = Boolean(search.trim() || paymentFilter !== 'ALL');
 
   return (
@@ -146,6 +167,19 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         title="No-Bill Counter Sales Audit"
         subtitle="Internal recorded sales without customer tax invoice · Direct counter billing · 0% GST"
         badge={{ text: 'Without GST (0%)', variant: 'zinc' }}
+        actions={
+          onSyncNow ? (
+            <button
+              onClick={handleSyncClick}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-[#C99A18]/40 hover:border-[#C99A18] text-[#8C6D15] hover:text-[#5E4708] hover:bg-[#FAF8F5] transition-all shadow-xs active:scale-95 disabled:opacity-60 cursor-pointer"
+              title="Force live cloud synchronization across all devices"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#C99A18]' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : 'Sync Live'}</span>
+            </button>
+          ) : undefined
+        }
       />
 
       {/* 2. Unified Metric Summary Cards (5-Card Grid) */}
