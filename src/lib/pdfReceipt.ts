@@ -130,7 +130,8 @@ export function generateReceiptPdfBytes(
   curY -= 10;
 
   // 2. Bill Metadata
-  writeBetween(`Bill: ${order.billNumber}`, `Date: ${order.createdAt}`, curY, 'F1', 7);
+  const billDisplay = order.dailyBillNumber ? `Bill #${order.dailyBillNumber} (${order.billNumber})` : `Bill: ${order.billNumber}`;
+  writeBetween(billDisplay, `Date: ${order.createdAt}`, curY, 'F1', 7);
   curY -= 9;
   writeBetween(`Cashier: ${order.cashierName}`, `Mode: ${order.paymentMethod}`, curY, 'F1', 7);
   curY -= 9;
@@ -551,7 +552,7 @@ export function generateReceiptHtml(
 
   <div class="py-1 border-b-dashed" style="font-size: ${is58mm ? '7.5px' : '8.5px'}; font-weight: 700;">
     <div class="flex-between">
-      <span>Bill: ${order.billNumber}</span>
+      <span>${order.dailyBillNumber ? `Daily Bill #${order.dailyBillNumber} (${order.billNumber})` : `Bill: ${order.billNumber}`}</span>
       <span>Date: ${order.createdAt}</span>
     </div>
     <div class="flex-between" style="margin-top: 2px;">
@@ -781,7 +782,7 @@ export function formatWhatsAppReceiptMessage(order: OrderBill): string {
     `Dear *${custName}*,`,
     `Thank you for shopping with us!`,
     ``,
-    `*${billType}:* ${order.billNumber}`,
+    `*${billType}:* ${order.dailyBillNumber ? `Bill #${order.dailyBillNumber} (${order.billNumber})` : order.billNumber}`,
     `*Date:* ${order.createdAt}`,
     `*Items:* ${itemsText}`,
     `*Payment Mode:* ${order.paymentMethod}`,

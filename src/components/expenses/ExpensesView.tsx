@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ExpenseItem } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { ExpenseItem, PurchaseBill } from '../../types';
 import { 
   TrendingDown, 
   Plus, 
@@ -10,12 +10,16 @@ import {
   Calendar, 
   Tag, 
   X,
+  Truck,
+  CheckCircle2,
+  Clock,
   ArrowUpDown
 } from 'lucide-react';
 
 interface ExpensesViewProps {
   expenses: ExpenseItem[];
   onAddExpense: (expense: ExpenseItem) => void;
+  purchaseBills?: PurchaseBill[];
 }
 
 export const EXPENSE_CATEGORIES = [
@@ -32,11 +36,28 @@ export const EXPENSE_CATEGORIES = [
   'Miscellaneous',
 ];
 
+interface UnifiedOutflowItem {
+  id: string;
+  source: 'OPERATING_EXPENSE' | 'PURCHASE_BILL';
+  title: string;
+  category: string;
+  amount: number; // actual cash paid outflow
+  totalValue?: number; // total invoice value (for purchases)
+  dueAmount?: number; // balance due to supplier (if any)
+  date: string;
+  paymentMode: string;
+  paidTo?: string;
+  notes?: string;
+  purchaseBillRef?: PurchaseBill;
+}
+
 export const ExpensesView: React.FC<ExpensesViewProps> = ({
   expenses,
   onAddExpense,
+  purchaseBills = [],
 }) => {
   const [search, setSearch] = useState('');
+  const [outflowType, setOutflowType] = useState<'ALL' | 'OPERATING' | 'PURCHASE'>('ALL');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -48,26 +69,102 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   const [paidTo, setPaidTo] = useState('');
   const [notes, setNotes] = useState('');
 
-  const filtered = expenses.filter((e) => {
-    const matchesCat = categoryFilter === 'All' || e.category === categoryFilter;
-    const q = search.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      e.title.toLowerCase().includes(q) ||
-      (e.paidTo && e.paidTo.toLowerCase().includes(q)) ||
-      e.category.toLowerCase().includes(q) ||
-      e.date.toLowerCase().includes(q);
+  // 1. Transform Operating Expenses
+  const operatingItems: UnifiedOutflowItem[] = useMemo(() => {
+    return expenses.map((e) => ({
+      id: e.id,
+      source: 'OPERATING_EXPENSE',
+      title: e.title,
+      category: e.category,
+      amount: e.amount,
+      totalValue: e.amount,
+      dueAmount: 0,
+      date: e.date,
+      paymentMode: e.paymentMode,
+      paidTo: e.paidTo,
+      notes: e.notes,
+    }));
+  }, [expenses]);
 
-    return matchesCat && matchesSearch;
-  });
+  // 2. Derive Purchase Items (without duplicating in database)
+  const purchaseItems: UnifiedOutflowItem[] = useMemo(() => {
+    return purchaseBills
+      .filter((b) => b.status !== 'Cancelled')
+      .map((b) => {
+        const itemNames = b.items.map((i) => i.productName).join(', ');
+        return {
+          id: `pur-exp-${b.id}`,
+          source: 'PURCHASE_BILL',
+          title: `Vendor Purchase: ${b.vendorName}`,
+          category: 'Supplier Purchases (Inward Goods)',
+          amount: b.amountPaid, // Cash Outflow
+          totalValue: b.grandTotal,
+          dueAmount: b.balanceDue,
+          date: b.purchaseDate || b.businessDate || (b.createdAt ? b.createdAt.slice(0, 10) : ''),
+          paymentMode: b.paymentMode || 'Cash',
+          paidTo: b.vendorName,
+          notes: `${b.purchaseNumber} (Daily #${b.dailyBillNumber}) • ${b.items.length} items: ${itemNames}${
+            b.balanceDue > 0 ? ` • Outstanding Due: ₹${b.balanceDue.toFixed(2)}` : ''
+          }`,
+          purchaseBillRef: b,
+        };
+      });
+  }, [purchaseBills]);
 
-  const totalExpenseAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+  // Combine unified list
+  const allOutflows: UnifiedOutflowItem[] = useMemo(() => {
+    return [...operatingItems, ...purchaseItems].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [operatingItems, purchaseItems]);
 
-  // Group by category
-  const categoryTotals = expenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount;
-    return acc;
-  }, {} as Record<string, number>);
+  // Financial Summaries
+  const operatingTotal = useMemo(() => expenses.reduce((sum, e) => sum + e.amount, 0), [expenses]);
+  const purchasePaidTotal = useMemo(
+    () => purchaseBills.filter((b) => b.status !== 'Cancelled').reduce((sum, b) => sum + (b.amountPaid || 0), 0),
+    [purchaseBills]
+  );
+  const totalCashOutflow = operatingTotal + purchasePaidTotal;
+  const totalOutstandingDue = useMemo(
+    () => purchaseBills.filter((b) => b.status !== 'Cancelled').reduce((sum, b) => sum + (b.balanceDue || 0), 0),
+    [purchaseBills]
+  );
+
+  // Group Operating by category
+  const categoryTotals = useMemo(() => {
+    return expenses.reduce((acc, e) => {
+      acc[e.category] = (acc[e.category] || 0) + e.amount;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [expenses]);
+
+  // Filtered outflows
+  const filtered = useMemo(() => {
+    return allOutflows.filter((item) => {
+      // Type filter
+      if (outflowType === 'OPERATING' && item.source !== 'OPERATING_EXPENSE') return false;
+      if (outflowType === 'PURCHASE' && item.source !== 'PURCHASE_BILL') return false;
+
+      // Category filter
+      if (categoryFilter !== 'All') {
+        if (item.source === 'OPERATING_EXPENSE' && item.category !== categoryFilter) return false;
+        if (item.source === 'PURCHASE_BILL' && categoryFilter !== 'Supplier Purchases (Inward Goods)') return false;
+      }
+
+      // Search filter
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const matchesTitle = item.title.toLowerCase().includes(q);
+        const matchesPaidTo = (item.paidTo || '').toLowerCase().includes(q);
+        const matchesCat = item.category.toLowerCase().includes(q);
+        const matchesDate = item.date.toLowerCase().includes(q);
+        const matchesNotes = (item.notes || '').toLowerCase().includes(q);
+        if (!matchesTitle && !matchesPaidTo && !matchesCat && !matchesDate && !matchesNotes) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [allOutflows, outflowType, categoryFilter, search]);
 
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,11 +192,13 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   };
 
   const handleExportCSV = () => {
-    const headers = ['Title', 'Category', 'Amount (INR)', 'Date & Time', 'Payment Mode', 'Paid To / Vendor', 'Notes'];
-    const rows = expenses.map((e) => [
+    const headers = ['Type', 'Title', 'Category', 'Paid Outflow (INR)', 'Total Value (INR)', 'Date', 'Payment Mode', 'Paid To / Vendor', 'Notes'];
+    const rows = filtered.map((e) => [
+      `"${e.source === 'OPERATING_EXPENSE' ? 'Operating Expense' : 'Supplier Purchase'}"`,
       `"${e.title.replace(/"/g, '""')}"`,
       `"${e.category}"`,
       e.amount,
+      e.totalValue ?? e.amount,
       `"${e.date}"`,
       e.paymentMode,
       `"${(e.paidTo || '').replace(/"/g, '""')}"`,
@@ -124,10 +223,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-stone-900 flex items-center gap-2">
             <TrendingDown className="w-5 h-5 text-rose-600" />
-            <span>Store Operating Expenses</span>
+            <span>Store Outflows & Expense Management</span>
           </h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            Track daily raw materials, packaging, staff wages, and utilities
+            Operating expenses, staff wages, utilities, and automatic supplier inward procurement
           </p>
         </div>
 
@@ -153,32 +252,73 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
-          <span className="text-[10px] uppercase font-bold text-stone-500 block">Total Expenses</span>
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Operating Overheads</span>
           <span className="text-xl font-bold font-mono text-stone-900 mt-1 block">
-            Rs. {totalExpenseAmount.toLocaleString('en-IN')}
+            ₹{operatingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
+          <span className="text-[10px] text-stone-400 mt-0.5 block">{expenses.length} operating records</span>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
-          <span className="text-[10px] uppercase font-bold text-stone-500 block">Total Entries</span>
-          <span className="text-xl font-bold font-mono text-stone-900 mt-1 block">
-            {expenses.length} Records
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Supplier Purchases Paid</span>
+          <span className="text-xl font-bold font-mono text-emerald-700 mt-1 block">
+            ₹{purchasePaidTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
+          <span className="text-[10px] text-emerald-600 mt-0.5 block">Procurement cash outflow</span>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
-          <span className="text-[10px] uppercase font-bold text-stone-500 block">Largest Category</span>
-          <span className="text-xs font-bold text-[#A67D0C] mt-1 block truncate">
-            {Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'}
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Total Cash Outflow</span>
+          <span className="text-xl font-bold font-mono text-rose-600 mt-1 block">
+            ₹{totalCashOutflow.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
+          <span className="text-[10px] text-rose-500 mt-0.5 block">Operating + Vendor Paid</span>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm">
-          <span className="text-[10px] uppercase font-bold text-stone-500 block">Payment Mode</span>
-          <span className="text-xs font-bold text-emerald-600 mt-1 block">
-            UPI & Cash Reconciled
+          <span className="text-[10px] uppercase font-bold text-stone-500 block">Outstanding Vendor Due</span>
+          <span className="text-xl font-bold font-mono text-amber-700 mt-1 block">
+            ₹{totalOutstandingDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
+          <span className="text-[10px] text-amber-600 mt-0.5 block">Pending supplier payables</span>
         </div>
+      </div>
+
+      {/* Outflow Type Toggle Tabs */}
+      <div className="flex items-center gap-2 border-b border-[#E8DEC8] pb-1">
+        <button
+          type="button"
+          onClick={() => setOutflowType('ALL')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+            outflowType === 'ALL'
+              ? 'bg-stone-900 text-white shadow-xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          All Outflows ({allOutflows.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setOutflowType('OPERATING')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+            outflowType === 'OPERATING'
+              ? 'bg-[#B8860B] text-white shadow-xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          Operating Expenses Only ({operatingItems.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setOutflowType('PURCHASE')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+            outflowType === 'PURCHASE'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+          }`}
+        >
+          Supplier Purchases Only ({purchaseItems.length})
+        </button>
       </div>
 
       {/* Controls: Search and Category Pills */}
@@ -225,38 +365,64 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
       </div>
 
-      {/* Mobile Expenses Cards (< 640px) */}
+      {/* Mobile Outflow Cards (< 640px) */}
       <div className="sm:hidden space-y-2.5">
         {filtered.length === 0 ? (
           <div className="p-8 text-center text-stone-400 bg-white rounded-2xl border border-[#E8DEC8]">
-            No operating expenses recorded matching your search.
+            No outflows recorded matching your filter.
           </div>
         ) : (
-          filtered.map((e) => (
+          filtered.map((item) => (
             <div 
-              key={e.id}
+              key={item.id}
               className="p-3.5 rounded-2xl bg-white border border-[#E8DEC8] shadow-sm space-y-2"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h4 className="font-bold text-stone-900 text-sm leading-tight">{e.title}</h4>
-                  <span className="text-[10px] text-stone-400 font-mono">{e.date}</span>
+                  <div className="flex items-center gap-1.5">
+                    {item.source === 'PURCHASE_BILL' ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-[#8C6D15] border border-amber-200">
+                        <Truck className="w-2.5 h-2.5" /> Purchase
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-stone-100 text-stone-700 border border-stone-200">
+                        Operating
+                      </span>
+                    )}
+                    <h4 className="font-bold text-stone-900 text-sm leading-tight">{item.title}</h4>
+                  </div>
+                  <span className="text-[10px] text-stone-400 font-mono mt-0.5 block">{item.date}</span>
                 </div>
-                <span className="font-mono font-bold text-rose-600 text-base">
-                  Rs. {e.amount.toLocaleString('en-IN')}
-                </span>
+                <div className="text-right">
+                  <span className="font-mono font-bold text-rose-600 text-base block">
+                    ₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  {item.dueAmount && item.dueAmount > 0 ? (
+                    <span className="text-[10px] font-mono text-amber-700 font-bold block">
+                      Due: ₹{item.dueAmount.toFixed(2)}
+                    </span>
+                  ) : null}
+                </div>
               </div>
+
               <div className="flex items-center justify-between text-xs pt-1.5 border-t border-[#F5F2EB]">
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8] font-semibold">
-                  {e.category}
+                  {item.category}
                 </span>
                 <span className="text-stone-500 text-[11px]">
-                  Paid via: <strong className="text-stone-700">{e.paymentMode}</strong>
+                  Paid via: <strong className="text-stone-700">{item.paymentMode}</strong>
                 </span>
               </div>
-              {e.paidTo && (
+
+              {item.paidTo && (
                 <div className="text-[11px] text-stone-500 pt-0.5">
-                  Paid to: <span className="text-stone-800 font-medium">{e.paidTo}</span>
+                  Paid to: <span className="text-stone-800 font-medium">{item.paidTo}</span>
+                </div>
+              )}
+
+              {item.notes && (
+                <div className="text-[10px] text-stone-400 font-mono pt-0.5">
+                  {item.notes}
                 </div>
               )}
             </div>
@@ -264,52 +430,87 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         )}
       </div>
 
-      {/* Expenses Table (Tablets & Desktop) */}
+      {/* Outflows Table (Tablets & Desktop) */}
       <div className="hidden sm:block rounded-2xl bg-white border border-[#E8DEC8] overflow-hidden shadow-sm">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
-                <th className="py-3 px-4">Title / Expense Item</th>
+                <th className="py-3 px-4">Type</th>
+                <th className="py-3 px-4">Title / Outflow Item</th>
                 <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4">Date & Time</th>
-                <th className="py-3 px-4">Paid To / Vendor</th>
+                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Paid To / Supplier</th>
                 <th className="py-3 px-4 text-center">Payment Mode</th>
-                <th className="py-3 px-4 text-right">Amount (INR)</th>
+                <th className="py-3 px-4 text-right">Cash Outflow</th>
+                <th className="py-3 px-4 text-right">Status / Dues</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E8DEC8]">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-stone-400">
-                    No operating expenses recorded matching your search.
+                  <td colSpan={8} className="py-12 text-center text-stone-400">
+                    No operating expenses or supplier purchases recorded matching your search.
                   </td>
                 </tr>
               ) : (
-                filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-[#FAF8F5] transition-colors">
-                    <td className="py-3 px-4 font-bold text-stone-900">
-                      <div>{e.title}</div>
-                      {e.notes && <div className="text-[10px] text-stone-400">{e.notes}</div>}
+                filtered.map((item) => (
+                  <tr key={item.id} className="hover:bg-[#FAF8F5] transition-colors">
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {item.source === 'PURCHASE_BILL' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-[#8C6D15] border border-amber-200">
+                          <Truck className="w-2.5 h-2.5" /> Purchase
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700 border border-stone-200">
+                          Operating
+                        </span>
+                      )}
                     </td>
+
+                    <td className="py-3 px-4 font-bold text-stone-900">
+                      <div>{item.title}</div>
+                      {item.notes && <div className="text-[10px] text-stone-400 font-mono font-normal mt-0.5">{item.notes}</div>}
+                    </td>
+
                     <td className="py-3 px-4 whitespace-nowrap">
                       <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8] font-semibold">
-                        {e.category}
+                        {item.category}
                       </span>
                     </td>
+
                     <td className="py-3 px-4 text-stone-600 font-mono text-[11px] whitespace-nowrap">
-                      {e.date}
+                      {item.date}
                     </td>
-                    <td className="py-3 px-4 text-stone-600 whitespace-nowrap">
-                      {e.paidTo || 'Direct Store Outflow'}
+
+                    <td className="py-3 px-4 text-stone-700 font-medium whitespace-nowrap">
+                      {item.paidTo || 'Direct Store Outflow'}
                     </td>
+
                     <td className="py-3 px-4 text-center">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8]">
-                        {e.paymentMode}
+                        {item.paymentMode}
                       </span>
                     </td>
+
                     <td className="py-3 px-4 text-right font-mono font-bold text-rose-600 text-sm whitespace-nowrap">
-                      Rs. {e.amount.toLocaleString('en-IN')}
+                      ₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      {item.source === 'PURCHASE_BILL' ? (
+                        item.dueAmount && item.dueAmount > 0 ? (
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-amber-700">
+                            <Clock className="w-3 h-3" /> Due: ₹{item.dueAmount.toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-emerald-700">
+                            <CheckCircle2 className="w-3 h-3" /> Settled
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-[10px] text-stone-400 font-medium">Cleared</span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -347,7 +548,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Amul Pure Ghee 15kg Tin, Box Packaging Batch"
+                  placeholder="e.g. Packaging Box Batch, Commercial Electricity Bill"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
@@ -398,19 +599,19 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                     className="w-full text-xs py-2 px-2.5 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                   >
                     <option value="UPI">UPI / QR Code</option>
-                    <option value="Cash">Cash in Drawer</option>
+                    <option value="Cash">Cash Drawer</option>
                     <option value="Bank Transfer">Bank Transfer / NEFT</option>
-                    <option value="Card">Credit / Debit Card</option>
+                    <option value="Card">Debit / Credit Card</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="text-xs text-stone-700 font-bold block mb-1">
-                    Paid To / Vendor
+                    Paid To / Payee
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Amul Dairy, Xprinter Supplier"
+                    placeholder="e.g. Electric Company, Landlord"
                     value={paidTo}
                     onChange={(e) => setPaidTo(e.target.value)}
                     className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
@@ -420,39 +621,36 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
               <div>
                 <label className="text-xs text-stone-700 font-bold block mb-1">
-                  Optional Notes / Invoice #
+                  Notes / Bill Reference No.
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Bill # 4821, Paid by Counter 01"
+                  placeholder="Optional reference, invoice or transaction ID"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
                 />
               </div>
 
-              {/* Actions */}
-              <div className="pt-3 border-t border-[#E8DEC8] flex items-center justify-end gap-2.5">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E8DEC8]">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 transition-colors"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5] transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn-gold text-xs py-2 px-4 font-bold shadow-md"
+                  className="btn-gold text-xs py-2 px-5 font-bold shadow-md"
                 >
                   Save Expense Entry
                 </button>
               </div>
             </form>
-
           </div>
         </div>
       )}
-
     </div>
   );
 };

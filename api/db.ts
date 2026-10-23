@@ -176,6 +176,75 @@ async function ensureSchema(client: Client): Promise<void> {
 
     `CREATE INDEX IF NOT EXISTS idx_del_orders_bill ON deleted_orders (bill_number);`,
 
+    `CREATE TABLE IF NOT EXISTS daily_bill_counters (
+      business_date TEXT PRIMARY KEY,
+      last_bill_number INTEGER NOT NULL DEFAULT 0
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS vendors (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      contact_number TEXT,
+      address TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS purchase_bills (
+      id TEXT PRIMARY KEY,
+      purchase_number TEXT NOT NULL UNIQUE,
+      vendor_id TEXT,
+      vendor_name TEXT NOT NULL,
+      vendor_contact TEXT,
+      vendor_invoice_number TEXT,
+      purchase_date TEXT NOT NULL,
+      items_json TEXT NOT NULL,
+      subtotal REAL NOT NULL DEFAULT 0,
+      discount REAL DEFAULT 0,
+      additional_charges REAL DEFAULT 0,
+      grand_total REAL NOT NULL DEFAULT 0,
+      amount_paid REAL NOT NULL DEFAULT 0,
+      balance_due REAL NOT NULL DEFAULT 0,
+      payment_status TEXT NOT NULL DEFAULT 'Unpaid',
+      payment_mode TEXT NOT NULL DEFAULT 'Cash',
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'Active',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );`,
+
+    `CREATE INDEX IF NOT EXISTS idx_purchase_bills_date ON purchase_bills (purchase_date DESC);`,
+
+    `CREATE TABLE IF NOT EXISTS purchase_bill_counters (
+      counter_type TEXT PRIMARY KEY,
+      last_number INTEGER NOT NULL DEFAULT 0
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS vendor_payments (
+      id TEXT PRIMARY KEY,
+      purchase_bill_id TEXT NOT NULL,
+      vendor_id TEXT,
+      payment_date TEXT NOT NULL,
+      amount REAL NOT NULL,
+      payment_mode TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS stock_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id TEXT NOT NULL,
+      movement_type TEXT NOT NULL,
+      reference_id TEXT NOT NULL,
+      quantity_delta REAL NOT NULL,
+      notes TEXT,
+      timestamp INTEGER NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );`,
+
+    `CREATE INDEX IF NOT EXISTS idx_stock_movements_ref ON stock_movements (reference_id);`,
+
     `CREATE TABLE IF NOT EXISTS financial_audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       action TEXT NOT NULL,
@@ -216,6 +285,8 @@ async function ensureSchema(client: Client): Promise<void> {
     'ALTER TABLE orders ADD COLUMN revised_timestamp INTEGER;',
     'ALTER TABLE orders ADD COLUMN due_amount REAL DEFAULT 0;',
     'ALTER TABLE orders ADD COLUMN is_settled INTEGER DEFAULT 1;',
+    'ALTER TABLE orders ADD COLUMN business_date TEXT;',
+    'ALTER TABLE orders ADD COLUMN daily_bill_number INTEGER;',
   ];
 
   for (const alterSql of columnMigrations) {
@@ -239,6 +310,45 @@ async function ensureSchema(client: Client): Promise<void> {
   }
 
   isSchemaInitialized = true;
+}
+
+/**
+ * Format timestamp or date to YYYY-MM-DD in Asia/Kolkata (IST)
+ */
+function getKolkataDate(dateOrTimestamp?: any): string {
+  try {
+    let d: Date;
+    if (!dateOrTimestamp) {
+      d = new Date();
+    } else if (typeof dateOrTimestamp === 'number') {
+      d = new Date(dateOrTimestamp);
+    } else if (dateOrTimestamp instanceof Date) {
+      d = dateOrTimestamp;
+    } else {
+      const str = String(dateOrTimestamp);
+      const m = str.match(/(\d{1,2})-([A-Za-z]{3})-(\d{4})/);
+      if (m) {
+        const months: Record<string, string> = {
+          jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+          jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+        };
+        const day = m[1].padStart(2, '0');
+        const month = months[m[2].toLowerCase()] || '10';
+        return `${m[3]}-${month}-${day}`;
+      }
+      const parsed = Date.parse(str);
+      d = isNaN(parsed) ? new Date() : new Date(parsed);
+    }
+
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(d);
+  } catch {
+    return new Date().toISOString().split('T')[0];
+  }
 }
 
 /**
@@ -538,6 +648,115 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Fetch Purchase Bills with payments & items
+    if (action === 'fetch-purchase-bills') {
+      try {
+        const billsRes = await client.execute('SELECT * FROM purchase_bills ORDER BY business_date DESC, daily_bill_number ASC LIMIT 500;');
+        const paymentsRes = await client.execute('SELECT * FROM vendor_payments ORDER BY payment_date ASC;');
+
+        const paymentsByBill: Record<string, any[]> = {};
+        for (const p of paymentsRes.rows) {
+          const bId = String(p.purchase_bill_id);
+          if (!paymentsByBill[bId]) paymentsByBill[bId] = [];
+          paymentsByBill[bId].push({
+            id: p.id,
+            purchaseBillId: p.purchase_bill_id,
+            vendorId: p.vendor_id,
+            paymentDate: p.payment_date,
+            amount: Number(p.amount) || 0,
+            paymentMode: p.payment_mode,
+            notes: p.notes,
+            createdAt: p.created_at,
+          });
+        }
+
+        const rows = billsRes.rows.map((b: any) => {
+          let items = [];
+          try {
+            items = b.items_json ? JSON.parse(b.items_json) : [];
+          } catch {}
+          return {
+            id: b.id,
+            purchaseNumber: b.purchase_number,
+            dailyBillNumber: Number(b.daily_bill_number) || 1,
+            businessDate: b.business_date || getKolkataDate(b.purchase_date),
+            vendorId: b.vendor_id,
+            vendorName: b.vendor_name,
+            vendorContact: b.vendor_contact,
+            vendorInvoiceNumber: b.vendor_invoice_number,
+            purchaseDate: b.purchase_date,
+            items,
+            subtotal: Number(b.subtotal) || 0,
+            discount: Number(b.discount) || 0,
+            additionalCharges: Number(b.additional_charges) || 0,
+            grandTotal: Number(b.grand_total) || 0,
+            amountPaid: Number(b.amount_paid) || 0,
+            balanceDue: Number(b.balance_due) || 0,
+            paymentStatus: b.payment_status || 'Unpaid',
+            paymentMode: b.payment_mode || 'Cash',
+            notes: b.notes,
+            status: b.status || 'Active',
+            createdAt: b.created_at,
+            updatedAt: b.updated_at,
+            payments: paymentsByBill[b.id] || [],
+          };
+        });
+
+        return res.status(200).json({ success: true, rows });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Fetch Vendors with calculated ledger balances
+    if (action === 'fetch-vendors') {
+      try {
+        const vendorsRes = await client.execute('SELECT * FROM vendors ORDER BY name ASC;');
+        const statsRes = await client.execute(`
+          SELECT 
+            vendor_name,
+            COUNT(*) as bills_count,
+            COALESCE(SUM(grand_total), 0) as total_purchases,
+            COALESCE(SUM(amount_paid), 0) as total_paid,
+            COALESCE(SUM(balance_due), 0) as balance_due
+          FROM purchase_bills
+          WHERE status != 'Cancelled'
+          GROUP BY vendor_name;
+        `);
+
+        const statsMap: Record<string, any> = {};
+        for (const s of statsRes.rows) {
+          statsMap[String(s.vendor_name).toLowerCase().trim()] = {
+            billsCount: Number(s.bills_count) || 0,
+            totalPurchases: Number(s.total_purchases) || 0,
+            totalPaid: Number(s.total_paid) || 0,
+            balanceDue: Number(s.balance_due) || 0,
+          };
+        }
+
+        const rows = vendorsRes.rows.map((v: any) => {
+          const stats = statsMap[String(v.name).toLowerCase().trim()] || {
+            billsCount: 0,
+            totalPurchases: 0,
+            totalPaid: 0,
+            balanceDue: 0,
+          };
+          return {
+            id: v.id,
+            name: v.name,
+            contactNumber: v.contact_number,
+            address: v.address,
+            notes: v.notes,
+            ...stats,
+          };
+        });
+
+        return res.status(200).json({ success: true, vendors: rows });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
     return res.status(400).json({ success: false, error: 'Unknown GET action' });
   }
 
@@ -727,7 +946,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Save Order (Single Sale or Modification)
+    // Save Order (Single Sale or Modification with Atomic Daily Numbering)
     if (action === 'save-order') {
       const o = payload;
       if (!o || !o.id || !o.billNumber) {
@@ -744,13 +963,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({ success: true, ignored: true, reason: 'Order has been tombstoned / deleted' });
         }
 
+        const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
+        let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
+
+        // Check existing order in DB to preserve its assigned daily number across revisions/retries
+        const existingOrder = await client.execute({
+          sql: 'SELECT daily_bill_number, business_date FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
+          args: [o.id, o.billNumber]
+        });
+
+        if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
+          dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
+        } else if (!dailyBillNum || dailyBillNum <= 0) {
+          // Atomically allocate next sequential daily bill number for this business date
+          await client.execute({
+            sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                  VALUES (?, 1)
+                  ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
+            args: [istDate]
+          });
+          const counterRes = await client.execute({
+            sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
+            args: [istDate]
+          });
+          dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
+        }
+
         await client.execute({
           sql: `INSERT OR REPLACE INTO orders (
             id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
             payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at,
             timestamp, is_revised, original_grand_total, additional_amount_paid, original_payment_method,
-            additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled,
+            business_date, daily_bill_number
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             o.id,
             o.billNumber,
@@ -778,16 +1024,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             Number(o.revisionCount) || 0,
             o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0)),
             o.isSettled !== undefined ? (o.isSettled ? 1 : 0) : ((o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0))) > 0 ? 0 : 1),
+            istDate,
+            dailyBillNum
           ],
         });
 
+        const savedOrder = {
+          ...o,
+          businessDate: istDate,
+          dailyBillNumber: dailyBillNum
+        };
+
         await logFinancialAudit(client, 'RECORD_SALE', 'order', o.id, Number(o.grandTotal) || 0, o.paymentMethod || 'CASH', {
           billNumber: o.billNumber,
+          dailyBillNumber: dailyBillNum,
+          businessDate: istDate,
           itemsCount: o.items?.length,
           transactionType: o.transactionType
         });
-        await logSyncEvent(client, 'order', o.id, 'save', o);
-        return res.status(200).json({ success: true });
+        await logSyncEvent(client, 'order', o.id, 'save', savedOrder);
+        return res.status(200).json({ success: true, dailyBillNumber: dailyBillNum, businessDate: istDate });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -1178,6 +1434,335 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         await logSyncEvent(client, 'category', categoryId, 'delete', { categoryId });
         return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Save Purchase Bill with Atomic Sequential Numbering & Stock Movement
+    if (action === 'save-purchase-bill') {
+      const b = payload;
+      if (!b || !b.id || !b.vendorName) {
+        return res.status(400).json({ success: false, error: 'Invalid purchase bill payload: missing id or vendorName' });
+      }
+
+      try {
+        const istDate = b.businessDate || getKolkataDate(b.purchaseDate || Date.now());
+        let dailyBillNum = b.dailyBillNumber ? Number(b.dailyBillNumber) : 0;
+        let purchaseNum = b.purchaseNumber || '';
+
+        // Check if bill already exists (editing)
+        const existingRes = await client.execute({
+          sql: 'SELECT id, purchase_number, daily_bill_number, business_date, items_json, status FROM purchase_bills WHERE id = ? LIMIT 1;',
+          args: [b.id],
+        });
+
+        const isEdit = existingRes.rows.length > 0;
+        let oldItems: any[] = [];
+
+        if (isEdit) {
+          const row = existingRes.rows[0];
+          purchaseNum = String(row.purchase_number);
+          dailyBillNum = Number(row.daily_bill_number) || 1;
+          try {
+            oldItems = row.items_json ? JSON.parse(String(row.items_json)) : [];
+          } catch {}
+        } else {
+          // Allocate daily bill number atomically
+          if (!dailyBillNum || dailyBillNum <= 0) {
+            await client.execute({
+              sql: `INSERT INTO daily_purchase_counters (business_date, last_bill_number)
+                    VALUES (?, 1)
+                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
+              args: [istDate],
+            });
+            const counterRes = await client.execute({
+              sql: 'SELECT last_bill_number FROM daily_purchase_counters WHERE business_date = ?;',
+              args: [istDate],
+            });
+            dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
+          }
+
+          // Allocate global sequential purchase number (PUR-0001, etc.)
+          if (!purchaseNum) {
+            await client.execute(`
+              INSERT INTO purchase_bill_counters (counter_type, last_number)
+              VALUES ('purchase', 1)
+              ON CONFLICT(counter_type) DO UPDATE SET last_number = last_number + 1;
+            `);
+            const pCounterRes = await client.execute("SELECT last_number FROM purchase_bill_counters WHERE counter_type = 'purchase';");
+            const lastNum = Number(pCounterRes.rows[0]?.last_number) || 1;
+            purchaseNum = `PUR-${String(lastNum).padStart(4, '0')}`;
+          }
+        }
+
+        const newItems = Array.isArray(b.items) ? b.items : [];
+
+        // Inventory Stock Integration: calculate deltas for linked products
+        const oldProductQtyMap: Record<string, number> = {};
+        for (const it of oldItems) {
+          if (it.productId && typeof it.quantity === 'number') {
+            oldProductQtyMap[it.productId] = (oldProductQtyMap[it.productId] || 0) + Number(it.quantity);
+          }
+        }
+
+        const newProductQtyMap: Record<string, number> = {};
+        for (const it of newItems) {
+          if (it.productId && typeof it.quantity === 'number') {
+            newProductQtyMap[it.productId] = (newProductQtyMap[it.productId] || 0) + Number(it.quantity);
+          }
+        }
+
+        // Apply stock deltas
+        const allProductIds = new Set([...Object.keys(oldProductQtyMap), ...Object.keys(newProductQtyMap)]);
+        for (const prodId of allProductIds) {
+          const oldQty = oldProductQtyMap[prodId] || 0;
+          const newQty = newProductQtyMap[prodId] || 0;
+          const delta = newQty - oldQty;
+
+          if (delta !== 0) {
+            await client.execute({
+              sql: 'UPDATE products SET stock = MAX(0, stock + ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+              args: [delta, prodId],
+            });
+
+            await client.execute({
+              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
+                    VALUES (?, 'PURCHASE', ?, ?, ?, ?);`,
+              args: [prodId, b.id, delta, `Purchase Bill ${purchaseNum} (${delta > 0 ? '+' : ''}${delta})`, Date.now()],
+            });
+          }
+        }
+
+        // Upsert Vendor record
+        if (b.vendorName) {
+          const vendorId = b.vendorId || `ven-${b.vendorName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+          await client.execute({
+            sql: `INSERT INTO vendors (id, name, contact_number, address, notes, updated_at)
+                  VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                  ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    contact_number = COALESCE(excluded.contact_number, vendors.contact_number),
+                    updated_at = CURRENT_TIMESTAMP;`,
+            args: [vendorId, b.vendorName.trim(), b.vendorContact || null, b.vendorAddress || null, b.vendorNotes || null],
+          });
+        }
+
+        const subtotal = Number(b.subtotal) || 0;
+        const discount = Number(b.discount) || 0;
+        const additionalCharges = Number(b.additionalCharges) || 0;
+        const grandTotal = Number(b.grandTotal) || Math.max(0, subtotal - discount + additionalCharges);
+        const amountPaid = Number(b.amountPaid) || 0;
+        const balanceDue = Math.max(0, grandTotal - amountPaid);
+        const paymentStatus = balanceDue <= 0.01 ? 'Paid' : (amountPaid > 0 ? 'Partially Paid' : 'Unpaid');
+
+        // Save Purchase Bill
+        await client.execute({
+          sql: `INSERT INTO purchase_bills (
+            id, purchase_number, daily_bill_number, business_date, vendor_id, vendor_name, vendor_contact,
+            vendor_invoice_number, purchase_date, items_json, subtotal, discount, additional_charges,
+            grand_total, amount_paid, balance_due, payment_status, payment_mode, notes, status, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET
+            vendor_name = excluded.vendor_name,
+            vendor_contact = excluded.vendor_contact,
+            vendor_invoice_number = excluded.vendor_invoice_number,
+            purchase_date = excluded.purchase_date,
+            items_json = excluded.items_json,
+            subtotal = excluded.subtotal,
+            discount = excluded.discount,
+            additional_charges = excluded.additional_charges,
+            grand_total = excluded.grand_total,
+            amount_paid = excluded.amount_paid,
+            balance_due = excluded.balance_due,
+            payment_status = excluded.payment_status,
+            payment_mode = excluded.payment_mode,
+            notes = excluded.notes,
+            status = excluded.status,
+            updated_at = CURRENT_TIMESTAMP;`,
+          args: [
+            b.id,
+            purchaseNum,
+            dailyBillNum,
+            istDate,
+            b.vendorId || null,
+            b.vendorName.trim(),
+            b.vendorContact || null,
+            b.vendorInvoiceNumber || null,
+            b.purchaseDate || istDate,
+            JSON.stringify(newItems),
+            subtotal,
+            discount,
+            additionalCharges,
+            grandTotal,
+            amountPaid,
+            balanceDue,
+            paymentStatus,
+            b.paymentMode || 'Cash',
+            b.notes || null,
+            b.status || 'Active',
+          ],
+        });
+
+        // Record initial payment in vendor_payments if not previously recorded and amountPaid > 0
+        if (!isEdit && amountPaid > 0) {
+          const payId = `pay-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+          await client.execute({
+            sql: `INSERT INTO vendor_payments (id, purchase_bill_id, vendor_id, payment_date, amount, payment_mode, notes)
+                  VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            args: [
+              payId,
+              b.id,
+              b.vendorId || null,
+              b.purchaseDate || istDate,
+              amountPaid,
+              b.paymentMode || 'Cash',
+              `Initial payment for ${purchaseNum}`,
+            ],
+          });
+        }
+
+        const savedBill = {
+          ...b,
+          purchaseNumber: purchaseNum,
+          dailyBillNumber: dailyBillNum,
+          businessDate: istDate,
+          grandTotal,
+          amountPaid,
+          balanceDue,
+          paymentStatus,
+          status: b.status || 'Active',
+        };
+
+        await logFinancialAudit(client, isEdit ? 'UPDATE_PURCHASE' : 'RECORD_PURCHASE', 'purchase_bill', b.id, grandTotal, b.paymentMode || 'Cash', {
+          purchaseNumber: purchaseNum,
+          dailyBillNumber: dailyBillNum,
+          businessDate: istDate,
+          vendorName: b.vendorName,
+          amountPaid,
+          balanceDue,
+        });
+
+        await logSyncEvent(client, 'purchase_bill', b.id, 'save', savedBill);
+        return res.status(200).json({ success: true, purchaseBill: savedBill });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Cancel Purchase Bill (with Stock Reversal)
+    if (action === 'cancel-purchase-bill') {
+      const { billId, reason } = payload || {};
+      if (!billId) {
+        return res.status(400).json({ success: false, error: 'Missing billId' });
+      }
+
+      try {
+        const billRes = await client.execute({
+          sql: 'SELECT * FROM purchase_bills WHERE id = ? LIMIT 1;',
+          args: [billId],
+        });
+
+        if (billRes.rows.length === 0) {
+          return res.status(404).json({ success: false, error: 'Purchase bill not found' });
+        }
+
+        const bill = billRes.rows[0];
+        if (bill.status === 'Cancelled') {
+          return res.status(200).json({ success: true, message: 'Already cancelled' });
+        }
+
+        // Reverse stock on linked products
+        let items: any[] = [];
+        try {
+          items = bill.items_json ? JSON.parse(String(bill.items_json)) : [];
+        } catch {}
+
+        for (const it of items) {
+          if (it.productId && typeof it.quantity === 'number') {
+            await client.execute({
+              sql: 'UPDATE products SET stock = MAX(0, stock - ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+              args: [Number(it.quantity), it.productId],
+            });
+
+            await client.execute({
+              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
+                    VALUES (?, 'PURCHASE_CANCEL', ?, ?, ?, ?);`,
+              args: [it.productId, billId, -Number(it.quantity), `Cancelled Purchase ${bill.purchase_number}`, Date.now()],
+            });
+          }
+        }
+
+        // Soft-cancel the bill
+        await client.execute({
+          sql: "UPDATE purchase_bills SET status = 'Cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?;",
+          args: [billId],
+        });
+
+        await logFinancialAudit(client, 'CANCEL_PURCHASE', 'purchase_bill', billId, Number(bill.grand_total) || 0, null, {
+          purchaseNumber: bill.purchase_number,
+          reason: reason || 'Cancelled by user',
+        });
+
+        await logSyncEvent(client, 'purchase_bill', billId, 'cancel', { billId });
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Add Vendor Payment
+    if (action === 'add-vendor-payment') {
+      const { payment } = payload || {};
+      if (!payment || !payment.purchaseBillId || !payment.amount) {
+        return res.status(400).json({ success: false, error: 'Invalid payment payload: missing purchaseBillId or amount' });
+      }
+
+      try {
+        const payId = payment.id || `pay-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const payAmount = Number(payment.amount) || 0;
+
+        await client.execute({
+          sql: `INSERT INTO vendor_payments (id, purchase_bill_id, vendor_id, payment_date, amount, payment_mode, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?);`,
+          args: [
+            payId,
+            payment.purchaseBillId,
+            payment.vendorId || null,
+            payment.paymentDate || getKolkataDate(),
+            payAmount,
+            payment.paymentMode || 'Cash',
+            payment.notes || null,
+          ],
+        });
+
+        // Update purchase bill amount_paid and balance_due
+        await client.execute({
+          sql: `UPDATE purchase_bills
+                SET amount_paid = amount_paid + ?,
+                    balance_due = MAX(0, balance_due - ?),
+                    payment_status = CASE WHEN balance_due - ? <= 0.01 THEN 'Paid' ELSE 'Partially Paid' END,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?;`,
+          args: [payAmount, payAmount, payAmount, payment.purchaseBillId],
+        });
+
+        // Fetch updated bill for real-time broadcast
+        const updatedBillRes = await client.execute({
+          sql: 'SELECT * FROM purchase_bills WHERE id = ?;',
+          args: [payment.purchaseBillId],
+        });
+
+        await logFinancialAudit(client, 'VENDOR_PAYMENT', 'vendor_payment', payId, payAmount, payment.paymentMode || 'Cash', {
+          purchaseBillId: payment.purchaseBillId,
+        });
+
+        await logSyncEvent(client, 'vendor_payment', payId, 'save', {
+          payment: { ...payment, id: payId },
+          updatedBill: updatedBillRes.rows[0],
+        });
+
+        return res.status(200).json({ success: true, paymentId: payId, updatedBill: updatedBillRes.rows[0] });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }

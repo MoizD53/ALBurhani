@@ -43,6 +43,8 @@ export type TransactionType = 'CUSTOMER_BILL' | 'NO_BILL';
 export interface OrderBill {
   id: string;
   billNumber: string;
+  dailyBillNumber?: number;
+  businessDate?: string;
   transactionType: TransactionType;
   items: CartItem[];
   subtotal: number;
@@ -168,4 +170,66 @@ export interface CategoryItem {
   productCount?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Purchase Bills & Vendor Types
+// ---------------------------------------------------------------------------
+
+export interface PurchaseItem {
+  productId?: string; // Optional link to existing catalog product
+  productName: string;
+  quantity: number;
+  unit: string; // 'PCS' | 'Box' | 'Packet' | 'KG' | 'Litre' etc.
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface VendorPayment {
+  id: string;
+  purchaseBillId: string;
+  vendorId?: string;
+  paymentDate: string; // YYYY-MM-DD
+  amount: number;
+  paymentMode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Other' | string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface PurchaseBill {
+  id: string;
+  purchaseNumber: string; // e.g. 'PUR-0001'
+  dailyBillNumber: number; // 1, 2, 3... sequential daily counter in Asia/Kolkata
+  businessDate: string; // 'YYYY-MM-DD'
+  vendorId?: string;
+  vendorName: string;
+  vendorContact?: string;
+  vendorInvoiceNumber?: string;
+  purchaseDate: string; // YYYY-MM-DD
+  items: PurchaseItem[];
+  subtotal: number;
+  discount: number;
+  additionalCharges: number;
+  grandTotal: number;
+  amountPaid: number;
+  balanceDue: number;
+  paymentStatus: 'Paid' | 'Partially Paid' | 'Unpaid';
+  paymentMode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Other' | string;
+  notes?: string;
+  status: 'Active' | 'Cancelled';
+  createdAt?: string;
+  updatedAt?: string;
+  payments?: VendorPayment[];
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  contactNumber?: string;
+  address?: string;
+  notes?: string;
+  billsCount?: number;
+  totalPurchases?: number;
+  totalPaid?: number;
+  balanceDue?: number;
 }

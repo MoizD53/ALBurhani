@@ -13,7 +13,9 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { getOrderDue } from '../../lib/utils';
+import { getOrderDue, getKolkataDateString, extractOrderTimestamp } from '../../lib/utils';
+import { DailyCalendarPicker } from './DailyCalendarPicker';
+import { DailyActivitySummary, DailyActivityMetrics } from './DailyActivitySummary';
 import {
   BillingPageHeader,
   BillingSummaryCard,
@@ -43,6 +45,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<OrderBill | null>(null);
 
@@ -64,27 +67,105 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
     [orders]
   );
 
+  // Activity map: maps YYYY-MM-DD -> count of sales for calendar indicators
+  const activityMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of noBillSales) {
+      const bDate = s.businessDate || getKolkataDateString(extractOrderTimestamp(s) || Date.now());
+      map.set(bDate, (map.get(bDate) || 0) + 1);
+    }
+    return map;
+  }, [noBillSales]);
+
+  // Daily summary metrics for selected date
+  const dailyMetrics: DailyActivityMetrics = useMemo(() => {
+    if (!selectedDate) {
+      return {
+        totalBills: 0,
+        totalCustomers: 0,
+        totalSales: 0,
+        cashCollection: 0,
+        upiCollection: 0,
+        cardCollection: 0,
+        dueAmount: 0,
+        itemsSold: 0,
+        voidedCount: 0,
+      };
+    }
+
+    const daySales = noBillSales.filter((s) => {
+      const bDate = s.businessDate || getKolkataDateString(extractOrderTimestamp(s) || Date.now());
+      return bDate === selectedDate;
+    });
+
+    const uniqueCusts = new Set<string>();
+    for (const s of daySales) {
+      if (s.customerPhone) uniqueCusts.add(s.customerPhone);
+      else if (s.customerName) uniqueCusts.add(s.customerName.toLowerCase().trim());
+      else uniqueCusts.add(`walkin-${s.id}`);
+    }
+
+    return {
+      totalBills: daySales.length,
+      totalCustomers: uniqueCusts.size,
+      totalSales: daySales.reduce((sum, s) => sum + s.grandTotal, 0),
+      cashCollection: daySales.filter((s) => s.paymentMethod === 'CASH').reduce((sum, s) => sum + s.grandTotal, 0),
+      upiCollection: daySales.filter((s) => s.paymentMethod === 'UPI').reduce((sum, s) => sum + s.grandTotal, 0),
+      cardCollection: daySales.filter((s) => s.paymentMethod === 'CARD').reduce((sum, s) => sum + s.grandTotal, 0),
+      dueAmount: daySales.reduce((sum, s) => sum + getOrderDue(s), 0),
+      itemsSold: daySales.reduce((sum, s) => sum + s.items.reduce((iSum, it) => iSum + (it.quantity || 1), 0), 0),
+      voidedCount: 0,
+    };
+  }, [selectedDate, noBillSales]);
+
   const filteredSales = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return noBillSales.filter((s) => {
-      const matchesPayment = paymentFilter === 'ALL'
-        ? true
-        : paymentFilter === 'CREDIT'
-          ? (s.paymentMethod === 'CREDIT' || getOrderDue(s) > 0)
-          : s.paymentMethod === paymentFilter;
-      const matchesSearch =
-        !q ||
-        s.billNumber.toLowerCase().includes(q) ||
-        s.createdAt.toLowerCase().includes(q) ||
-        (s.cashierName && s.cashierName.toLowerCase().includes(q)) ||
-        (s.customerName && s.customerName.toLowerCase().includes(q)) ||
-        (s.customerPhone && s.customerPhone.includes(q)) ||
-        s.paymentMethod.toLowerCase().includes(q) ||
-        s.items.some((it) => it.product.name.toLowerCase().includes(q));
+    return noBillSales
+      .filter((s) => {
+        const bDate = s.businessDate || getKolkataDateString(extractOrderTimestamp(s) || Date.now());
+        const matchesDate = !selectedDate || bDate === selectedDate;
 
-      return matchesPayment && matchesSearch;
-    });
-  }, [noBillSales, search, paymentFilter]);
+        const matchesPayment = paymentFilter === 'ALL'
+          ? true
+          : paymentFilter === 'CREDIT'
+            ? (s.paymentMethod === 'CREDIT' || getOrderDue(s) > 0)
+            : s.paymentMethod === paymentFilter;
+
+        const matchesSearch =
+          !q ||
+          (s.dailyBillNumber && `bill ${s.dailyBillNumber}`.includes(q)) ||
+          (s.dailyBillNumber && `bill #${s.dailyBillNumber}`.includes(q)) ||
+          (s.dailyBillNumber && String(s.dailyBillNumber) === q) ||
+          s.billNumber.toLowerCase().includes(q) ||
+          s.createdAt.toLowerCase().includes(q) ||
+          (s.cashierName && s.cashierName.toLowerCase().includes(q)) ||
+          (s.customerName && s.customerName.toLowerCase().includes(q)) ||
+          (s.customerPhone && s.customerPhone.includes(q)) ||
+          s.paymentMethod.toLowerCase().includes(q) ||
+          s.items.some((it) => it.product.name.toLowerCase().includes(q));
+
+        return matchesDate && matchesPayment && matchesSearch;
+      })
+      .sort((a, b) => {
+        if (selectedDate) {
+          // Guaranteed ascending order: Bill 1 at top, Bill 2 underneath, Bill 3 next
+          const aSeq = a.dailyBillNumber || 0;
+          const bSeq = b.dailyBillNumber || 0;
+          if (aSeq !== bSeq) return aSeq - bSeq;
+          return (extractOrderTimestamp(a) || 0) - (extractOrderTimestamp(b) || 0);
+        }
+
+        // When viewing all dates, newest business date first, ascending by bill number within each date
+        const aDate = a.businessDate || getKolkataDateString(extractOrderTimestamp(a) || Date.now());
+        const bDate = b.businessDate || getKolkataDateString(extractOrderTimestamp(b) || Date.now());
+        if (aDate !== bDate) return bDate.localeCompare(aDate);
+
+        const aSeq = a.dailyBillNumber || 0;
+        const bSeq = b.dailyBillNumber || 0;
+        if (aSeq !== bSeq) return aSeq - bSeq;
+        return (extractOrderTimestamp(a) || 0) - (extractOrderTimestamp(b) || 0);
+      });
+  }, [noBillSales, search, paymentFilter, selectedDate]);
 
   // Metrics
   const totalNoBillRevenue = useMemo(
@@ -223,14 +304,32 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         onDismiss={() => setFeedback(null)}
       />
 
-      {/* 4. Standardized Search & Filter Toolbar */}
+      {/* 4. Standardized Search & Filter Toolbar with Daily Calendar Picker */}
       <BillingFilterToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search by transaction ID, cashier, product, date..."
+        searchPlaceholder="Search by bill number, cashier, product, date..."
         paymentFilter={paymentFilter}
         onPaymentFilterChange={setPaymentFilter}
-      />
+      >
+        <DailyCalendarPicker
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          activityMap={activityMap}
+          label="Sales Calendar"
+        />
+      </BillingFilterToolbar>
+
+      {/* Selected Day Activity Summary (When filtered by date) */}
+      {selectedDate && (
+        <DailyActivitySummary
+          selectedDate={selectedDate}
+          formattedDate={selectedDate}
+          metrics={dailyMetrics}
+          onClearDate={() => setSelectedDate(null)}
+          accentTitle="Counter Sales"
+        />
+      )}
 
       {/* 5. Mobile No-Bill Sales Cards (< 640px) */}
       <div className="sm:hidden space-y-2.5">
@@ -257,8 +356,12 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="font-mono font-bold text-[#B8860B] text-sm block">{s.billNumber}</span>
-                  <span className="text-stone-400 font-mono text-[11px]">{s.createdAt}</span>
+                  <span className="font-mono font-bold text-[#A67D0C] text-sm block">
+                    Bill #{s.dailyBillNumber || s.billNumber}
+                  </span>
+                  <span className="text-stone-400 font-mono text-[10px] block">
+                    {s.billNumber} · {s.createdAt}
+                  </span>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                   s.paymentMethod === 'UPI'
@@ -335,7 +438,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
-              <th className="py-3 px-4">Transaction ID</th>
+              <th className="py-3 px-4">Daily Bill # / ID</th>
               <th className="py-3 px-4">Date & Time</th>
               <th className="py-3 px-4">Cashier</th>
               <th className="py-3 px-4 text-center">Items Sold</th>
@@ -374,9 +477,14 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
                 return (
                   <React.Fragment key={s.id}>
                     <tr className="hover:bg-[#FAF8F5] transition-colors">
-                      {/* 1. Transaction ID */}
-                      <td className="py-3 px-4 font-mono font-bold text-[#B8860B] whitespace-nowrap">
-                        {s.billNumber}
+                      {/* 1. Daily Bill # & Transaction ID */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-mono font-bold text-[#A67D0C] text-sm">
+                          Bill #{s.dailyBillNumber || s.billNumber}
+                        </div>
+                        <div className="text-[10px] text-stone-400 font-mono">
+                          {s.billNumber}
+                        </div>
                       </td>
 
                       {/* 2. Date & Time */}

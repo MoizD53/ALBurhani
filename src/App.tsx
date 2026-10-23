@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Product, OrderBill, ExpenseItem, UserProfile, CompleteSaleResult, CustomerOrder, CustomerOrderStatus, CategoryItem } from './types';
+import { 
+  Product, 
+  OrderBill, 
+  ExpenseItem, 
+  UserProfile, 
+  CompleteSaleResult, 
+  CustomerOrder, 
+  CustomerOrderStatus, 
+  CategoryItem,
+  PurchaseBill,
+  Vendor,
+  VendorPayment
+} from './types';
 import { IMPORTED_PRODUCTS } from './data/importedProducts';
 import { isWeightBasedProduct } from './lib/pricing';
 import { 
@@ -28,7 +40,12 @@ import {
   fetchCategoriesFromTurso,
   saveCategoryToTurso,
   renameCategoryOnTurso,
-  deleteCategoryFromTurso
+  deleteCategoryFromTurso,
+  fetchPurchaseBillsFromTurso,
+  savePurchaseBillToTurso,
+  cancelPurchaseBillOnTurso,
+  addVendorPaymentOnTurso,
+  fetchVendorsFromTurso
 } from './lib/turso';
 import { syncManager } from './lib/syncManager';
 import {
@@ -55,6 +72,7 @@ import { PosBillingView } from './components/pos/PosBillingView';
 import { OrdersView } from './components/orders/OrdersView';
 import { CustomerBillsView } from './components/bills/CustomerBillsView';
 import { NoBillSalesView } from './components/bills/NoBillSalesView';
+import { PurchaseBillsView } from './components/purchases/PurchaseBillsView';
 import { OverviewDashboardView } from './components/dashboard/OverviewDashboardView';
 import { ProductManagementView } from './components/product-management/ProductManagementView';
 import { ExpensesView } from './components/expenses/ExpensesView';
@@ -77,6 +95,7 @@ const VALID_TABS: ActiveTab[] = [
   'overview',
   'pos',
   'no-bill-sales',
+  'purchases',
   'orders',
   'customer-bills',
   'product-management',
@@ -94,6 +113,7 @@ function getTabFromHash(): ActiveTab {
   if (raw === 'stock' || raw === 'inventory') return 'product-management';
   if (raw === 'order' || raw === 'orders') return 'orders';
   if (raw === 'product-management' || raw === 'products' || raw === 'categories') return 'product-management';
+  if (raw === 'purchases' || raw === 'purchase-bills' || raw === 'vendors') return 'purchases';
   return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'pos';
 }
 
@@ -249,6 +269,30 @@ export function App() {
               !e.id.startsWith('mock-')
           );
         }
+      }
+    } catch {}
+    return [];
+  });
+
+  // Purchase Bills State
+  const [purchaseBills, setPurchaseBills] = useState<PurchaseBill[]>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_purchase_bills') : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  // Vendors State
+  const [vendors, setVendors] = useState<Vendor[]>(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_vendors') : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
@@ -471,6 +515,30 @@ export function App() {
           await saveCategoryToTurso(c).catch(() => {});
         }
         setCategories(localCats);
+      }
+
+      // 8. Synchronize Purchase Bills and Vendors
+      try {
+        const remotePurchases = await fetchPurchaseBillsFromTurso();
+        if (remotePurchases !== null && Array.isArray(remotePurchases)) {
+          setPurchaseBills(remotePurchases);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(remotePurchases));
+            } catch {}
+          }
+        }
+        const remoteVendors = await fetchVendorsFromTurso();
+        if (remoteVendors !== null && Array.isArray(remoteVendors)) {
+          setVendors(remoteVendors);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_vendors', JSON.stringify(remoteVendors));
+            } catch {}
+          }
+        }
+      } catch (purErr) {
+        console.warn('Could not sync purchase bills from Turso:', purErr);
       }
     } catch (err) {
       console.warn('Could not sync remote data from Turso:', err);
@@ -1271,6 +1339,146 @@ export function App() {
     );
   };
 
+  const handleSavePurchaseBill = async (bill: PurchaseBill): Promise<boolean> => {
+    try {
+      const saved = await savePurchaseBillToTurso(bill);
+      if (saved) {
+        setPurchaseBills((prev) => {
+          const idx = prev.findIndex((b) => b.id === saved.id);
+          let next;
+          if (idx >= 0) {
+            next = [...prev];
+            next[idx] = saved;
+          } else {
+            next = [saved, ...prev];
+          }
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+
+        // Refresh products in background so stock counts reflect inward movement
+        fetchProductsFromTurso().then((prods) => {
+          if (prods && prods.length >= 250) {
+            setProducts(prods);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('albhurani_products', JSON.stringify(prods));
+              } catch {}
+            }
+          }
+        }).catch(() => {});
+
+        // Refresh vendors in background
+        fetchVendorsFromTurso().then((v) => {
+          if (v) {
+            setVendors(v);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('albhurani_vendors', JSON.stringify(v));
+              } catch {}
+            }
+          }
+        }).catch(() => {});
+
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error saving purchase bill:', err);
+      return false;
+    }
+  };
+
+  const handleCancelPurchaseBill = async (billId: string): Promise<boolean> => {
+    try {
+      const ok = await cancelPurchaseBillOnTurso(billId);
+      if (ok) {
+        setPurchaseBills((prev) => {
+          const next = prev.map((b) => (b.id === billId ? { ...b, status: 'Cancelled' as const } : b));
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+
+        // Refresh products in background to reflect reversed stock
+        fetchProductsFromTurso().then((prods) => {
+          if (prods && prods.length >= 250) {
+            setProducts(prods);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('albhurani_products', JSON.stringify(prods));
+              } catch {}
+            }
+          }
+        }).catch(() => {});
+
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error cancelling purchase bill:', err);
+      return false;
+    }
+  };
+
+  const handleAddVendorPayment = async (payment: VendorPayment): Promise<boolean> => {
+    try {
+      const ok = await addVendorPaymentOnTurso(payment);
+      if (ok) {
+        setPurchaseBills((prev) => {
+          const next = prev.map((b) => {
+            if (b.id === payment.purchaseBillId) {
+              const newAmountPaid = (b.amountPaid || 0) + payment.amount;
+              const newBalanceDue = Math.max(0, (b.grandTotal || 0) - newAmountPaid);
+              const newStatus: 'Paid' | 'Partially Paid' | 'Unpaid' =
+                newBalanceDue <= 0.01 ? 'Paid' : newAmountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+              const existingPayments = b.payments || [];
+              return {
+                ...b,
+                amountPaid: newAmountPaid,
+                balanceDue: newBalanceDue,
+                paymentStatus: newStatus,
+                payments: [...existingPayments, payment],
+              };
+            }
+            return b;
+          });
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+
+        // Refresh vendors in background
+        fetchVendorsFromTurso().then((v) => {
+          if (v) {
+            setVendors(v);
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('albhurani_vendors', JSON.stringify(v));
+              } catch {}
+            }
+          }
+        }).catch(() => {});
+
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error adding vendor payment:', err);
+      return false;
+    }
+  };
+
   const handleSignOut = () => {
     terminateSession();
     setIsAuthenticated(false);
@@ -1398,6 +1606,19 @@ export function App() {
             />
           )}
 
+          {activeTab === 'purchases' && (
+            <PurchaseBillsView
+              purchaseBills={purchaseBills}
+              vendors={vendors}
+              products={products}
+              onSavePurchaseBill={handleSavePurchaseBill}
+              onCancelPurchaseBill={handleCancelPurchaseBill}
+              onAddVendorPayment={handleAddVendorPayment}
+              onSyncNow={syncRemoteData}
+              isSyncing={isSyncing}
+            />
+          )}
+
           {activeTab === 'product-management' && (
             <ProductManagementView
               products={products}
@@ -1424,6 +1645,7 @@ export function App() {
             <ExpensesView
               expenses={expenses}
               onAddExpense={handleAddExpense}
+              purchaseBills={purchaseBills}
             />
           )}
 

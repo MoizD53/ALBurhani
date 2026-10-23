@@ -1,4 +1,4 @@
-import { Product, OrderBill, ExpenseItem, CustomerOrder, CustomerOrderStatus, CategoryItem } from '../types';
+import { Product, OrderBill, ExpenseItem, CustomerOrder, CustomerOrderStatus, CategoryItem, PurchaseBill, Vendor, VendorPayment } from '../types';
 import { CustomerRecord } from './customers';
 import { migrateCatalogPrices } from './catalogMigration';
 
@@ -321,6 +321,8 @@ export async function fetchOrdersFromTurso(transactionType?: 'CUSTOMER_BILL' | '
       cashierName: String(row.cashier_name),
       createdAt: String(row.created_at),
       timestamp: row.timestamp ? Number(row.timestamp) : (row.created_at ? new Date(row.created_at).getTime() : undefined),
+      dailyBillNumber: row.daily_bill_number ? Number(row.daily_bill_number) : undefined,
+      businessDate: row.business_date ? String(row.business_date) : undefined,
       isRevised: Boolean(row.is_revised),
       originalGrandTotal: row.original_grand_total ? Number(row.original_grand_total) : undefined,
       additionalAmountPaid: row.additional_amount_paid ? Number(row.additional_amount_paid) : undefined,
@@ -356,7 +358,12 @@ export async function saveOrderToTurso(order: OrderBill): Promise<boolean> {
 
     if (!res.ok) return false;
     const data = await res.json();
-    return Boolean(data.success);
+    if (data.success) {
+      if (data.dailyBillNumber) order.dailyBillNumber = Number(data.dailyBillNumber);
+      if (data.businessDate) order.businessDate = String(data.businessDate);
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -893,6 +900,118 @@ export async function deleteCategoryFromTurso(categoryId: string): Promise<boole
       body: JSON.stringify({
         action: 'delete-category',
         payload: { categoryId },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+
+/**
+ * Fetch all purchase bills from remote database
+ */
+export async function fetchPurchaseBillsFromTurso(): Promise<PurchaseBill[] | null> {
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-purchase-bills&_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.rows)) return null;
+    return data.rows;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch all vendors with their ledger statistics
+ */
+export async function fetchVendorsFromTurso(): Promise<Vendor[] | null> {
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-vendors&_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.success || !Array.isArray(data.vendors)) return null;
+    return data.vendors;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save or update a purchase bill in remote database
+ */
+export async function savePurchaseBillToTurso(bill: PurchaseBill): Promise<PurchaseBill | null> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'save-purchase-bill',
+        payload: bill,
+      }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.success && data.purchaseBill ? data.purchaseBill : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cancel a purchase bill with safe stock reversal
+ */
+export async function cancelPurchaseBillOnTurso(billId: string, reason?: string): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'cancel-purchase-bill',
+        payload: { billId, reason },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Add a payment against a purchase bill
+ */
+export async function addVendorPaymentOnTurso(payment: VendorPayment): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'add-vendor-payment',
+        payload: { payment },
       }),
     });
 

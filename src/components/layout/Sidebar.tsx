@@ -14,7 +14,8 @@ import {
   ShieldCheck, 
   Tag,
   ClipboardList,
-  Layers
+  Layers,
+  Truck
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 
@@ -22,6 +23,7 @@ export type ActiveTab =
   | 'overview'
   | 'pos'
   | 'no-bill-sales'
+  | 'purchases'
   | 'orders'
   | 'customer-bills'
   | 'product-management'
@@ -64,6 +66,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'no-bill-sales' as ActiveTab,
       label: 'Bills / Counter Sales',
       icon: ReceiptText,
+    },
+    {
+      id: 'purchases' as ActiveTab,
+      label: 'Purchase Bills',
+      icon: Truck,
     },
     {
       id: 'orders' as ActiveTab,

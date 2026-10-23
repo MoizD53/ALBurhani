@@ -12,7 +12,9 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { getOrderDue } from '../../lib/utils';
+import { getOrderDue, getKolkataDateString, extractOrderTimestamp } from '../../lib/utils';
+import { DailyCalendarPicker } from './DailyCalendarPicker';
+import { DailyActivitySummary, DailyActivityMetrics } from './DailyActivitySummary';
 import {
   BillingPageHeader,
   BillingSummaryCard,
@@ -42,6 +44,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<OrderBill | null>(null);
 
   // Deletion modal & feedback state
@@ -62,24 +65,101 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
     [orders]
   );
 
+  // Activity map: maps YYYY-MM-DD -> count of customer invoices
+  const activityMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const b of customerBills) {
+      const bDate = b.businessDate || getKolkataDateString(extractOrderTimestamp(b) || Date.now());
+      map.set(bDate, (map.get(bDate) || 0) + 1);
+    }
+    return map;
+  }, [customerBills]);
+
+  // Daily summary metrics for selected date
+  const dailyMetrics: DailyActivityMetrics = useMemo(() => {
+    if (!selectedDate) {
+      return {
+        totalBills: 0,
+        totalCustomers: 0,
+        totalSales: 0,
+        cashCollection: 0,
+        upiCollection: 0,
+        cardCollection: 0,
+        dueAmount: 0,
+        itemsSold: 0,
+        voidedCount: 0,
+      };
+    }
+
+    const dayBills = customerBills.filter((b) => {
+      const bDate = b.businessDate || getKolkataDateString(extractOrderTimestamp(b) || Date.now());
+      return bDate === selectedDate;
+    });
+
+    const uniqueCusts = new Set<string>();
+    for (const b of dayBills) {
+      if (b.customerPhone) uniqueCusts.add(b.customerPhone);
+      else if (b.customerName) uniqueCusts.add(b.customerName.toLowerCase().trim());
+      else uniqueCusts.add(`cust-${b.id}`);
+    }
+
+    return {
+      totalBills: dayBills.length,
+      totalCustomers: uniqueCusts.size,
+      totalSales: dayBills.reduce((sum, b) => sum + b.grandTotal, 0),
+      cashCollection: dayBills.filter(b => b.paymentMethod === 'CASH').reduce((sum, b) => sum + b.grandTotal, 0),
+      upiCollection: dayBills.filter(b => b.paymentMethod === 'UPI').reduce((sum, b) => sum + b.grandTotal, 0),
+      cardCollection: dayBills.filter(b => b.paymentMethod === 'CARD').reduce((sum, b) => sum + b.grandTotal, 0),
+      dueAmount: dayBills.reduce((sum, b) => sum + getOrderDue(b), 0),
+      itemsSold: dayBills.reduce((sum, b) => sum + b.items.reduce((iSum, it) => iSum + (it.quantity || 1), 0), 0),
+      voidedCount: 0,
+    };
+  }, [selectedDate, customerBills]);
+
   const filteredBills = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return customerBills.filter((bill) => {
-      const matchesPayment = paymentFilter === 'ALL'
-        ? true
-        : paymentFilter === 'CREDIT'
-          ? (bill.paymentMethod === 'CREDIT' || getOrderDue(bill) > 0)
-          : bill.paymentMethod === paymentFilter;
-      const matchesSearch =
-        !q ||
-        bill.billNumber.toLowerCase().includes(q) ||
-        (bill.customerName && bill.customerName.toLowerCase().includes(q)) ||
-        (bill.customerPhone && bill.customerPhone.includes(q)) ||
-        bill.createdAt.toLowerCase().includes(q);
+    return customerBills
+      .filter((bill) => {
+        const bDate = bill.businessDate || getKolkataDateString(extractOrderTimestamp(bill) || Date.now());
+        const matchesDate = !selectedDate || bDate === selectedDate;
 
-      return matchesPayment && matchesSearch;
-    });
-  }, [customerBills, search, paymentFilter]);
+        const matchesPayment = paymentFilter === 'ALL'
+          ? true
+          : paymentFilter === 'CREDIT'
+            ? (bill.paymentMethod === 'CREDIT' || getOrderDue(bill) > 0)
+            : bill.paymentMethod === paymentFilter;
+
+        const matchesSearch =
+          !q ||
+          (bill.dailyBillNumber && `bill ${bill.dailyBillNumber}`.includes(q)) ||
+          (bill.dailyBillNumber && `bill #${bill.dailyBillNumber}`.includes(q)) ||
+          (bill.dailyBillNumber && String(bill.dailyBillNumber) === q) ||
+          bill.billNumber.toLowerCase().includes(q) ||
+          (bill.customerName && bill.customerName.toLowerCase().includes(q)) ||
+          (bill.customerPhone && bill.customerPhone.includes(q)) ||
+          bill.createdAt.toLowerCase().includes(q);
+
+        return matchesDate && matchesPayment && matchesSearch;
+      })
+      .sort((a, b) => {
+        if (selectedDate) {
+          // Ascending by daily bill number: Bill 1 at top, Bill 2 underneath
+          const aSeq = a.dailyBillNumber || 0;
+          const bSeq = b.dailyBillNumber || 0;
+          if (aSeq !== bSeq) return aSeq - bSeq;
+          return (extractOrderTimestamp(a) || 0) - (extractOrderTimestamp(b) || 0);
+        }
+
+        const aDate = a.businessDate || getKolkataDateString(extractOrderTimestamp(a) || Date.now());
+        const bDate = b.businessDate || getKolkataDateString(extractOrderTimestamp(b) || Date.now());
+        if (aDate !== bDate) return bDate.localeCompare(aDate);
+
+        const aSeq = a.dailyBillNumber || 0;
+        const bSeq = b.dailyBillNumber || 0;
+        if (aSeq !== bSeq) return aSeq - bSeq;
+        return (extractOrderTimestamp(a) || 0) - (extractOrderTimestamp(b) || 0);
+      });
+  }, [customerBills, search, paymentFilter, selectedDate]);
 
   // Metrics
   const totalBilledRevenue = useMemo(
@@ -206,14 +286,32 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         onDismiss={() => setFeedback(null)}
       />
 
-      {/* 4. Standardized Search & Filter Toolbar */}
+      {/* 4. Standardized Search & Filter Toolbar with Daily Calendar Picker */}
       <BillingFilterToolbar
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search by invoice #, customer name, phone, date..."
         paymentFilter={paymentFilter}
         onPaymentFilterChange={setPaymentFilter}
-      />
+      >
+        <DailyCalendarPicker
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          activityMap={activityMap}
+          label="Invoices Calendar"
+        />
+      </BillingFilterToolbar>
+
+      {/* Selected Day Activity Summary (When filtered by date) */}
+      {selectedDate && (
+        <DailyActivitySummary
+          selectedDate={selectedDate}
+          formattedDate={selectedDate}
+          metrics={dailyMetrics}
+          onClearDate={() => setSelectedDate(null)}
+          accentTitle="Tax Invoices"
+        />
+      )}
 
       {/* 5. Mobile Bills Cards (< 640px) */}
       <div className="sm:hidden space-y-2.5">
@@ -240,8 +338,12 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <span className="font-mono font-bold text-[#B8860B] text-sm block">{b.billNumber}</span>
-                  <span className="text-stone-400 font-mono text-[11px]">{b.createdAt}</span>
+                  <span className="font-mono font-bold text-[#A67D0C] text-sm block">
+                    Bill #{b.dailyBillNumber || b.billNumber}
+                  </span>
+                  <span className="text-stone-400 font-mono text-[10px] block">
+                    {b.billNumber} · {b.createdAt}
+                  </span>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                   b.paymentMethod === 'UPI'
@@ -313,7 +415,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-[#E8DEC8] bg-[#FAF8F5] text-stone-600 uppercase tracking-wider font-bold text-[10px]">
-              <th className="py-3 px-4">Invoice #</th>
+              <th className="py-3 px-4">Daily Bill # / Invoice</th>
               <th className="py-3 px-4">Date & Time</th>
               <th className="py-3 px-4">Customer Details</th>
               <th className="py-3 px-4 text-center">Items</th>
@@ -349,9 +451,14 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
             ) : (
               filteredBills.map((b) => (
                 <tr key={b.id} className="hover:bg-[#FAF8F5] transition-colors">
-                  {/* 1. Invoice # */}
-                  <td className="py-3 px-4 font-mono font-bold text-[#B8860B] whitespace-nowrap">
-                    {b.billNumber}
+                  {/* 1. Daily Bill # & Invoice # */}
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <div className="font-mono font-bold text-[#A67D0C] text-sm">
+                      Bill #{b.dailyBillNumber || b.billNumber}
+                    </div>
+                    <div className="text-[10px] text-stone-400 font-mono">
+                      {b.billNumber}
+                    </div>
                   </td>
 
                   {/* 2. Date & Time */}

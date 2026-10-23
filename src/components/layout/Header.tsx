@@ -58,6 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
     'orders': { title: 'Customer Orders', subtitle: 'Advance Bookings & Scheduled Deliveries' },
     'customer-bills': { title: 'Customer Bills', subtitle: 'Tax Invoices & Receipts History' },
     'no-bill-sales': { title: 'No-Bill Sales', subtitle: 'Internal Counter Sales Records' },
+    'purchases': { title: 'Purchase Bills', subtitle: 'Vendor Procurement & Inward Stock' },
     'product-management': { title: 'Product Management', subtitle: 'Categories & Item Master Setup' },
     'label-studio': { title: 'Label Studio', subtitle: 'Barcode Label Designer & Multi-Label Sheet Printing' },
     'expenses': { title: 'Expenses Tracker', subtitle: 'Daily Shop Operating Costs' },

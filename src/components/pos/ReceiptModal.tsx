@@ -487,8 +487,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
             {/* Bill Meta (Solid Black, Crisp) */}
             <div className="py-1 border-b border-dashed border-black text-[8.5px] font-bold text-black space-y-0.5">
-              <div className="flex justify-between">
-                <span>Bill: {order.billNumber}</span>
+              <div className="flex justify-between items-baseline">
+                <span className="font-black text-[9.5px]">
+                  {order.dailyBillNumber ? `Daily Bill #${order.dailyBillNumber}` : `Bill: ${order.billNumber}`}
+                  {order.dailyBillNumber && (
+                    <span className="font-normal text-[8px] text-black/70 ml-1">({order.billNumber})</span>
+                  )}
+                </span>
                 <span>Date: {order.createdAt}</span>
               </div>
               <div className="flex justify-between">
