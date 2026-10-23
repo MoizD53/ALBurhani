@@ -240,6 +240,31 @@ export async function adjustStockOnTurso(productId: string, delta: number): Prom
 }
 
 /**
+ * Delete a product item from remote database
+ */
+export async function deleteProductFromTurso(productId: string): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'delete-product',
+        payload: { productId },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fetch deleted order tombstones from remote database
  */
 export async function fetchDeletedOrdersFromTurso(): Promise<{ id: string; billNumber?: string }[] | null> {
@@ -385,6 +410,47 @@ export async function deleteOrderFromTurso(orderId: string, billNumber?: string)
     return Boolean(data.success);
   } catch {
     return false;
+  }
+}
+
+/**
+ * Restore a previously deleted order in remote database
+ */
+export async function restoreOrderInTurso(orderId: string, billNumber?: string): Promise<boolean> {
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'restore-order',
+        payload: { orderId, billNumber },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check database reconciliation health and financial summary
+ */
+export async function checkDatabaseReconciliation(): Promise<any> {
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=reconcile-check&_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
   }
 }
 

@@ -16,7 +16,8 @@ import {
   ToggleLeft,
   ToggleRight,
   FolderPlus,
-  Boxes
+  Boxes,
+  Trash2
 } from 'lucide-react';
 import { Product, ProductCategory, SellingUnit, CategoryItem } from '../../types';
 import { 
@@ -38,6 +39,7 @@ interface ProductManagementViewProps {
   onAddCategory: (category: CategoryItem) => Promise<boolean>;
   onUpdateCategory: (category: CategoryItem, oldName?: string) => Promise<boolean>;
   onToggleCategoryActive?: (categoryId: string) => Promise<boolean>;
+  onDeleteProduct?: (productId: string) => Promise<boolean> | boolean | void;
   initialBarcodeToRegister?: string | null;
   onClearInitialBarcode?: () => void;
 }
@@ -51,6 +53,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   onAddCategory,
   onUpdateCategory,
   onToggleCategoryActive,
+  onDeleteProduct,
   initialBarcodeToRegister,
   onClearInitialBarcode,
 }) => {
@@ -65,6 +68,8 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   // Product Add / Edit Modal State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
   // Product Form Fields
   const [name, setName] = useState('');
@@ -481,6 +486,17 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                           <Tag className="w-3.5 h-3.5" />
                         </button>
                       )}
+
+                      {onDeleteProduct && (
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteProduct(p)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-red-600 bg-[#FAF8F5] border border-[#E8DEC8] hover:border-red-200 hover:bg-red-50/50 transition-colors"
+                          title="Delete discontinued product"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -571,6 +587,16 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                                 title="Print Barcode Label"
                               >
                                 <Tag className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onDeleteProduct && (
+                              <button
+                                type="button"
+                                onClick={() => setPendingDeleteProduct(p)}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors"
+                                title="Delete discontinued product"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>
@@ -1062,6 +1088,83 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
               </div>
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================================== */}
+      {/* 6. DELETE CONFIRMATION MODAL                                         */}
+      {/* ==================================================================== */}
+      {pendingDeleteProduct && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white border border-[#E8DEC8] rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 border-b border-[#E8DEC8] bg-rose-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-rose-700">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                <h3 className="text-base font-bold text-stone-900 font-serif">
+                  Delete Discontinued Product
+                </h3>
+              </div>
+              <button
+                type="button"
+                disabled={isDeletingProduct}
+                onClick={() => setPendingDeleteProduct(null)}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-stone-600 leading-relaxed">
+                Are you sure you want to permanently delete this product? It will be removed immediately from the catalog, billing search, and barcode scanning across all devices.
+              </p>
+
+              <div className="p-3.5 bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-xs space-y-1">
+                <div className="font-bold text-stone-900 text-sm">{pendingDeleteProduct.name}</div>
+                <div className="flex items-center gap-2.5 text-stone-500 font-mono text-[11px] flex-wrap">
+                  <span>SKU: {pendingDeleteProduct.sku || 'N/A'}</span>
+                  <span>•</span>
+                  <span>Category: {pendingDeleteProduct.category}</span>
+                  <span>•</span>
+                  <span className="font-bold text-stone-700">Rs. {pendingDeleteProduct.sellingPrice.toFixed(2)}/{pendingDeleteProduct.unit}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] leading-relaxed">
+                <strong>Note:</strong> Past completed bills and reports that already include this item will retain their historical records intact.
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#E8DEC8]">
+                <button
+                  type="button"
+                  disabled={isDeletingProduct}
+                  onClick={() => setPendingDeleteProduct(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5] border border-[#E8DEC8]"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isDeletingProduct}
+                  onClick={async () => {
+                    if (!onDeleteProduct || !pendingDeleteProduct) return;
+                    setIsDeletingProduct(true);
+                    try {
+                      await onDeleteProduct(pendingDeleteProduct.id);
+                      setPendingDeleteProduct(null);
+                    } finally {
+                      setIsDeletingProduct(false);
+                    }
+                  }}
+                  className="py-2 px-4 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-md transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {isDeletingProduct ? 'Deleting...' : 'Yes, Delete Item'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

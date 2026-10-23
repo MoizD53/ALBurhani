@@ -9,6 +9,7 @@ import {
   saveOrderToTurso, 
   batchSaveOrdersToTurso,
   saveProductToTurso,
+  deleteProductFromTurso,
   batchSaveProductsToTurso,
   clearOrdersFromTurso,
   clearExpensesFromTurso,
@@ -41,7 +42,8 @@ import {
   recordDeletedOrder,
   syncDeletedOrdersFromRemote,
   isOrderDeleted,
-  isDemoOrTestOrder
+  isDemoOrTestOrder,
+  DELETED_ORDERS_STORAGE_KEY
 } from './lib/orders';
 import { getSavedCustomerOrders, saveCustomerOrdersLocally } from './lib/customerOrders';
 import { getSavedCategories, saveCategoriesLocally } from './lib/categories';
@@ -332,41 +334,65 @@ export function App() {
       // 2. Synchronize orders
       const remoteOrders = await fetchOrdersFromTurso();
       if (remoteOrders !== null) {
-        const validRemoteOrders = remoteOrders.filter(
-          (ro) => !isDemoOrTestOrder(ro) && !deletedIds.has(ro.id) && (!ro.billNumber || !deletedIds.has(ro.billNumber))
-        );
+        // Clear any accidental local tombstones for orders that exist in authoritative remoteOrders and are NOT in remoteDeleted
+        const remoteDeletedIdSet = new Set((remoteDeleted || []).map((r) => r.id.trim()));
+        const remoteDeletedBillSet = new Set((remoteDeleted || []).map((r) => (r.billNumber || '').trim()).filter(Boolean));
 
-        // Check if this device has local genuine orders that haven't reached Turso yet
-        const remoteIdSet = new Set(validRemoteOrders.map((o) => o.id));
-        const remoteBillSet = new Set(validRemoteOrders.map((o) => o.billNumber));
-
-        const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_orders') : null;
-        let localOrders: OrderBill[] = [];
-        if (localSaved) {
+        const localDeletedSet = getDeletedOrderIds();
+        let tombstonesCleaned = false;
+        for (const ro of remoteOrders) {
+          if (!remoteDeletedIdSet.has(ro.id) && (!ro.billNumber || !remoteDeletedBillSet.has(ro.billNumber))) {
+            if (localDeletedSet.has(ro.id)) {
+              localDeletedSet.delete(ro.id);
+              tombstonesCleaned = true;
+            }
+            if (ro.billNumber && localDeletedSet.has(ro.billNumber)) {
+              localDeletedSet.delete(ro.billNumber);
+              tombstonesCleaned = true;
+            }
+          }
+        }
+        if (tombstonesCleaned && typeof localStorage !== 'undefined') {
           try {
-            const parsed = JSON.parse(localSaved);
-            if (Array.isArray(parsed)) localOrders = parsed;
+            localStorage.setItem(DELETED_ORDERS_STORAGE_KEY, JSON.stringify(Array.from(localDeletedSet)));
           } catch {}
         }
 
-        // Clean out any tombstoned orders from local storage
-        const cleanLocalOrders = localOrders.filter(
-          (lo) => lo && lo.id && !isDemoOrTestOrder(lo) && !deletedIds.has(lo.id) && (!lo.billNumber || !deletedIds.has(lo.billNumber))
+        const validRemoteOrders = remoteOrders.filter(
+          (ro) => !isDemoOrTestOrder(ro) && !localDeletedSet.has(ro.id) && (!ro.billNumber || !localDeletedSet.has(ro.billNumber))
         );
 
-        const unsyncedLocalOrders = cleanLocalOrders.filter(
-          (lo) => !remoteIdSet.has(lo.id) && (!lo.billNumber || !remoteBillSet.has(lo.billNumber))
-        );
-
-        if (unsyncedLocalOrders.length > 0) {
-          // Upload genuine unsynced orders to cloud so all other devices see them
-          await batchSaveOrdersToTurso(unsyncedLocalOrders);
+        // Process durable offline queue: only upload orders explicitly created in offline queue
+        const pendingQueueRaw = typeof window !== 'undefined' ? localStorage.getItem('albhurani_pending_sales_queue') : null;
+        let pendingQueue: OrderBill[] = [];
+        if (pendingQueueRaw) {
+          try {
+            const parsed = JSON.parse(pendingQueueRaw);
+            if (Array.isArray(parsed)) pendingQueue = parsed;
+          } catch {}
         }
 
-        const mergedOrders = [...validRemoteOrders, ...unsyncedLocalOrders];
-        setOrders(mergedOrders);
+        const remoteIdSet = new Set(validRemoteOrders.map((o) => o.id));
+        const remoteBillSet = new Set(validRemoteOrders.map((o) => o.billNumber));
+
+        const ordersToUpload = pendingQueue.filter(
+          (po) => po && po.id && !remoteIdSet.has(po.id) && (!po.billNumber || !remoteBillSet.has(po.billNumber))
+        );
+
+        if (ordersToUpload.length > 0) {
+          const uploadedOk = await batchSaveOrdersToTurso(ordersToUpload);
+          if (uploadedOk && typeof window !== 'undefined') {
+            const remaining = pendingQueue.filter(
+              (po) => !ordersToUpload.some((uo) => uo.id === po.id || uo.billNumber === po.billNumber)
+            );
+            localStorage.setItem('albhurani_pending_sales_queue', JSON.stringify(remaining));
+          }
+        }
+
+        // Canonical server orders are the authoritative single source of truth
+        setOrders(validRemoteOrders);
         try {
-          localStorage.setItem('albhurani_orders', JSON.stringify(mergedOrders));
+          localStorage.setItem('albhurani_orders', JSON.stringify(validRemoteOrders));
         } catch {}
       }
 
@@ -533,6 +559,15 @@ export function App() {
               localStorage.setItem('albhurani_products', JSON.stringify(remoteProducts));
             } catch {}
           }
+        });
+      } else if (ev.operation === 'delete') {
+        const prodId = ev.entityId || ev.payload?.productId;
+        setProducts((prev) => {
+          const next = prev.filter((p) => p.id !== prodId);
+          try {
+            localStorage.setItem('albhurani_products', JSON.stringify(next));
+          } catch {}
+          return next;
         });
       }
     });
@@ -778,20 +813,41 @@ export function App() {
       }
     }
 
-    // 5. Persist to cloud database for cross-device sync (await to confirm)
+    // 5. Persist to cloud database with durable offline queue tracking
+    if (typeof window !== 'undefined') {
+      try {
+        const rawQueue = localStorage.getItem('albhurani_pending_sales_queue');
+        const queue: OrderBill[] = rawQueue ? JSON.parse(rawQueue) : [];
+        if (!queue.some(q => q.id === newOrder.id)) {
+          queue.push(newOrder);
+          localStorage.setItem('albhurani_pending_sales_queue', JSON.stringify(queue));
+        }
+      } catch {}
+    }
+
     try {
       const client = getTursoClient();
       if (client) {
         const orderSaved = await saveOrderToTurso(newOrder);
         if (!orderSaved) {
-          console.warn('Turso saveOrder returned false — order may not be visible on other devices');
+          console.warn('Turso saveOrder returned false — order kept in durable offline queue');
           syncManager.setStatus('error');
         } else {
           syncManager.setStatus('connected');
+          if (typeof window !== 'undefined') {
+            try {
+              const rawQueue = localStorage.getItem('albhurani_pending_sales_queue');
+              if (rawQueue) {
+                const queue: OrderBill[] = JSON.parse(rawQueue);
+                const filtered = queue.filter(q => q.id !== newOrder.id && q.billNumber !== newOrder.billNumber);
+                localStorage.setItem('albhurani_pending_sales_queue', JSON.stringify(filtered));
+              }
+            } catch {}
+          }
         }
       }
     } catch (tursoErr) {
-      console.warn('Turso dispatch error:', tursoErr);
+      console.warn('Turso dispatch error — order remains in offline queue for auto-retry:', tursoErr);
       syncManager.setStatus('error');
     }
 
@@ -991,6 +1047,26 @@ export function App() {
     } else {
       syncManager.setStatus('connected');
     }
+  };
+
+  const handleDeleteProduct = async (productId: string): Promise<boolean> => {
+    const updated = products.filter((p) => p.id !== productId);
+    setProducts(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('albhurani_products', JSON.stringify(updated));
+      } catch {}
+    }
+    const ok = await deleteProductFromTurso(productId);
+    if (ok) {
+      syncManager.broadcast({
+        entityType: 'product',
+        entityId: productId,
+        operation: 'delete',
+        payload: { productId },
+      });
+    }
+    return ok;
   };
 
   // Customer Orders Handlers
@@ -1328,6 +1404,7 @@ export function App() {
               categories={categories}
               onAddProduct={handleAddProduct}
               onUpdateProduct={handleUpdateProduct}
+              onDeleteProduct={handleDeleteProduct}
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}

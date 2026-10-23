@@ -20,7 +20,9 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Edit2,
+  Check
 } from 'lucide-react';
 import { Product, CartItem, OrderBill, PaymentMethod, TransactionType, CompleteSaleResult } from '../../types';
 import { playBeep } from '../../lib/utils';
@@ -422,8 +424,24 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     discountAmount,
     taxableAmount,
     gstAmount,
-    grandTotal,
+    grandTotal: rawCalculatedGrandTotal,
   } = calculateOrderTotals(cart, discountPercent, transactionType);
+
+  const [customAdjustment, setCustomAdjustment] = useState<number>(0);
+  const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false);
+  const [customTotalInput, setCustomTotalInput] = useState<string>('');
+
+  // Effective grand total after custom adjustment (+ / -)
+  const grandTotal = Math.max(0, Math.round((rawCalculatedGrandTotal + customAdjustment) * 100) / 100);
+
+  // Auto reset custom adjustment if cart is cleared
+  useEffect(() => {
+    if (cart.length === 0) {
+      setCustomAdjustment(0);
+      setIsEditingTotal(false);
+      setCustomTotalInput('');
+    }
+  }, [cart.length]);
 
   const parsedReceived = amountReceived !== '' ? parseFloat(amountReceived) : (paymentMethod === 'CREDIT' ? 0 : grandTotal);
   const receivedNum = isNaN(parsedReceived) ? (paymentMethod === 'CREDIT' ? 0 : grandTotal) : parsedReceived;
@@ -1137,19 +1155,137 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               )}
             </div>
 
-            {/* Total Due Display */}
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-[#E8DEC8] shadow-sm">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-[#B8860B] font-bold block">
-                  Total Payable
-                </span>
-                <span className="text-[10px] text-stone-500">
-                  {transactionType === 'CUSTOMER_BILL' ? 'catalog price incl. 5% GST' : 'no tax (0% GST)'}
-                </span>
+            {/* Total Due Display (Directly Editable with +/- Adjustments) */}
+            <div className="p-2.5 rounded-xl bg-white border border-[#E8DEC8] shadow-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-[#B8860B] font-bold block">
+                      Total Payable
+                    </span>
+                    {customAdjustment !== 0 && (
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono ${customAdjustment > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {customAdjustment > 0 ? `+Rs. ${customAdjustment}` : `-Rs. ${Math.abs(customAdjustment)}`}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-stone-500">
+                    {transactionType === 'CUSTOMER_BILL' ? 'catalog price incl. 5% GST' : 'no tax (0% GST)'}
+                  </span>
+                </div>
+
+                {isEditingTotal ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-stone-400">Rs.</span>
+                    <input
+                      type="number"
+                      autoFocus
+                      value={customTotalInput}
+                      onChange={(e) => {
+                        setCustomTotalInput(e.target.value);
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val >= 0) {
+                          setCustomAdjustment(val - rawCalculatedGrandTotal);
+                        }
+                      }}
+                      onBlur={() => setIsEditingTotal(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setIsEditingTotal(false);
+                      }}
+                      className="w-24 text-right py-1 px-2 text-lg font-black font-mono bg-[#FAF8F5] border-2 border-[#C99A18] rounded-lg text-stone-900 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingTotal(false)}
+                      className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50"
+                      title="Done"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-black text-stone-900 font-mono tracking-tight">
+                      Rs. {grandTotal}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomTotalInput(grandTotal.toString());
+                        setIsEditingTotal(true);
+                      }}
+                      className="p-1 text-stone-400 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+                      title="Click to edit final amount directly"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
-              <span className="text-2xl font-black text-stone-900 font-mono tracking-tight">
-                Rs. {grandTotal}
-              </span>
+
+              {/* Quick +/- Adjustment Toolbar */}
+              <div className="pt-1.5 border-t border-[#F0EBE0] flex items-center justify-between gap-1 flex-wrap">
+                <span className="text-[9px] font-bold text-stone-500 uppercase tracking-wider">
+                  Adjust:
+                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setCustomAdjustment((prev) => prev - 10)}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-rose-50 text-stone-700 hover:text-rose-700 border border-[#E8DEC8] hover:border-rose-200 transition-colors"
+                    title="Subtract Rs. 10"
+                  >
+                    -10
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomAdjustment((prev) => prev - 5)}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-rose-50 text-stone-700 hover:text-rose-700 border border-[#E8DEC8] hover:border-rose-200 transition-colors"
+                    title="Subtract Rs. 5"
+                  >
+                    -5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomAdjustment((prev) => prev + 5)}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-[#E8DEC8] hover:border-emerald-200 transition-colors"
+                    title="Add Rs. 5"
+                  >
+                    +5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomAdjustment((prev) => prev + 10)}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-[#E8DEC8] hover:border-emerald-200 transition-colors"
+                    title="Add Rs. 10"
+                  >
+                    +10
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomAdjustment(Math.round(rawCalculatedGrandTotal) - rawCalculatedGrandTotal)}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FBF7EE] hover:bg-[#F3EAD3] text-[#A67D0C] border border-[#C99A18]/40 transition-colors"
+                    title="Round off to nearest rupee"
+                  >
+                    Round
+                  </button>
+                  {customAdjustment !== 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomAdjustment(0);
+                        setCustomTotalInput('');
+                        setIsEditingTotal(false);
+                      }}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-0.5"
+                      title="Reset adjustment to exact calculated total"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                      <span>Reset</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Payment Method Selector */}

@@ -54,42 +54,40 @@ describe('AL-BURHANI POS — Cross-Device Real-Time Sync & Convergence', () => {
   };
 
   const tombstonedOrder: OrderBill = {
-    id: 'sale-1792594590792-2043',
-    billNumber: 'ALB-NB-2043',
-    transactionType: 'NO_BILL',
+    id: 'ALB-INV-2726',
+    billNumber: 'ALB-INV-2726',
+    transactionType: 'CUSTOMER_BILL',
     items: [],
-    subtotal: 1600,
+    subtotal: 500,
     discountAmount: 0,
-    gstAmount: 0,
-    grandTotal: 1600,
+    gstAmount: 25,
+    grandTotal: 525,
     paymentMethod: 'CASH',
-    amountReceived: 1600,
+    amountReceived: 525,
     changeGiven: 0,
     cashierName: 'Owner',
-    createdAt: '21-Oct-2026, 08:26 pm',
+    createdAt: '23-Oct-2026, 04:53 pm',
   };
 
   it('syncDeletedOrdersFromRemote merges remote tombstones into local storage', () => {
     expect(getDeletedOrderIds().size).toBe(0);
 
     const remoteDeleted = [
-      { id: 'sale-1792594590792-2043', billNumber: 'ALB-NB-2043' },
-      { id: 'sale-1792594676977-4761', billNumber: 'ALB-NB-4761' },
+      { id: 'ALB-INV-2726', billNumber: 'ALB-INV-2726' },
+      { id: 'test-order-999', billNumber: 'TEST-999' },
     ];
 
     const merged = syncDeletedOrdersFromRemote(remoteDeleted);
 
-    expect(merged.has('sale-1792594590792-2043')).toBe(true);
-    expect(merged.has('ALB-NB-2043')).toBe(true);
-    expect(merged.has('sale-1792594676977-4761')).toBe(true);
-    expect(merged.has('ALB-NB-4761')).toBe(true);
-    expect(isOrderDeleted('sale-1792594590792-2043')).toBe(true);
-    expect(isOrderDeleted(undefined, 'ALB-NB-2043')).toBe(true);
+    expect(merged.has('ALB-INV-2726')).toBe(true);
+    expect(merged.has('test-order-999')).toBe(true);
+    expect(isOrderDeleted('ALB-INV-2726')).toBe(true);
+    expect(isOrderDeleted(undefined, 'ALB-INV-2726')).toBe(true);
   });
 
   it('filters out tombstoned orders and prevents them from appearing in valid remote orders', () => {
     syncDeletedOrdersFromRemote([
-      { id: 'sale-1792594590792-2043', billNumber: 'ALB-NB-2043' },
+      { id: 'ALB-INV-2726', billNumber: 'ALB-INV-2726' },
     ]);
 
     const deletedIds = getDeletedOrderIds();
@@ -110,7 +108,7 @@ describe('AL-BURHANI POS — Cross-Device Real-Time Sync & Convergence', () => {
     localStorageMock.setItem('albhurani_orders', JSON.stringify(localSaved));
 
     // Device A receives tombstone from remote sync
-    const remoteDeleted = [{ id: 'sale-1792594590792-2043', billNumber: 'ALB-NB-2043' }];
+    const remoteDeleted = [{ id: 'ALB-INV-2726', billNumber: 'ALB-INV-2726' }];
     const deletedIds = syncDeletedOrdersFromRemote(remoteDeleted);
 
     // Filter local orders
@@ -128,7 +126,7 @@ describe('AL-BURHANI POS — Cross-Device Real-Time Sync & Convergence', () => {
       json: async () => ({
         success: true,
         rows: [
-          { id: 'sale-1792594590792-2043', bill_number: 'ALB-NB-2043' },
+          { id: 'ALB-INV-2726', bill_number: 'ALB-INV-2726' },
         ],
       }),
     } as any);
@@ -142,7 +140,7 @@ describe('AL-BURHANI POS — Cross-Device Real-Time Sync & Convergence', () => {
     expect(callUrl).toContain('_t=');
     expect(callInit.cache).toBe('no-store');
     expect(result).toHaveLength(1);
-    expect(result![0].billNumber).toBe('ALB-NB-2043');
+    expect(result![0].billNumber).toBe('ALB-INV-2726');
   });
 
   it('fetchOrdersFromTurso uses no-store and cache busting timestamp', async () => {

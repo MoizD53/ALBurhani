@@ -169,10 +169,26 @@ async function ensureSchema(client: Client): Promise<void> {
     `CREATE TABLE IF NOT EXISTS deleted_orders (
       id TEXT PRIMARY KEY,
       bill_number TEXT,
-      deleted_at TEXT DEFAULT CURRENT_TIMESTAMP
+      deleted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      deleted_by TEXT DEFAULT 'Owner',
+      reason TEXT DEFAULT 'Discontinued / Cancelled'
     );`,
 
     `CREATE INDEX IF NOT EXISTS idx_del_orders_bill ON deleted_orders (bill_number);`,
+
+    `CREATE TABLE IF NOT EXISTS financial_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      amount REAL DEFAULT 0,
+      payment_method TEXT,
+      details_json TEXT,
+      actor TEXT DEFAULT 'Owner',
+      timestamp INTEGER NOT NULL
+    );`,
+
+    `CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON financial_audit_logs (timestamp DESC);`,
 
     `CREATE TABLE IF NOT EXISTS sync_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -214,8 +230,6 @@ async function ensureSchema(client: Client): Promise<void> {
   try {
     await client.execute(`INSERT OR IGNORE INTO deleted_orders (id, bill_number, deleted_at)
       VALUES
-        ('sale-1792594590792-2043', 'ALB-NB-2043', '2026-10-21 15:47:31'),
-        ('sale-1792594676977-4761', 'ALB-NB-4761', '2026-10-21 15:47:56'),
         ('ALB-INV-2726', 'ALB-INV-2726', CURRENT_TIMESTAMP);`);
 
     await client.execute(`DELETE FROM orders WHERE id IN (SELECT id FROM deleted_orders)
@@ -259,6 +273,30 @@ async function logSyncEvent(
     }).catch(() => {});
   } catch (err) {
     console.warn('Failed to log sync event:', err);
+  }
+}
+
+/**
+ * Log financial mutation for tamper-evident ledger tracking
+ */
+async function logFinancialAudit(
+  client: Client,
+  action: string,
+  entityType: string,
+  entityId: string,
+  amount: number,
+  paymentMethod: string | null,
+  details: any,
+  actor: string = 'Owner'
+): Promise<void> {
+  try {
+    await client.execute({
+      sql: `INSERT INTO financial_audit_logs (action, entity_type, entity_id, amount, payment_method, details_json, actor, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      args: [action, entityType, entityId, amount, paymentMethod || null, JSON.stringify(details || {}), actor, Date.now()],
+    });
+  } catch (err) {
+    console.warn('Failed to record financial audit log:', err);
   }
 }
 
@@ -470,6 +508,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Health & Reconciliation Verification Check
+    if (action === 'reconcile-check') {
+      try {
+        const orderSummary = await client.execute(`
+          SELECT 
+            transaction_type,
+            COUNT(*) as count,
+            COALESCE(SUM(grand_total), 0) as total_revenue,
+            COALESCE(SUM(CASE WHEN payment_method = 'CASH' THEN grand_total ELSE 0 END), 0) as cash_total,
+            COALESCE(SUM(CASE WHEN payment_method = 'UPI' THEN grand_total ELSE 0 END), 0) as upi_total,
+            COALESCE(SUM(CASE WHEN payment_method = 'CREDIT' THEN grand_total ELSE 0 END), 0) as credit_total
+          FROM orders
+          GROUP BY transaction_type;
+        `);
+
+        const totalOrders = await client.execute('SELECT COUNT(*) as count FROM orders;');
+        const totalDeleted = await client.execute('SELECT COUNT(*) as count FROM deleted_orders;');
+
+        return res.status(200).json({
+          success: true,
+          serverTime: Date.now(),
+          summary: orderSummary.rows,
+          totalActiveOrders: totalOrders.rows[0]?.count || 0,
+          totalDeletedOrders: totalDeleted.rows[0]?.count || 0,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
     return res.status(400).json({ success: false, error: 'Unknown GET action' });
   }
 
@@ -534,6 +602,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         await logSyncEvent(client, 'product', p.id, 'save', p);
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Delete Discontinued Product
+    if (action === 'delete-product') {
+      const { productId } = payload || {};
+      if (!productId) {
+        return res.status(400).json({ success: false, error: 'Missing productId' });
+      }
+
+      try {
+        await client.execute({
+          sql: 'DELETE FROM products WHERE id = ?;',
+          args: [productId],
+        });
+
+        await logSyncEvent(client, 'product', productId, 'delete', { productId });
         return res.status(200).json({ success: true });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -693,6 +781,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ],
         });
 
+        await logFinancialAudit(client, 'RECORD_SALE', 'order', o.id, Number(o.grandTotal) || 0, o.paymentMethod || 'CASH', {
+          billNumber: o.billNumber,
+          itemsCount: o.items?.length,
+          transactionType: o.transactionType
+        });
         await logSyncEvent(client, 'order', o.id, 'save', o);
         return res.status(200).json({ success: true });
       } catch (err: any) {
@@ -781,7 +874,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           args: [orderId, targetBill],
         });
 
+        await logFinancialAudit(client, 'DELETE_SALE', 'order', orderId, 0, null, { billNumber: targetBill });
         await logSyncEvent(client, 'order', orderId, 'delete', { orderId, billNumber: targetBill });
+        return res.status(200).json({ success: true });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // Restore Order
+    if (action === 'restore-order') {
+      const { orderId, billNumber } = payload || {};
+      if (!orderId && !billNumber) {
+        return res.status(400).json({ success: false, error: 'Missing orderId or billNumber' });
+      }
+
+      try {
+        await client.execute({
+          sql: 'DELETE FROM deleted_orders WHERE id = ? OR bill_number = ?;',
+          args: [orderId || '', billNumber || ''],
+        });
+
+        await logFinancialAudit(client, 'RESTORE_SALE', 'order', orderId || billNumber, 0, null, payload);
+        await logSyncEvent(client, 'order', orderId || billNumber, 'restore', payload);
         return res.status(200).json({ success: true });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
