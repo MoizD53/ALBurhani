@@ -265,10 +265,16 @@ async function ensureSchema(client: Client): Promise<void> {
       entity_id TEXT NOT NULL,
       operation TEXT NOT NULL,
       payload_json TEXT,
-      server_timestamp INTEGER NOT NULL
+      server_timestamp INTEGER NOT NULL,
+      branch TEXT DEFAULT 'all'
     );`,
 
-    `CREATE INDEX IF NOT EXISTS idx_sync_events_timestamp ON sync_events (server_timestamp ASC);`
+    `CREATE INDEX IF NOT EXISTS idx_sync_events_timestamp ON sync_events (server_timestamp ASC);`,
+    `CREATE INDEX IF NOT EXISTS idx_products_cat_name ON products (category ASC, name ASC);`,
+    `CREATE INDEX IF NOT EXISTS idx_orders_branch_created ON orders (branch, created_at DESC);`,
+    `CREATE INDEX IF NOT EXISTS idx_expenses_branch_date ON expenses (branch, date DESC);`,
+    `CREATE INDEX IF NOT EXISTS idx_purchase_bills_branch_date ON purchase_bills (branch, purchase_date DESC);`,
+    `CREATE INDEX IF NOT EXISTS idx_sync_events_ts_branch ON sync_events (server_timestamp ASC, branch);`
   ];
 
   for (const sql of schemaStatements) {
@@ -291,9 +297,15 @@ async function ensureSchema(client: Client): Promise<void> {
     "ALTER TABLE expenses ADD COLUMN branch TEXT DEFAULT 'godi_road';",
     "ALTER TABLE purchase_bills ADD COLUMN branch TEXT DEFAULT 'godi_road';",
     "ALTER TABLE customer_orders ADD COLUMN branch TEXT DEFAULT 'godi_road';",
+    "ALTER TABLE sync_events ADD COLUMN branch TEXT DEFAULT 'all';",
     "CREATE INDEX IF NOT EXISTS idx_orders_branch ON orders (branch);",
     "CREATE INDEX IF NOT EXISTS idx_expenses_branch ON expenses (branch);",
     "CREATE INDEX IF NOT EXISTS idx_purchase_bills_branch ON purchase_bills (branch);",
+    "CREATE INDEX IF NOT EXISTS idx_products_cat_name ON products (category ASC, name ASC);",
+    "CREATE INDEX IF NOT EXISTS idx_orders_branch_created ON orders (branch, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_expenses_branch_date ON expenses (branch, date DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_purchase_bills_branch_date ON purchase_bills (branch, purchase_date DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_sync_events_ts_branch ON sync_events (server_timestamp ASC, branch);",
   ];
 
   for (const alterSql of columnMigrations) {
@@ -366,19 +378,22 @@ async function logSyncEvent(
   entityType: string,
   entityId: string,
   operation: string,
-  payload?: any
+  payload?: any,
+  branch?: string
 ): Promise<void> {
   try {
     const timestamp = Date.now();
+    const eventBranch = branch || payload?.branch || 'all';
     await client.execute({
-      sql: `INSERT INTO sync_events (entity_type, entity_id, operation, payload_json, server_timestamp)
-            VALUES (?, ?, ?, ?, ?);`,
+      sql: `INSERT INTO sync_events (entity_type, entity_id, operation, payload_json, server_timestamp, branch)
+            VALUES (?, ?, ?, ?, ?, ?);`,
       args: [
         entityType,
         entityId,
         operation,
         payload ? JSON.stringify(payload) : null,
         timestamp,
+        eventBranch,
       ],
     });
 
@@ -636,13 +651,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'fetch-events') {
       try {
         const since = Number(req.query.since || 0);
+        const branch = req.query.branch as string | undefined;
+        let sql = `SELECT id, entity_type, entity_id, operation, payload_json, server_timestamp
+              FROM sync_events
+              WHERE server_timestamp > ?`;
+        const args: any[] = [since];
+
+        if (branch && branch !== 'ALL' && branch !== 'all') {
+          sql += ` AND (branch = ? OR branch = 'all' OR branch IS NULL)`;
+          args.push(branch);
+        }
+
+        sql += ` ORDER BY server_timestamp ASC LIMIT 100;`;
+
         const result = await client.execute({
-          sql: `SELECT id, entity_type, entity_id, operation, payload_json, server_timestamp
-                FROM sync_events
-                WHERE server_timestamp > ?
-                ORDER BY server_timestamp ASC
-                LIMIT 100;`,
-          args: [since],
+          sql,
+          args,
         });
 
         const events = result.rows.map((r: any) => ({

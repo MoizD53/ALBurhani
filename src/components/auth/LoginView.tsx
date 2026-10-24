@@ -203,7 +203,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
           {/* Official AL-BURHANI Round Logo */}
           <div className="mx-auto mb-3 sm:mb-3.5 w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-b from-[#E7C75A]/60 via-[#D4AF37]/30 to-transparent shadow-[0_0_24px_rgba(212,175,55,0.38)] flex items-center justify-center">
-            <div className="w-full h-full rounded-full overflow-hidden bg-white/95 border border-[#D4AF37]/60 shadow-inner flex items-center justify-center">
+            <div className="w-full h-full rounded-full overflow-hidden bg-[#050505] border border-[#D4AF37]/60 shadow-inner flex items-center justify-center">
               <img
                 src="/logo.png"
                 alt="Al Burhani Sweet Mart Logo"

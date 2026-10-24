@@ -22,6 +22,81 @@ if (typeof window !== 'undefined') {
 
 const API_ENDPOINT = '/api/db';
 
+// Shared In-Memory Caches & Deduplication to prevent runaway database reads
+let productsCache: { data: Product[]; timestamp: number } | null = null;
+let productsFetchPromise: Promise<Product[] | null> | null = null;
+const PRODUCTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+let ordersCache: Map<string, { data: OrderBill[]; timestamp: number }> = new Map();
+let ordersFetchPromise: Map<string, Promise<OrderBill[] | null>> = new Map();
+const ORDERS_CACHE_TTL = 30 * 1000; // 30 seconds
+
+let categoriesCache: { data: CategoryItem[]; timestamp: number } | null = null;
+let categoriesFetchPromise: Promise<CategoryItem[] | null> | null = null;
+const CATEGORIES_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+let expensesCache: Map<string, { data: ExpenseItem[]; timestamp: number }> = new Map();
+const EXPENSES_CACHE_TTL = 60 * 1000; // 60 seconds
+
+let purchasesCache: Map<string, { data: PurchaseBill[]; timestamp: number }> = new Map();
+const PURCHASES_CACHE_TTL = 60 * 1000; // 60 seconds
+
+let customersCache: { data: CustomerRecord[]; timestamp: number } | null = null;
+const CUSTOMERS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+let vendorsCache: { data: Vendor[]; timestamp: number } | null = null;
+const VENDORS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+let settingsCache: { data: Record<string, any>; timestamp: number } | null = null;
+const SETTINGS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+let deletedOrdersCache: { data: { id: string; billNumber?: string }[]; timestamp: number } | null = null;
+const DELETED_ORDERS_CACHE_TTL = 60 * 1000; // 60 seconds
+
+export function invalidateProductsCache() {
+  productsCache = null;
+}
+
+export function invalidateOrdersCache(branch?: string) {
+  if (branch) {
+    for (const key of Array.from(ordersCache.keys())) {
+      if (key.startsWith(`${branch}_`)) {
+        ordersCache.delete(key);
+      }
+    }
+  } else {
+    ordersCache.clear();
+  }
+}
+
+export function invalidateCategoriesCache() {
+  categoriesCache = null;
+}
+
+export function invalidateExpensesCache() {
+  expensesCache.clear();
+}
+
+export function invalidatePurchasesCache() {
+  purchasesCache.clear();
+}
+
+export function invalidateCustomersCache() {
+  customersCache = null;
+}
+
+export function invalidateVendorsCache() {
+  vendorsCache = null;
+}
+
+export function invalidateSettingsCache() {
+  settingsCache = null;
+}
+
+export function invalidateDeletedOrdersCache() {
+  deletedOrdersCache = null;
+}
+
 export interface TursoConnectionStatus {
   isConnected: boolean;
   isConfigured: boolean;
@@ -92,49 +167,66 @@ export function getTursoClient() {
 }
 
 /**
- * Fetch all products from remote database
+ * Fetch all products from remote database (with shared in-memory TTL caching and request deduplication)
  */
-export async function fetchProductsFromTurso(): Promise<Product[] | null> {
-  try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-products&_t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (!data.success || !Array.isArray(data.rows)) return null;
-
-    const products: Product[] = data.rows.map((row: any) => ({
-      id: String(row.id),
-      sku: String(row.sku || row.barcode),
-      barcode: String(row.barcode),
-      name: String(row.name),
-      category: row.category as any,
-      unit: String(row.unit),
-      priceBasis: row.price_basis ? String(row.price_basis) : undefined,
-      netWeight: row.net_weight ? String(row.net_weight) : undefined,
-      costPrice: Number(row.cost_price),
-      sellingPrice: Number(row.selling_price),
-      stock: Number(row.stock),
-      minStock: Number(row.min_stock),
-      shelfLifeDays: Number(row.shelf_life_days || 90),
-      batchNo: String(row.batch_no || ''),
-      mfgDate: String(row.mfg_date || ''),
-      expiryDate: String(row.expiry_date || ''),
-      priceTiers: row.price_tiers ? (typeof row.price_tiers === 'string' ? JSON.parse(row.price_tiers) : row.price_tiers) : undefined,
-      isActive: true,
-    }));
-
-    // Ensure remote products are converted to per-kg and cannot overwrite local state with stale rates
-    const { products: cleanProducts } = migrateCatalogPrices(products);
-    return cleanProducts;
-  } catch {
-    return null;
+export async function fetchProductsFromTurso(forceRefresh = false): Promise<Product[] | null> {
+  const now = Date.now();
+  if (!forceRefresh && productsCache && (now - productsCache.timestamp < PRODUCTS_CACHE_TTL)) {
+    return productsCache.data;
   }
+
+  if (productsFetchPromise) {
+    return productsFetchPromise;
+  }
+
+  productsFetchPromise = (async () => {
+    try {
+      const res = await fetch(`${API_ENDPOINT}?action=fetch-products&_t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.rows)) return null;
+
+      const products: Product[] = data.rows.map((row: any) => ({
+        id: String(row.id),
+        sku: String(row.sku || row.barcode),
+        barcode: String(row.barcode),
+        name: String(row.name),
+        category: row.category as any,
+        unit: String(row.unit),
+        priceBasis: row.price_basis ? String(row.price_basis) : undefined,
+        netWeight: row.net_weight ? String(row.net_weight) : undefined,
+        costPrice: Number(row.cost_price),
+        sellingPrice: Number(row.selling_price),
+        stock: Number(row.stock),
+        minStock: Number(row.min_stock),
+        shelfLifeDays: Number(row.shelf_life_days || 90),
+        batchNo: String(row.batch_no || ''),
+        mfgDate: String(row.mfg_date || ''),
+        expiryDate: String(row.expiry_date || ''),
+        priceTiers: row.price_tiers ? (typeof row.price_tiers === 'string' ? JSON.parse(row.price_tiers) : row.price_tiers) : undefined,
+        isActive: true,
+      }));
+
+      // Ensure remote products are converted to per-kg and cannot overwrite local state with stale rates
+      const { products: cleanProducts } = migrateCatalogPrices(products);
+      productsCache = { data: cleanProducts, timestamp: Date.now() };
+      return cleanProducts;
+    } catch {
+      return null;
+    } finally {
+      productsFetchPromise = null;
+    }
+  })();
+
+  return productsFetchPromise;
 }
 
 /**
  * Save / Update a product via serverless proxy
  */
 export async function saveProductToTurso(product: Product): Promise<boolean> {
+  invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -163,6 +255,7 @@ export async function saveProductToTurso(product: Product): Promise<boolean> {
  * Batch save/backfill products to remote database
  */
 export async function batchSaveProductsToTurso(products: Product[]): Promise<boolean> {
+  invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -185,6 +278,7 @@ export async function batchSaveProductsToTurso(products: Product[]): Promise<boo
 }
 
 export async function updateStockOnTurso(productId: string, newStock: number): Promise<boolean> {
+  invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -215,6 +309,7 @@ export async function updateStockOnTurso(productId: string, newStock: number): P
  * This is safe for concurrent multi-device operations.
  */
 export async function adjustStockOnTurso(productId: string, delta: number): Promise<{ success: boolean; stock?: number }> {
+  invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -243,6 +338,7 @@ export async function adjustStockOnTurso(productId: string, delta: number): Prom
  * Delete a product item from remote database
  */
 export async function deleteProductFromTurso(productId: string): Promise<boolean> {
+  invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -265,9 +361,14 @@ export async function deleteProductFromTurso(productId: string): Promise<boolean
 }
 
 /**
- * Fetch deleted order tombstones from remote database
+ * Fetch deleted order tombstones from remote database (with shared TTL cache)
  */
-export async function fetchDeletedOrdersFromTurso(): Promise<{ id: string; billNumber?: string }[] | null> {
+export async function fetchDeletedOrdersFromTurso(forceRefresh = false): Promise<{ id: string; billNumber?: string }[] | null> {
+  const now = Date.now();
+  if (!forceRefresh && deletedOrdersCache && (now - deletedOrdersCache.timestamp < DELETED_ORDERS_CACHE_TTL)) {
+    return deletedOrdersCache.data;
+  }
+
   try {
     const res = await fetch(`${API_ENDPOINT}?action=fetch-deleted-orders&_t=${Date.now()}`, {
       cache: 'no-store',
@@ -278,72 +379,101 @@ export async function fetchDeletedOrdersFromTurso(): Promise<{ id: string; billN
     const data = await res.json();
     if (!data.success || !Array.isArray(data.rows)) return null;
 
-    return data.rows.map((row: any) => ({
+    const rows = data.rows.map((row: any) => ({
       id: String(row.id),
       billNumber: row.bill_number ? String(row.bill_number) : undefined,
     }));
+    deletedOrdersCache = { data: rows, timestamp: Date.now() };
+    return rows;
   } catch {
     return null;
   }
 }
 
 /**
- * Fetch orders from remote database
+ * Fetch orders from remote database (with branch-scoped caching & in-flight deduplication)
  */
-export async function fetchOrdersFromTurso(transactionType?: 'CUSTOMER_BILL' | 'NO_BILL' | 'ALL'): Promise<OrderBill[] | null> {
-  try {
-    const typeParam = transactionType && transactionType !== 'ALL' ? `&type=${transactionType}` : '';
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-orders${typeParam}&_t=${Date.now()}`, {
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (!data.success || !Array.isArray(data.rows)) return null;
-
-    const orders: OrderBill[] = data.rows.map((row: any) => ({
-      id: String(row.id),
-      billNumber: String(row.bill_number),
-      transactionType: (row.transaction_type as any) || 'CUSTOMER_BILL',
-      items: JSON.parse(String(row.items_json || '[]')),
-      subtotal: Number(row.subtotal),
-      discountAmount: Number(row.discount_amount),
-      gstAmount: Number(row.gst_amount),
-      grandTotal: Number(row.grand_total),
-      paymentMethod: row.payment_method as any,
-      amountReceived: Number(row.amount_received),
-      changeGiven: Number(row.change_given),
-      dueAmount: row.due_amount !== undefined && row.due_amount !== null ? Number(row.due_amount) : Math.max(0, Number(row.grand_total) - Number(row.amount_received || 0)),
-      isSettled: row.is_settled !== undefined && row.is_settled !== null ? Boolean(row.is_settled) : undefined,
-      customerName: row.customer_name ? String(row.customer_name) : undefined,
-      customerPhone: row.customer_phone ? String(row.customer_phone) : undefined,
-      cashierName: String(row.cashier_name),
-      createdAt: String(row.created_at),
-      timestamp: row.timestamp ? Number(row.timestamp) : (row.created_at ? new Date(row.created_at).getTime() : undefined),
-      dailyBillNumber: row.daily_bill_number ? Number(row.daily_bill_number) : undefined,
-      businessDate: row.business_date ? String(row.business_date) : undefined,
-      isRevised: Boolean(row.is_revised),
-      originalGrandTotal: row.original_grand_total ? Number(row.original_grand_total) : undefined,
-      additionalAmountPaid: row.additional_amount_paid ? Number(row.additional_amount_paid) : undefined,
-      originalPaymentMethod: row.original_payment_method as any,
-      additionalPaymentMethod: row.additional_payment_method as any,
-      revisedAt: row.revised_at ? String(row.revised_at) : undefined,
-      revisedTimestamp: row.revised_timestamp ? Number(row.revised_timestamp) : undefined,
-      revisionCount: row.revision_count ? Number(row.revision_count) : 0,
-      branch: row.branch ? String(row.branch) : 'godi_road',
-    }));
-
-    return orders;
-  } catch {
-    return null;
+export async function fetchOrdersFromTurso(
+  transactionType?: 'CUSTOMER_BILL' | 'NO_BILL' | 'ALL',
+  branch?: string,
+  forceRefresh = false
+): Promise<OrderBill[] | null> {
+  const cacheKey = `${branch || 'all'}_${transactionType || 'all'}`;
+  const now = Date.now();
+  if (!forceRefresh && ordersCache.has(cacheKey)) {
+    const cached = ordersCache.get(cacheKey)!;
+    if (now - cached.timestamp < ORDERS_CACHE_TTL) {
+      return cached.data;
+    }
   }
+
+  if (ordersFetchPromise.has(cacheKey)) {
+    return ordersFetchPromise.get(cacheKey)!;
+  }
+
+  const promise = (async () => {
+    try {
+      const typeParam = transactionType && transactionType !== 'ALL' ? `&type=${transactionType}` : '';
+      const branchParam = branch && branch !== 'ALL' ? `&branch=${branch}` : '';
+      const res = await fetch(`${API_ENDPOINT}?action=fetch-orders${typeParam}${branchParam}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.rows)) return null;
+
+      const orders: OrderBill[] = data.rows.map((row: any) => ({
+        id: String(row.id),
+        billNumber: String(row.bill_number),
+        transactionType: (row.transaction_type as any) || 'CUSTOMER_BILL',
+        items: JSON.parse(String(row.items_json || '[]')),
+        subtotal: Number(row.subtotal),
+        discountAmount: Number(row.discount_amount),
+        gstAmount: Number(row.gst_amount),
+        grandTotal: Number(row.grand_total),
+        paymentMethod: row.payment_method as any,
+        amountReceived: Number(row.amount_received),
+        changeGiven: Number(row.change_given),
+        dueAmount: row.due_amount !== undefined && row.due_amount !== null ? Number(row.due_amount) : Math.max(0, Number(row.grand_total) - Number(row.amount_received || 0)),
+        isSettled: row.is_settled !== undefined && row.is_settled !== null ? Boolean(row.is_settled) : undefined,
+        customerName: row.customer_name ? String(row.customer_name) : undefined,
+        customerPhone: row.customer_phone ? String(row.customer_phone) : undefined,
+        cashierName: String(row.cashier_name),
+        createdAt: String(row.created_at),
+        timestamp: row.timestamp ? Number(row.timestamp) : (row.created_at ? new Date(row.created_at).getTime() : undefined),
+        dailyBillNumber: row.daily_bill_number ? Number(row.daily_bill_number) : undefined,
+        businessDate: row.business_date ? String(row.business_date) : undefined,
+        isRevised: Boolean(row.is_revised),
+        originalGrandTotal: row.original_grand_total ? Number(row.original_grand_total) : undefined,
+        additionalAmountPaid: row.additional_amount_paid ? Number(row.additional_amount_paid) : undefined,
+        originalPaymentMethod: row.original_payment_method as any,
+        additionalPaymentMethod: row.additional_payment_method as any,
+        revisedAt: row.revised_at ? String(row.revised_at) : undefined,
+        revisedTimestamp: row.revised_timestamp ? Number(row.revised_timestamp) : undefined,
+        revisionCount: row.revision_count ? Number(row.revision_count) : 0,
+        branch: row.branch ? String(row.branch) : 'godi_road',
+      }));
+
+      ordersCache.set(cacheKey, { data: orders, timestamp: Date.now() });
+      return orders;
+    } catch {
+      return null;
+    } finally {
+      ordersFetchPromise.delete(cacheKey);
+    }
+  })();
+
+  ordersFetchPromise.set(cacheKey, promise);
+  return promise;
 }
 
 /**
  * Save an order to remote database
  */
 export async function saveOrderToTurso(order: OrderBill): Promise<boolean> {
+  invalidateOrdersCache(order.branch);
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -375,6 +505,7 @@ export async function saveOrderToTurso(order: OrderBill): Promise<boolean> {
  */
 export async function batchSaveOrdersToTurso(orders: OrderBill[]): Promise<boolean> {
   if (!orders || orders.length === 0) return true;
+  invalidateOrdersCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -400,6 +531,8 @@ export async function batchSaveOrdersToTurso(orders: OrderBill[]): Promise<boole
  * Delete a specific order from remote database
  */
 export async function deleteOrderFromTurso(orderId: string, billNumber?: string): Promise<boolean> {
+  invalidateOrdersCache();
+  invalidateDeletedOrdersCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -425,6 +558,8 @@ export async function deleteOrderFromTurso(orderId: string, billNumber?: string)
  * Restore a previously deleted order in remote database
  */
 export async function restoreOrderInTurso(orderId: string, billNumber?: string): Promise<boolean> {
+  invalidateOrdersCache();
+  invalidateDeletedOrdersCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -463,17 +598,27 @@ export async function checkDatabaseReconciliation(): Promise<any> {
 }
 
 /**
- * Fetch expenses from remote database
+ * Fetch expenses from remote database (with TTL caching)
  */
-export async function fetchExpensesFromTurso(): Promise<ExpenseItem[] | null> {
+export async function fetchExpensesFromTurso(branch?: string, forceRefresh = false): Promise<ExpenseItem[] | null> {
+  const cacheKey = branch || 'all';
+  const now = Date.now();
+  if (!forceRefresh && expensesCache.has(cacheKey)) {
+    const cached = expensesCache.get(cacheKey)!;
+    if (now - cached.timestamp < EXPENSES_CACHE_TTL) {
+      return cached.data;
+    }
+  }
+
   try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-expenses&_t=${Date.now()}`, { cache: 'no-store' });
+    const branchParam = branch && branch !== 'ALL' ? `&branch=${branch}` : '';
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-expenses${branchParam}&_t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return null;
 
     const data = await res.json();
     if (!data.success || !Array.isArray(data.rows)) return null;
 
-    return data.rows.map((row: any) => ({
+    const expenses: ExpenseItem[] = data.rows.map((row: any) => ({
       id: String(row.id),
       title: String(row.title),
       category: String(row.category),
@@ -484,6 +629,9 @@ export async function fetchExpensesFromTurso(): Promise<ExpenseItem[] | null> {
       notes: row.notes ? String(row.notes) : undefined,
       branch: row.branch ? String(row.branch) : 'godi_road',
     }));
+
+    expensesCache.set(cacheKey, { data: expenses, timestamp: Date.now() });
+    return expenses;
   } catch {
     return null;
   }
@@ -493,6 +641,7 @@ export async function fetchExpensesFromTurso(): Promise<ExpenseItem[] | null> {
  * Save expense to remote database
  */
 export async function saveExpenseToTurso(expense: ExpenseItem): Promise<boolean> {
+  invalidateExpensesCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -809,36 +958,51 @@ export async function deleteCustomerOrderFromTurso(orderId: string): Promise<boo
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch categories from remote database
+ * Fetch categories from remote database (with shared TTL cache & request deduplication)
  */
-export async function fetchCategoriesFromTurso(): Promise<CategoryItem[] | null> {
-  try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-categories`);
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (!data.success || !Array.isArray(data.rows)) return null;
-
-    const categories: CategoryItem[] = data.rows.map((row: any) => ({
-      id: String(row.id),
-      name: String(row.name),
-      description: row.description ? String(row.description) : '',
-      isActive: Boolean(row.is_active !== 0),
-      displayOrder: Number(row.display_order) || 0,
-      createdAt: row.created_at ? String(row.created_at) : undefined,
-      updatedAt: row.updated_at ? String(row.updated_at) : undefined,
-    }));
-
-    return categories;
-  } catch {
-    return null;
+export async function fetchCategoriesFromTurso(forceRefresh = false): Promise<CategoryItem[] | null> {
+  const now = Date.now();
+  if (!forceRefresh && categoriesCache && (now - categoriesCache.timestamp < CATEGORIES_CACHE_TTL)) {
+    return categoriesCache.data;
   }
+
+  if (categoriesFetchPromise) return categoriesFetchPromise;
+
+  categoriesFetchPromise = (async () => {
+    try {
+      const res = await fetch(`${API_ENDPOINT}?action=fetch-categories&_t=${Date.now()}`);
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.rows)) return null;
+
+      const categories: CategoryItem[] = data.rows.map((row: any) => ({
+        id: String(row.id),
+        name: String(row.name),
+        description: row.description ? String(row.description) : '',
+        isActive: Boolean(row.is_active !== 0),
+        displayOrder: Number(row.display_order) || 0,
+        createdAt: row.created_at ? String(row.created_at) : undefined,
+        updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+      }));
+
+      categoriesCache = { data: categories, timestamp: Date.now() };
+      return categories;
+    } catch {
+      return null;
+    } finally {
+      categoriesFetchPromise = null;
+    }
+  })();
+
+  return categoriesFetchPromise;
 }
 
 /**
  * Save / Update category on remote database
  */
 export async function saveCategoryToTurso(category: CategoryItem): Promise<boolean> {
+  invalidateCategoriesCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -868,6 +1032,8 @@ export async function renameCategoryOnTurso(
   newName: string,
   categoryId?: string
 ): Promise<boolean> {
+  invalidateCategoriesCache();
+  invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -893,6 +1059,7 @@ export async function renameCategoryOnTurso(
  * Delete category from remote database
  */
 export async function deleteCategoryFromTurso(categoryId: string): Promise<boolean> {
+  invalidateCategoriesCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -916,17 +1083,28 @@ export async function deleteCategoryFromTurso(categoryId: string): Promise<boole
 
 
 /**
- * Fetch all purchase bills from remote database
+ * Fetch all purchase bills from remote database (with TTL caching)
  */
-export async function fetchPurchaseBillsFromTurso(): Promise<PurchaseBill[] | null> {
+export async function fetchPurchaseBillsFromTurso(branch?: string, forceRefresh = false): Promise<PurchaseBill[] | null> {
+  const cacheKey = branch || 'all';
+  const now = Date.now();
+  if (!forceRefresh && purchasesCache.has(cacheKey)) {
+    const cached = purchasesCache.get(cacheKey)!;
+    if (now - cached.timestamp < PURCHASES_CACHE_TTL) {
+      return cached.data;
+    }
+  }
+
   try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-purchase-bills&_t=${Date.now()}`, {
+    const branchParam = branch && branch !== 'ALL' ? `&branch=${branch}` : '';
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-purchase-bills${branchParam}&_t=${Date.now()}`, {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.success || !Array.isArray(data.rows)) return null;
+    purchasesCache.set(cacheKey, { data: data.rows, timestamp: Date.now() });
     return data.rows;
   } catch {
     return null;
@@ -934,9 +1112,14 @@ export async function fetchPurchaseBillsFromTurso(): Promise<PurchaseBill[] | nu
 }
 
 /**
- * Fetch all vendors with their ledger statistics
+ * Fetch all vendors with their ledger statistics (with TTL caching)
  */
-export async function fetchVendorsFromTurso(): Promise<Vendor[] | null> {
+export async function fetchVendorsFromTurso(forceRefresh = false): Promise<Vendor[] | null> {
+  const now = Date.now();
+  if (!forceRefresh && vendorsCache && (now - vendorsCache.timestamp < VENDORS_CACHE_TTL)) {
+    return vendorsCache.data;
+  }
+
   try {
     const res = await fetch(`${API_ENDPOINT}?action=fetch-vendors&_t=${Date.now()}`, {
       cache: 'no-store',
@@ -945,6 +1128,7 @@ export async function fetchVendorsFromTurso(): Promise<Vendor[] | null> {
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.success || !Array.isArray(data.vendors)) return null;
+    vendorsCache = { data: data.vendors, timestamp: Date.now() };
     return data.vendors;
   } catch {
     return null;
@@ -955,6 +1139,7 @@ export async function fetchVendorsFromTurso(): Promise<Vendor[] | null> {
  * Save or update a purchase bill in remote database
  */
 export async function savePurchaseBillToTurso(bill: PurchaseBill): Promise<PurchaseBill | null> {
+  invalidatePurchasesCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -980,6 +1165,7 @@ export async function savePurchaseBillToTurso(bill: PurchaseBill): Promise<Purch
  * Cancel a purchase bill with safe stock reversal
  */
 export async function cancelPurchaseBillOnTurso(billId: string, reason?: string): Promise<boolean> {
+  invalidatePurchasesCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -1005,6 +1191,7 @@ export async function cancelPurchaseBillOnTurso(billId: string, reason?: string)
  * Add a payment against a purchase bill
  */
 export async function addVendorPaymentOnTurso(payment: VendorPayment): Promise<boolean> {
+  invalidatePurchasesCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',

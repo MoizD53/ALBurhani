@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Product, 
   OrderBill, 
@@ -338,20 +338,28 @@ export function App() {
 
   // Clean up obsolete test mode key from localStorage and sync remote data if configured
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const isSyncingRef = useRef<boolean>(false);
+  const productsRef = useRef<Product[]>(products);
 
-  const syncRemoteData = React.useCallback(async () => {
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
+  const syncRemoteData = useCallback(async (forceRefresh = false) => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
     try {
       setIsSyncing(true);
 
       // 0. Synchronize remote deleted order tombstones first to prevent resurrection
-      const remoteDeleted = await fetchDeletedOrdersFromTurso();
+      const remoteDeleted = await fetchDeletedOrdersFromTurso(forceRefresh);
       let deletedIds = getDeletedOrderIds();
       if (remoteDeleted && remoteDeleted.length > 0) {
         deletedIds = syncDeletedOrdersFromRemote(remoteDeleted);
       }
 
       // 1. Synchronize products with safeguarding against partial catalog wipes
-      const remoteProducts = await fetchProductsFromTurso();
+      const remoteProducts = await fetchProductsFromTurso(forceRefresh);
       if (remoteProducts && remoteProducts.length >= 250) {
         // Check if this device has local products that haven't reached Turso yet
         const remoteIdSet = new Set(remoteProducts.map((p) => p.id));
@@ -376,7 +384,14 @@ export function App() {
         }
 
         const mergedProducts = [...remoteProducts, ...unsyncedProducts];
-        setProducts(mergedProducts);
+        setProducts((prev) => {
+          // Compare before setting to avoid unnecessary re-renders
+          if (prev.length === mergedProducts.length) {
+            const hasChange = prev.some((p, i) => p.id !== mergedProducts[i]?.id || p.stock !== mergedProducts[i]?.stock || p.sellingPrice !== mergedProducts[i]?.sellingPrice);
+            if (!hasChange) return prev;
+          }
+          return mergedProducts;
+        });
         try {
           localStorage.setItem('albhurani_products', JSON.stringify(mergedProducts));
         } catch {}
@@ -522,9 +537,9 @@ export function App() {
       }
 
       // 7. Synchronize categories
-      const remoteCategories = await fetchCategoriesFromTurso();
+      const remoteCategories = await fetchCategoriesFromTurso(forceRefresh);
       if (remoteCategories !== null && remoteCategories.length > 0) {
-        const localSavedCats = getSavedCategories(products);
+        const localSavedCats = getSavedCategories(productsRef.current);
         const remoteCatMap = new Map(remoteCategories.map((c) => [c.id, c]));
         const unsyncedCats = localSavedCats.filter((lc) => !remoteCatMap.has(lc.id));
         for (const uc of unsyncedCats) {
@@ -534,7 +549,7 @@ export function App() {
         setCategories(mergedCats);
         saveCategoriesLocally(mergedCats);
       } else if (remoteCategories !== null && remoteCategories.length === 0) {
-        const localCats = getSavedCategories(products);
+        const localCats = getSavedCategories(productsRef.current);
         for (const c of localCats) {
           await saveCategoryToTurso(c).catch(() => {});
         }
@@ -543,7 +558,7 @@ export function App() {
 
       // 8. Synchronize Purchase Bills and Vendors
       try {
-        const remotePurchases = await fetchPurchaseBillsFromTurso();
+        const remotePurchases = await fetchPurchaseBillsFromTurso(undefined, forceRefresh);
         if (remotePurchases !== null && Array.isArray(remotePurchases)) {
           setPurchaseBills(remotePurchases);
           if (typeof window !== 'undefined') {
@@ -552,7 +567,7 @@ export function App() {
             } catch {}
           }
         }
-        const remoteVendors = await fetchVendorsFromTurso();
+        const remoteVendors = await fetchVendorsFromTurso(forceRefresh);
         if (remoteVendors !== null && Array.isArray(remoteVendors)) {
           setVendors(remoteVendors);
           if (typeof window !== 'undefined') {
@@ -567,9 +582,10 @@ export function App() {
     } catch (err) {
       console.warn('Could not sync remote data from Turso:', err);
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
     }
-  }, [products]);
+  }, []);
 
   useEffect(() => {
     try {
@@ -578,21 +594,32 @@ export function App() {
 
     syncRemoteData();
 
-    // Start background sync manager (polling delta events every 2.5s and on focus/online)
+    // Start background sync manager scoped by active branch
+    syncManager.setBranch(activeBranch);
     syncManager.start();
 
-    // Periodic full reconciliation every 30 seconds to guarantee zero-drift cross-device convergence
+    // Gentle reconciliation interval every 2 minutes when tab is visible
     const reconcileInterval = setInterval(() => {
-      syncRemoteData();
-    }, 30000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      syncRemoteData(false);
+    }, 120000);
 
+    let lastFocusSync = 0;
     const handleWindowFocus = () => {
-      syncRemoteData();
+      const now = Date.now();
+      if (now - lastFocusSync > 30000) {
+        lastFocusSync = now;
+        syncRemoteData(false);
+      }
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        syncRemoteData();
+        const now = Date.now();
+        if (now - lastFocusSync > 30000) {
+          lastFocusSync = now;
+          syncRemoteData(false);
+        }
       }
     };
 
@@ -625,7 +652,7 @@ export function App() {
           return updated;
         });
       } else if (ev.operation === 'batch_save' || ev.operation === 'clear_orders') {
-        syncRemoteData();
+        syncRemoteData(true);
       }
     });
 
@@ -643,15 +670,6 @@ export function App() {
             return next;
           });
         }
-        // Re-fetch full canonical product list from cloud to ensure all fields are synchronized
-        fetchProductsFromTurso().then((remoteProducts) => {
-          if (remoteProducts && remoteProducts.length >= 250) {
-            setProducts(remoteProducts);
-            try {
-              localStorage.setItem('albhurani_products', JSON.stringify(remoteProducts));
-            } catch {}
-          }
-        });
       } else if (ev.operation === 'delete') {
         const prodId = ev.entityId || ev.payload?.productId;
         setProducts((prev) => {
@@ -666,14 +684,13 @@ export function App() {
 
     const unsubExpense = syncManager.subscribe('expense', (ev) => {
       if (ev.operation === 'save' && ev.payload) {
-        // Re-fetch expenses from cloud for properly formatted data
-        fetchExpensesFromTurso().then((remoteExpenses) => {
-          if (remoteExpenses) {
-            setExpenses(remoteExpenses);
-            try {
-              localStorage.setItem('albhurani_expenses', JSON.stringify(remoteExpenses));
-            } catch {}
-          }
+        setExpenses((prev) => {
+          const exists = prev.some((e) => e.id === ev.payload.id);
+          const next = exists ? prev.map((e) => (e.id === ev.payload.id ? ev.payload : e)) : [ev.payload, ...prev];
+          try {
+            localStorage.setItem('albhurani_expenses', JSON.stringify(next));
+          } catch {}
+          return next;
         });
       } else if (ev.operation === 'clear_expenses') {
         setExpenses([]);
@@ -692,11 +709,22 @@ export function App() {
 
     const unsubCustomer = syncManager.subscribe('customer', (ev) => {
       if (ev.operation === 'save' && ev.payload) {
-        // Re-fetch customers from cloud for properly formatted data
-        fetchCustomersFromTurso().then((remoteCustomers) => {
-          if (remoteCustomers && remoteCustomers.length > 0) {
-            setCustomers(remoteCustomers);
-          }
+        setCustomers((prev) => {
+          const exists = prev.some((c) => c.id === ev.payload.id || (ev.payload.phone && c.phone === ev.payload.phone));
+          return exists ? prev.map((c) => (c.id === ev.payload.id || c.phone === ev.payload.phone ? ev.payload : c)) : [ev.payload, ...prev];
+        });
+      }
+    });
+
+    const unsubPurchase = syncManager.subscribe('purchase_bill' as any, (ev) => {
+      if (ev.operation === 'save' && ev.payload) {
+        setPurchaseBills((prev) => {
+          const exists = prev.some((b) => b.id === ev.payload.id || (ev.payload.purchaseNumber && b.purchaseNumber === ev.payload.purchaseNumber));
+          const next = exists ? prev.map((b) => (b.id === ev.payload.id || b.purchaseNumber === ev.payload.purchaseNumber ? ev.payload : b)) : [ev.payload, ...prev];
+          try {
+            localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+          } catch {}
+          return next;
         });
       }
     });
@@ -765,10 +793,11 @@ export function App() {
       unsubExpense();
       unsubSettings();
       unsubCustomer();
+      unsubPurchase();
       unsubCustomerOrder();
       unsubCategory();
     };
-  }, [syncRemoteData]);
+  }, []);
 
   // Save states to localStorage
   useEffect(() => {

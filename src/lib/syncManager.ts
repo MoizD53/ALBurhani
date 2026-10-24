@@ -27,6 +27,8 @@ class SyncManager {
   private lastTimestamp: number = 0;
   private isPolling: boolean = false;
   private pollIntervalId: any = null;
+  private currentIntervalMs: number = 10000;
+  private activeBranch: string = 'all';
   private statusListeners: Set<(status: SyncStatus) => void> = new Set();
   private entityListeners: Map<string, Set<EntityChangeListener>> = new Map();
   private processedEventIds: Set<number> = new Set();
@@ -44,6 +46,10 @@ class SyncManager {
     } else {
       this.lastTimestamp = Date.now() - 3600000;
     }
+  }
+
+  public setBranch(branch: string) {
+    this.activeBranch = branch;
   }
 
   private initNetworkListeners() {
@@ -64,18 +70,32 @@ class SyncManager {
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
+        // Tab is active again: poll once and resume interval timer
         this.pollForEvents();
+        if (!this.pollIntervalId) {
+          this.pollIntervalId = setInterval(() => {
+            this.pollForEvents();
+          }, this.currentIntervalMs);
+        }
+      } else {
+        // Tab is hidden: pause interval to save battery and prevent runaway database reads
+        if (this.pollIntervalId) {
+          clearInterval(this.pollIntervalId);
+          this.pollIntervalId = null;
+        }
       }
     });
   }
 
-  public start(intervalMs: number = 2500) {
+  public start(intervalMs: number = 10000) {
+    this.currentIntervalMs = intervalMs;
     if (this.pollIntervalId) return;
 
     // Run first sync immediately
     this.pollForEvents();
 
     this.pollIntervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       this.pollForEvents();
     }, intervalMs);
   }
@@ -150,7 +170,8 @@ class SyncManager {
     this.isPolling = true;
 
     try {
-      const endpoint = `/api/db?action=fetch-events&since=${this.lastTimestamp}&_t=${Date.now()}`;
+      const branchParam = this.activeBranch && this.activeBranch !== 'all' ? `&branch=${encodeURIComponent(this.activeBranch)}` : '';
+      const endpoint = `/api/db?action=fetch-events&since=${this.lastTimestamp}${branchParam}&_t=${Date.now()}`;
       const res = await fetch(endpoint, {
         method: 'GET',
         cache: 'no-store',

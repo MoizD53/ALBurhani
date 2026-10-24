@@ -128,7 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {showLabels ? (
             <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] flex items-center justify-between shadow-[0_2px_10px_rgba(0,0,0,0.03)]">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-white border border-[#C99A18]/50 flex items-center justify-center overflow-hidden shadow-[0_0_8px_rgba(201,154,24,0.2)] shrink-0">
+                <div className="w-8 h-8 rounded-full bg-[#0A0A0A] border border-[#C99A18]/50 flex items-center justify-center overflow-hidden shadow-[0_0_8px_rgba(201,154,24,0.2)] shrink-0">
                   <img src="/logo.png" alt="Al Burhani" className="w-full h-full object-contain rounded-full" />
                 </div>
                 <div className="min-w-0">
@@ -154,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <div 
               title="AL-BURHANI Sweets & Dry Items"
-              className="w-10 h-10 rounded-full bg-white border border-[#C99A18]/50 flex items-center justify-center overflow-hidden shadow-[0_0_10px_rgba(201,154,24,0.25)] cursor-pointer hover:scale-105 transition-transform"
+              className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#C99A18]/50 flex items-center justify-center overflow-hidden shadow-[0_0_10px_rgba(201,154,24,0.25)] cursor-pointer hover:scale-105 transition-transform"
               onClick={() => setIsCollapsed(false)}
             >
               <img src="/logo.png" alt="Al Burhani" className="w-full h-full object-contain rounded-full" />
