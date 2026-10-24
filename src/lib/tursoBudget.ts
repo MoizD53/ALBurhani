@@ -24,7 +24,7 @@ const PLAN_CEILING = 500_000_000;
 const STORAGE_KEY = 'albhurani_turso_monthly_usage';
 
 // Default baseline from verified production dashboard telemetry
-const DEFAULT_BASELINE_USAGE = 28_866_605;
+const DEFAULT_BASELINE_USAGE = 32_158_784;
 
 /**
  * Calculates current cycle days remaining (assuming 1st of month reset or 30-day window)

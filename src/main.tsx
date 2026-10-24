@@ -51,8 +51,9 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.loca
   });
 
   window.addEventListener('load', () => {
+    const swPath = new URL('sw.js', window.location.href).href;
     navigator.serviceWorker
-      .register('/sw.js', { updateViaCache: 'none' })
+      .register(swPath, { updateViaCache: 'none' })
       .then((registration) => {
         console.log('[PWA] Service Worker registered with scope:', registration.scope);
 

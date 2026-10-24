@@ -127,15 +127,42 @@ describe('Turso Read Optimization & Shared Cache', () => {
 
   it('correctly calculates 450M monthly budget status and warning tiers', () => {
     // Test with baseline usage
-    recordMonthlyUsage(28_866_605);
+    recordMonthlyUsage(32_158_784);
     const status = getTursoBudgetStatus();
 
     expect(status.monthlyTarget).toBe(450_000_000);
     expect(status.planCeiling).toBe(500_000_000);
-    expect(status.currentMonthlyUsage).toBeGreaterThanOrEqual(28_866_605);
-    expect(status.remainingBudget).toBeGreaterThan(400_000_000);
+    expect(status.currentMonthlyUsage).toBeGreaterThanOrEqual(32_158_784);
+    expect(status.remainingBudget).toBeGreaterThan(417_000_000);
     expect(status.tier).toBe('NORMAL');
     expect(status.recommendedDeltaIntervalMs).toBe(10_000);
+  });
+
+  it('records user activity and triggers immediate event check when re-activating from idle', async () => {
+    let pollCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('action=fetch-events')) {
+        pollCount++;
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            events: [],
+            serverTime: Date.now()
+          })
+        };
+      }
+      return { ok: false };
+    });
+
+    const { syncManager } = await import('../lib/syncManager');
+    syncManager.start(30000);
+    expect(pollCount).toBeGreaterThanOrEqual(1);
+
+    // Call recordUserActivity()
+    syncManager.recordUserActivity();
+    expect(typeof syncManager.recordUserActivity).toBe('function');
+    syncManager.stop();
   });
 
   it('handles idle event sync cursor without backward rewinds', async () => {

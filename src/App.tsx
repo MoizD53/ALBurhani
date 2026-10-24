@@ -596,7 +596,7 @@ export function App() {
 
     // Start background sync manager scoped by active branch (event-driven delta feed)
     syncManager.setBranch(activeBranch);
-    syncManager.start(25000); // Modest 25-second background delta heartbeat
+    syncManager.start(30000); // 30-second active background delta heartbeat with adaptive idle backoff
 
     // On network reconnect, perform single catch-up sync for durable recovery
     const handleOnlineReconnect = () => {
@@ -786,8 +786,9 @@ export function App() {
     if (!isAuthenticated) return;
     try {
       localStorage.setItem('albhurani_current_user', JSON.stringify(currentUser));
+      syncManager.setBranch(activeBranch);
     } catch {}
-  }, [currentUser, isAuthenticated]);
+  }, [currentUser, isAuthenticated, activeBranch]);
 
   // Synchronize URL hash when activeTab changes while authenticated
   useEffect(() => {
@@ -1433,29 +1434,38 @@ export function App() {
           return next;
         });
 
-        // Refresh products in background so stock counts reflect inward movement
-        fetchProductsFromTurso().then((prods) => {
-          if (prods && prods.length >= 250) {
-            setProducts(prods);
+        // Update inward stock locally for purchased items without triggering full 342-product database scan
+        if (billWithBranch.items && billWithBranch.items.length > 0) {
+          setProducts((prev) => {
+            const updated = prev.map((p) => {
+              const matched = billWithBranch.items.find((item) => item.productId === p.id);
+              if (!matched) return p;
+              return { ...p, stock: (p.stock || 0) + Number(matched.quantity || 0) };
+            });
             if (typeof window !== 'undefined') {
               try {
-                localStorage.setItem('albhurani_products', JSON.stringify(prods));
+                localStorage.setItem('albhurani_products', JSON.stringify(updated));
               } catch {}
             }
-          }
-        }).catch(() => {});
+            return updated;
+          });
+        }
 
-        // Refresh vendors in background
-        fetchVendorsFromTurso().then((v) => {
-          if (v) {
-            setVendors(v);
+        // Update vendor balance locally
+        if (billWithBranch.vendorId) {
+          setVendors((prev) => {
+            const updated = prev.map((v) => {
+              if (v.id !== billWithBranch.vendorId) return v;
+              return { ...v, balanceDue: (v.balanceDue || 0) + (billWithBranch.balanceDue || 0) };
+            });
             if (typeof window !== 'undefined') {
               try {
-                localStorage.setItem('albhurani_vendors', JSON.stringify(v));
+                localStorage.setItem('albhurani_vendors', JSON.stringify(updated));
               } catch {}
             }
-          }
-        }).catch(() => {});
+            return updated;
+          });
+        }
 
         return true;
       }
@@ -1480,17 +1490,23 @@ export function App() {
           return next;
         });
 
-        // Refresh products in background to reflect reversed stock
-        fetchProductsFromTurso().then((prods) => {
-          if (prods && prods.length >= 250) {
-            setProducts(prods);
+        // Reverse inward stock locally for cancelled items without downloading full product table
+        const cancelledBill = purchaseBills.find((b) => b.id === billId);
+        if (cancelledBill && cancelledBill.items && cancelledBill.items.length > 0) {
+          setProducts((prev) => {
+            const updated = prev.map((p) => {
+              const matched = cancelledBill.items.find((item) => item.productId === p.id);
+              if (!matched) return p;
+              return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
+            });
             if (typeof window !== 'undefined') {
               try {
-                localStorage.setItem('albhurani_products', JSON.stringify(prods));
+                localStorage.setItem('albhurani_products', JSON.stringify(updated));
               } catch {}
             }
-          }
-        }).catch(() => {});
+            return updated;
+          });
+        }
 
         return true;
       }

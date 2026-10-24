@@ -1,12 +1,12 @@
 /**
  * AL-BURHANI POS — Central Real-Time Synchronization Engine
  * 
- * Provides 1–3 second cross-device convergence for:
- * - Customer Tax Invoices & No-Bill Sales
- * - Product inventory & catalog prices
- * - Store expenses & finance records
- * - Shared owner settings (GST, shop details, NovaJet label settings)
- * - Customer records
+ * Strict Business-Activity-Driven Sync Architecture:
+ * - Activity-driven adaptive polling: active during billing (30s), backing off to gentle cadence when idle (90s - 300s).
+ * - Instant wake on cashier interaction (keystroke, barcode scan, mouse move, touch, checkout).
+ * - Zero background reads when tab is hidden or device is offline.
+ * - Stable, forward-only cursor progression without backward rewinds.
+ * - Single-event delivery: other devices receive sales, products, expenses, and purchases directly via delta payload without table scans.
  */
 
 export type SyncStatus = 'connected' | 'syncing' | 'offline' | 'error';
@@ -26,12 +26,17 @@ class SyncManager {
   private status: SyncStatus = 'connected';
   private lastTimestamp: number = 0;
   private isPolling: boolean = false;
-  private pollIntervalId: any = null;
-  private currentIntervalMs: number = 10000;
+  private pollTimeoutId: any = null;
+  private isRunning: boolean = false;
   private activeBranch: string = 'all';
   private statusListeners: Set<(status: SyncStatus) => void> = new Set();
   private entityListeners: Map<string, Set<EntityChangeListener>> = new Map();
   private processedEventIds: Set<number> = new Set();
+
+  // Activity tracking state
+  private lastUserActivity: number = Date.now();
+  private lastPollTime: number = 0;
+  private baseIntervalMs: number = 30000;
 
   constructor() {
     this.initNetworkListeners();
@@ -52,59 +57,124 @@ class SyncManager {
     this.activeBranch = branch;
   }
 
+  /**
+   * Records retail user activity (scanning, typing, clicking, navigation).
+   * If returning from idle, immediately wakes up the sync engine to catch pending events.
+   */
+  public recordUserActivity(): void {
+    const now = Date.now();
+    const wasIdle = (now - this.lastUserActivity) > 120000; // was idle > 2 minutes
+    this.lastUserActivity = now;
+
+    if (wasIdle && this.isRunning) {
+      // Re-activating from idle: check for pending changes if more than 15s since last poll
+      if (now - this.lastPollTime > 15000) {
+        this.pollForEvents();
+      }
+      this.reschedule();
+    }
+  }
+
   private initNetworkListeners() {
     if (typeof window === 'undefined') return;
 
     window.addEventListener('online', () => {
       this.setStatus('syncing');
       this.pollForEvents();
+      this.reschedule();
     });
 
     window.addEventListener('offline', () => {
       this.setStatus('offline');
+      this.clearTimer();
     });
 
     window.addEventListener('focus', () => {
-      this.pollForEvents();
+      this.recordUserActivity();
+      if (this.isRunning && Date.now() - this.lastPollTime > 15000) {
+        this.pollForEvents();
+      }
     });
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        // Tab is active again: poll once and resume interval timer
-        this.pollForEvents();
-        if (!this.pollIntervalId) {
-          this.pollIntervalId = setInterval(() => {
-            this.pollForEvents();
-          }, this.currentIntervalMs);
+        this.recordUserActivity();
+        if (this.isRunning) {
+          this.pollForEvents();
+          this.reschedule();
         }
       } else {
-        // Tab is hidden: pause interval to save battery and prevent runaway database reads
-        if (this.pollIntervalId) {
-          clearInterval(this.pollIntervalId);
-          this.pollIntervalId = null;
-        }
+        // Tab is hidden: completely pause scheduling to eliminate database reads
+        this.clearTimer();
       }
     });
+
+    // Throttled user activity listeners for physical shop laptop
+    let lastMoveThrottle = 0;
+    const handleMove = () => {
+      const now = Date.now();
+      if (now - lastMoveThrottle > 10000) {
+        lastMoveThrottle = now;
+        this.recordUserActivity();
+      }
+    };
+
+    window.addEventListener('mousemove', handleMove, { passive: true });
+    window.addEventListener('keydown', () => this.recordUserActivity(), { passive: true });
+    window.addEventListener('pointerdown', () => this.recordUserActivity(), { passive: true });
+    window.addEventListener('touchstart', () => this.recordUserActivity(), { passive: true });
   }
 
-  public start(intervalMs: number = 25000) {
-    this.currentIntervalMs = intervalMs;
-    if (this.pollIntervalId) return;
+  private clearTimer() {
+    if (this.pollTimeoutId) {
+      clearTimeout(this.pollTimeoutId);
+      this.pollTimeoutId = null;
+    }
+  }
+
+  /**
+   * Computes dynamic poll delay based on user idle time.
+   * - Active (<2m idle): base interval (30s)
+   * - Idle (2m - 5m idle): 90s
+   * - Deep Idle (>5m idle): 300s (5m)
+   */
+  private getNextDelayMs(): number {
+    const idleDuration = Date.now() - this.lastUserActivity;
+    if (idleDuration > 300000) {
+      return 300000; // Deep idle: 5 minutes
+    }
+    if (idleDuration > 120000) {
+      return 90000; // Idle: 90 seconds
+    }
+    return Math.max(10000, this.baseIntervalMs);
+  }
+
+  private reschedule() {
+    this.clearTimer();
+    if (!this.isRunning) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+
+    const delay = this.getNextDelayMs();
+    this.pollTimeoutId = setTimeout(async () => {
+      await this.pollForEvents();
+      this.reschedule();
+    }, delay);
+  }
+
+  public start(intervalMs: number = 30000) {
+    this.baseIntervalMs = intervalMs;
+    this.isRunning = true;
+    this.lastUserActivity = Date.now();
 
     // Run first sync immediately
     this.pollForEvents();
-
-    this.pollIntervalId = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      this.pollForEvents();
-    }, intervalMs);
+    this.reschedule();
   }
 
   public stop() {
-    if (this.pollIntervalId) {
-      clearInterval(this.pollIntervalId);
-      this.pollIntervalId = null;
-    }
+    this.isRunning = false;
+    this.clearTimer();
   }
 
   public getStatus(): SyncStatus {
@@ -146,6 +216,7 @@ class SyncManager {
   }
 
   public broadcast(event: Omit<SyncEvent, 'id' | 'serverTimestamp'>): void {
+    this.recordUserActivity();
     const fullEvent: SyncEvent = {
       ...event,
       id: Date.now() + Math.floor(Math.random() * 1000),
@@ -168,6 +239,7 @@ class SyncManager {
     }
 
     this.isPolling = true;
+    this.lastPollTime = Date.now();
 
     try {
       const branchParam = this.activeBranch && this.activeBranch !== 'all' ? `&branch=${encodeURIComponent(this.activeBranch)}` : '';
