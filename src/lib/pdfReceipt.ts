@@ -112,7 +112,8 @@ export function generateReceiptPdfBytes(
   curY -= 12;
   writeCentered('SWEETS & DRY ITEMS FRANCHISE', curY, 'F2', 7.5);
   curY -= 10;
-  writeCentered('Godi Road, Near Clock Tower', curY, 'F1', 7);
+  const branchAddress = (order as any).branch === 'mg_road' ? 'MG Road Outlet' : 'Godi Road, Near Clock Tower';
+  writeCentered(branchAddress, curY, 'F1', 7);
   curY -= 9;
   writeCentered('Ph: +91 98765 43210', curY, 'F1', 7);
   curY -= 10;
@@ -532,7 +533,7 @@ export function generateReceiptHtml(
   <div class="text-center pb-1 border-b-2">
     <h1 style="font-size: ${storeTitleSize}; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase;">AL-BURHANI</h1>
     <div style="font-size: ${is58mm ? '7.5px' : '8.5px'}; font-weight: 800; text-transform: uppercase; margin-top: 2px;">Sweets & Dry Items Franchise</div>
-    <div style="font-size: ${is58mm ? '7px' : '8px'}; font-weight: 600;">Godi Road, Near Clock Tower</div>
+    <div style="font-size: ${is58mm ? '7px' : '8px'}; font-weight: 600;">${(order as any).branch === 'mg_road' ? 'MG Road Outlet' : 'Godi Road, Near Clock Tower'}</div>
     <div style="font-size: ${is58mm ? '7px' : '8px'}; font-weight: 600;">Ph: +91 98765 43210</div>
     ${hasGst ? `
       <div class="border-t pt-1" style="margin-top: 4px;">
@@ -777,7 +778,7 @@ export function formatWhatsAppReceiptMessage(order: OrderBill): string {
 
   return [
     `🧾 *AL-BURHANI SWEETS & DRY ITEMS*`,
-    `Godi Road, Near Clock Tower · Ph: +91 98765 43210`,
+    `${(order as any).branch === 'mg_road' ? 'MG Road Outlet' : 'Godi Road, Near Clock Tower'} · Ph: +91 98765 43210`,
     `────────────────────────`,
     `Dear *${custName}*,`,
     `Thank you for shopping with us!`,

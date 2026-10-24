@@ -8,6 +8,7 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
+  const [selectedBranch, setSelectedBranch] = useState<'godi_road' | 'mg_road'>('godi_road');
   const [userId, setUserId] = useState('admin');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -228,6 +229,38 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               <span className="font-medium leading-snug">{errorMessage}</span>
             </div>
           )}
+
+          {/* Branch Selector Tabs */}
+          <div className="flex rounded-xl bg-white/[0.05] p-1 border border-[#D4AF37]/20 gap-1 mb-3.5">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedBranch('godi_road');
+                setErrorMessage(null);
+              }}
+              className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                selectedBranch === 'godi_road'
+                  ? 'bg-gradient-to-r from-[#F0D16A] to-[#D4AF37] text-[#080808] shadow-[0_0_12px_rgba(212,175,55,0.4)]'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
+            >
+              <span>🏪 Godi Road</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedBranch('mg_road');
+                setErrorMessage(null);
+              }}
+              className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                selectedBranch === 'mg_road'
+                  ? 'bg-gradient-to-r from-[#F0D16A] to-[#D4AF37] text-[#080808] shadow-[0_0_12px_rgba(212,175,55,0.4)]'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
+            >
+              <span>🏪 MG Road</span>
+            </button>
+          </div>
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5">

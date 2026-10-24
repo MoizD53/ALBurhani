@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Product, 
   OrderBill, 
@@ -90,6 +90,8 @@ const DEFAULT_USER: UserProfile = {
   name: 'Owner',
   role: 'Owner',
   counter: 'Godi Road Store',
+  branchId: 'godi_road',
+  branchName: 'Godi Road',
 };
 
 const VALID_TABS: ActiveTab[] = [
@@ -148,6 +150,8 @@ export function App() {
         name: session.user.name,
         role: session.user.role,
         counter: session.user.counter,
+        branchId: session.user.branchId || 'godi_road',
+        branchName: session.user.branchName || 'Godi Road',
       };
     }
     return DEFAULT_USER;
@@ -312,6 +316,25 @@ export function App() {
   const [categories, setCategories] = useState<CategoryItem[]>(() => {
     return getSavedCategories(products);
   });
+
+  // Multi-Shop Branch Isolation: Godi Road (Main) vs MG Road (New)
+  const activeBranch = currentUser.branchId || 'godi_road';
+
+  const branchOrders = useMemo(() => {
+    return orders.filter((o) => (o.branch || 'godi_road') === activeBranch);
+  }, [orders, activeBranch]);
+
+  const branchExpenses = useMemo(() => {
+    return expenses.filter((e) => (e.branch || 'godi_road') === activeBranch);
+  }, [expenses, activeBranch]);
+
+  const branchPurchaseBills = useMemo(() => {
+    return purchaseBills.filter((b) => (b.branch || 'godi_road') === activeBranch);
+  }, [purchaseBills, activeBranch]);
+
+  const branchCustomerOrders = useMemo(() => {
+    return customerOrders.filter((co) => (co.branch || 'godi_road') === activeBranch);
+  }, [customerOrders, activeBranch]);
 
   // Clean up obsolete test mode key from localStorage and sync remote data if configured
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -854,13 +877,18 @@ export function App() {
       return { success: false, error: `Duplicate order: ${newOrder.billNumber} is already recorded` };
     }
 
-    // 3. Immediately assign IST business date and sequential daily bill number (1, 2, 3... N)
+    // 3. Immediately assign IST business date, branch, and sequential daily bill number (1, 2, 3... N)
     const todayKolkata = getKolkataDateString(newOrder.timestamp || Date.now());
     if (!newOrder.businessDate) {
       newOrder.businessDate = todayKolkata;
     }
+    if (!newOrder.branch) {
+      newOrder.branch = activeBranch;
+    }
     if (!newOrder.dailyBillNumber || newOrder.dailyBillNumber <= 0) {
       const todayBills = orders.filter((o) => {
+        const oBranch = o.branch || 'godi_road';
+        if (oBranch !== activeBranch) return false;
         const oDate = o.businessDate || getKolkataDateString(extractOrderTimestamp(o) || Date.now());
         return oDate === todayKolkata;
       });
@@ -1168,11 +1196,15 @@ export function App() {
   // Customer Orders Handlers
   const handleCreateCustomerOrder = async (newOrder: CustomerOrder): Promise<boolean> => {
     try {
-      const updated = [newOrder, ...customerOrders];
+      const orderWithBranch = {
+        ...newOrder,
+        branch: newOrder.branch || activeBranch,
+      };
+      const updated = [orderWithBranch, ...customerOrders];
       setCustomerOrders(updated);
       saveCustomerOrdersLocally(updated);
 
-      const ok = await saveCustomerOrderToTurso(newOrder);
+      const ok = await saveCustomerOrderToTurso(orderWithBranch);
       if (!ok) {
         console.warn('Failed to save customer order to Turso cloud');
       }
@@ -1180,8 +1212,8 @@ export function App() {
       syncManager.broadcast({
         entityType: 'customer_order',
         operation: 'save',
-        entityId: newOrder.id,
-        payload: newOrder,
+        entityId: orderWithBranch.id,
+        payload: orderWithBranch,
       });
 
       return true;
@@ -1360,16 +1392,24 @@ export function App() {
   };
 
   const handleAddExpense = (newExpense: ExpenseItem) => {
-    setExpenses((prev) => [newExpense, ...prev]);
+    const expenseWithBranch: ExpenseItem = {
+      ...newExpense,
+      branch: newExpense.branch || activeBranch,
+    };
+    setExpenses((prev) => [expenseWithBranch, ...prev]);
     // Persist to cloud database for cross-device sync
-    saveExpenseToTurso(newExpense).catch((err) =>
+    saveExpenseToTurso(expenseWithBranch).catch((err) =>
       console.warn('Turso saveExpense background error:', err)
     );
   };
 
   const handleSavePurchaseBill = async (bill: PurchaseBill): Promise<boolean> => {
     try {
-      const saved = await savePurchaseBillToTurso(bill);
+      const billWithBranch: PurchaseBill = {
+        ...bill,
+        branch: bill.branch || activeBranch,
+      };
+      const saved = await savePurchaseBillToTurso(billWithBranch);
       if (saved) {
         setPurchaseBills((prev) => {
           const idx = prev.findIndex((b) => b.id === saved.id);
@@ -1526,6 +1566,8 @@ export function App() {
         name: session.user.name,
         role: session.user.role,
         counter: session.user.counter,
+        branchId: session.user.branchId || 'godi_road',
+        branchName: session.user.branchName || 'Godi Road',
       });
     }
     setIsAuthenticated(true);
@@ -1574,9 +1616,9 @@ export function App() {
           {activeTab === 'overview' && (
             <OverviewDashboardView
               products={products}
-              orders={orders}
-              expenses={expenses}
-              customerOrders={customerOrders}
+              orders={branchOrders}
+              expenses={branchExpenses}
+              customerOrders={branchCustomerOrders}
               onNavigateToTab={setActiveTab}
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
@@ -1602,7 +1644,7 @@ export function App() {
 
           {activeTab === 'orders' && (
             <OrdersView
-              orders={customerOrders}
+              orders={branchCustomerOrders}
               products={products}
               currentUser={currentUser}
               onCreateOrder={handleCreateCustomerOrder}
@@ -1614,7 +1656,7 @@ export function App() {
 
           {activeTab === 'customer-bills' && (
             <CustomerBillsView 
-              orders={orders} 
+              orders={branchOrders} 
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
               onSettleOrder={handleSettleOrder}
@@ -1625,7 +1667,7 @@ export function App() {
 
           {activeTab === 'no-bill-sales' && (
             <NoBillSalesView 
-              orders={orders} 
+              orders={branchOrders} 
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
               onSettleOrder={handleSettleOrder}
@@ -1636,7 +1678,7 @@ export function App() {
 
           {activeTab === 'purchases' && (
             <PurchaseBillsView
-              purchaseBills={purchaseBills}
+              purchaseBills={branchPurchaseBills}
               vendors={vendors}
               products={products}
               onSavePurchaseBill={handleSavePurchaseBill}
@@ -1671,17 +1713,17 @@ export function App() {
 
           {activeTab === 'expenses' && (
             <ExpensesView
-              expenses={expenses}
+              expenses={branchExpenses}
               onAddExpense={handleAddExpense}
-              purchaseBills={purchaseBills}
+              purchaseBills={branchPurchaseBills}
             />
           )}
 
           {activeTab === 'reports' && (
             <ReportsView
               products={products}
-              orders={orders}
-              expenses={expenses}
+              orders={branchOrders}
+              expenses={branchExpenses}
             />
           )}
 
@@ -1690,10 +1732,10 @@ export function App() {
               currentUser={currentUser}
               onChangeUser={setCurrentUser}
               productsCount={products.length}
-              ordersCount={orders.length}
-              totalRevenue={orders.reduce((sum, o) => sum + o.grandTotal, 0)}
-              expensesCount={expenses.length}
-              totalExpenses={expenses.reduce((sum, e) => sum + e.amount, 0)}
+              ordersCount={branchOrders.length}
+              totalRevenue={branchOrders.reduce((sum: number, o: OrderBill) => sum + o.grandTotal, 0)}
+              expensesCount={branchExpenses.length}
+              totalExpenses={branchExpenses.reduce((sum: number, e: ExpenseItem) => sum + e.amount, 0)}
               savedCustomersCount={customers.length}
               onResetStoreData={handleResetStoreData}
             />

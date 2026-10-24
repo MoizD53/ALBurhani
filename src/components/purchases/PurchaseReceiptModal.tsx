@@ -59,7 +59,7 @@ export const PurchaseReceiptModal: React.FC<PurchaseReceiptModalProps> = ({
               AL-BURHANI SWEETS & DRY FRUITS
             </h1>
             <p className="text-xs text-stone-600 font-medium">
-              Godi Road, Near Clock Tower · Phone: +91 98765 43210
+              {bill.branch === 'mg_road' ? 'MG Road Outlet' : 'Godi Road, Near Clock Tower'} · Phone: +91 98765 43210
             </p>
             <div className="inline-block mt-1 px-3 py-0.5 bg-stone-100 border border-stone-300 rounded text-[11px] font-bold uppercase tracking-wider">
               Goods Received / Purchase Inward Voucher

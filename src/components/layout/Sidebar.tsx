@@ -228,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 AL-BURHANI
               </span>
               <span className="text-[10px] text-[#A67D0C] block truncate font-semibold uppercase tracking-wider mt-1">
-                Owner · Main Store
+                Owner · {currentUser.branchName || (currentUser.branchId === 'mg_road' ? 'MG Road' : 'Godi Road')}
               </span>
             </div>
           </div>

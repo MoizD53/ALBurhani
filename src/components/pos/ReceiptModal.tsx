@@ -459,7 +459,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <div className="text-center pb-1.5 border-b-2 border-black">
               <h2 className="font-black text-base tracking-wider uppercase text-black leading-tight">AL-BURHANI</h2>
               <p className="text-[8.5px] uppercase font-bold text-black mt-0.5">Sweets & Dry Items Franchise</p>
-              <p className="text-[8px] font-semibold text-black">Godi Road, Near Clock Tower</p>
+              <p className="text-[8px] font-semibold text-black">
+                {order.branch === 'mg_road' ? 'MG Road Outlet' : 'Godi Road, Near Clock Tower'}
+              </p>
               <p className="text-[8px] font-semibold text-black">Ph: +91 98765 43210</p>
               {hasGst ? (
                 <div className="mt-1 pt-0.5 border-t border-black">

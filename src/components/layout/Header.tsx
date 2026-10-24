@@ -164,6 +164,14 @@ export const Header: React.FC<HeaderProps> = ({
           <span>{todayFormatted}</span>
         </div>
 
+        {/* Active Branch Badge */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FAF8F5] via-[#FFFDF5] to-[#F5EED9] border border-[#D4AF37]/50 text-xs font-bold text-stone-900 shadow-sm">
+          <Store className="w-3.5 h-3.5 text-[#C99A18] shrink-0" />
+          <span className="font-serif tracking-wide truncate max-w-[110px] sm:max-w-none">
+            {currentUser.branchName || (currentUser.branchId === 'mg_road' ? 'MG Road' : 'Godi Road')}
+          </span>
+        </div>
+
         {/* Owner Profile Dropdown */}
         <div className="relative" ref={profileMenuRef}>
           <button
@@ -185,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="px-3.5 py-2.5 border-b border-[#F0EBE0] mb-1">
                 <span className="font-bold text-[#1C1917] block truncate">AL-BURHANI</span>
                 <span className="text-[10px] text-[#A67D0C] font-semibold uppercase tracking-wider block mt-0.5">
-                  Owner · Godi Road Store
+                  Owner · {currentUser.counter || (currentUser.branchId === 'mg_road' ? 'MG Road Store' : 'Godi Road Store')}
                 </span>
               </div>
 

@@ -71,7 +71,7 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
     // Even if legacy localStorage contains an old auth session flag, it must NOT auto-authenticate
     mockLocalStorage.setItem('albhurani_auth_session', JSON.stringify({
       token: 'stale-token-123',
-      user: { id: 'admin', name: 'Owner', role: 'Owner', counter: 'Godi Road Store' },
+      user: { id: 'admin', name: 'Owner', role: 'Owner', counter: 'Godi Road Store', branchId: 'godi_road', branchName: 'Godi Road' },
       createdAt: new Date().toISOString(),
     }));
 
@@ -148,7 +148,7 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
     const expiredTime = new Date(Date.now() - (MAX_SESSION_AGE_MS + 1000)).toISOString();
     const expiredSession: AuthSession = {
       token: 'expired-token',
-      user: { id: 'admin', email: 'admin@alburhani.com', name: 'Owner', role: 'Owner', counter: 'Godi Road Store' },
+      user: { id: 'admin', email: 'admin@alburhani.com', name: 'Owner', role: 'Owner', counter: 'Godi Road Store', branchId: 'godi_road', branchName: 'Godi Road' },
       createdAt: expiredTime,
     };
 
@@ -157,6 +157,41 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
     expect(isSessionValid(expiredSession)).toBe(false);
     expect(getCurrentSession()).toBeNull();
     expect(mockSessionStorage.getItem('albhurani_auth_session')).toBeNull();
+  });
+
+  /* ─── Multi-Branch Login: Godi Road & MG Road ─── */
+  describe('Multi-Branch Login Isolation', () => {
+    it('authenticates Godi Road branch with admin & admin@godiroad', async () => {
+      const res = await authenticate('admin', 'admin@godiroad');
+      expect(res.success).toBe(true);
+      expect(res.session?.user.branchId).toBe('godi_road');
+      expect(res.session?.user.branchName).toBe('Godi Road');
+      expect(res.session?.user.counter).toBe('Godi Road Store');
+    });
+
+    it('authenticates MG Road branch with admin & admin@mgroad', async () => {
+      const res = await authenticate('admin', 'admin@mgroad');
+      expect(res.success).toBe(true);
+      expect(res.session?.user.branchId).toBe('mg_road');
+      expect(res.session?.user.branchName).toBe('MG Road');
+      expect(res.session?.user.counter).toBe('MG Road Store');
+    });
+
+    it('authenticates when using username godiroad or mgroad', async () => {
+      const resGodi = await authenticate('godiroad', 'admin@godiroad');
+      expect(resGodi.success).toBe(true);
+      expect(resGodi.session?.user.branchId).toBe('godi_road');
+
+      const resMg = await authenticate('mgroad', 'admin@mgroad');
+      expect(resMg.success).toBe(true);
+      expect(resMg.session?.user.branchId).toBe('mg_road');
+    });
+
+    it('rejects cross-matching passwords (e.g. wrong branch password)', async () => {
+      const res = await authenticate('admin', 'admin@wrongbranch');
+      expect(res.success).toBe(false);
+      expect(res.error).toContain('Invalid ID or password');
+    });
   });
 
   /* ─── Corrupted Session Handling ─── */

@@ -71,6 +71,7 @@ export interface OrderBill {
   revisedAt?: string;
   revisedTimestamp?: number;
   revisionCount?: number;
+  branch?: string; // 'godi_road' | 'mg_road'
 }
 
 export interface CompleteSaleResult {
@@ -88,6 +89,7 @@ export interface ExpenseItem {
   paymentMode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Card';
   paidTo?: string;
   notes?: string;
+  branch?: string; // 'godi_road' | 'mg_road'
 }
 
 export interface UserProfile {
@@ -95,6 +97,8 @@ export interface UserProfile {
   name: string;
   role: 'Owner' | 'Cashier';
   counter: string;
+  branchId?: 'godi_road' | 'mg_road';
+  branchName?: string;
 }
 
 export interface StoreSummary {
@@ -155,6 +159,7 @@ export interface CustomerOrder {
   notes?: string;
   createdAt: string;
   updatedAt?: string;
+  branch?: string; // 'godi_road' | 'mg_road'
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +225,7 @@ export interface PurchaseBill {
   createdAt?: string;
   updatedAt?: string;
   payments?: VendorPayment[];
+  branch?: string; // 'godi_road' | 'mg_road'
 }
 
 export interface Vendor {

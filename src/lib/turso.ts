@@ -331,6 +331,7 @@ export async function fetchOrdersFromTurso(transactionType?: 'CUSTOMER_BILL' | '
       revisedAt: row.revised_at ? String(row.revised_at) : undefined,
       revisedTimestamp: row.revised_timestamp ? Number(row.revised_timestamp) : undefined,
       revisionCount: row.revision_count ? Number(row.revision_count) : 0,
+      branch: row.branch ? String(row.branch) : 'godi_road',
     }));
 
     return orders;
@@ -481,6 +482,7 @@ export async function fetchExpensesFromTurso(): Promise<ExpenseItem[] | null> {
       paymentMode: row.payment_mode as any,
       paidTo: row.paid_to ? String(row.paid_to) : undefined,
       notes: row.notes ? String(row.notes) : undefined,
+      branch: row.branch ? String(row.branch) : 'godi_road',
     }));
   } catch {
     return null;
@@ -713,6 +715,7 @@ export async function fetchCustomerOrdersFromTurso(): Promise<CustomerOrder[] | 
       status: row.status as CustomerOrderStatus,
       paymentMethod: row.payment_method ? String(row.payment_method) : undefined,
       notes: row.notes ? String(row.notes) : undefined,
+      branch: row.branch ? String(row.branch) : 'godi_road',
       createdAt: String(row.created_at || ''),
       updatedAt: row.updated_at ? String(row.updated_at) : undefined,
     }));

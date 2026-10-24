@@ -1,11 +1,15 @@
 import { UserProfile } from '../types';
 
+export type BranchId = 'godi_road' | 'mg_road';
+
 export interface AuthUser {
   id: string;
   email: string;
   name: string;
   role: 'Owner' | 'Cashier';
   counter: string;
+  branchId: BranchId;
+  branchName: string;
 }
 
 export interface AuthSession {
@@ -122,12 +126,22 @@ export async function authenticate(
   }
 
   try {
-    // 1. Direct configured admin credentials
-    const isAdminMatch = normalizedId === 'admin' && password === 'admin123';
+    const cleanPassword = password.trim();
+
+    // 1. Direct configured branch credentials
+    // Godi Road branch (existing): id: admin, pass: admin@godiroad (with legacy admin123 compatibility)
+    const isGodiMatch =
+      (normalizedId === 'admin' || normalizedId === 'godiroad' || normalizedId === 'godi_road' || normalizedId === 'godi') &&
+      (cleanPassword === 'admin@godiroad' || cleanPassword === 'admin123');
+
+    // MG Road branch (new): id: admin, pass: admin@mgroad
+    const isMgMatch =
+      (normalizedId === 'admin' || normalizedId === 'mgroad' || normalizedId === 'mg_road' || normalizedId === 'mg') &&
+      cleanPassword === 'admin@mgroad';
 
     // 2. Encrypted device vault verification
     let isVaultMatch = false;
-    const passwordHash = await hashSecret(`${normalizedId}:::${password}`);
+    const passwordHash = await hashSecret(`${normalizedId}:::${cleanPassword}`);
     const vaultRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(CREDENTIALS_STORAGE_KEY) : null;
 
     if (vaultRaw) {
@@ -139,9 +153,13 @@ export async function authenticate(
       } catch {}
     }
 
-    if (!isAdminMatch && !isVaultMatch) {
-      return { success: false, error: 'Invalid ID or password. Please verify your credentials.' };
+    if (!isGodiMatch && !isMgMatch && !isVaultMatch) {
+      return { success: false, error: 'Invalid ID or password. Please verify your branch credentials.' };
     }
+
+    const branchId: BranchId = isMgMatch ? 'mg_road' : 'godi_road';
+    const branchName = isMgMatch ? 'MG Road' : 'Godi Road';
+    const counter = isMgMatch ? 'MG Road Store' : 'Godi Road Store';
 
     // Generate cryptographic session token
     const tokenBytes = new Uint8Array(24);
@@ -149,11 +167,13 @@ export async function authenticate(
     const token = Array.from(tokenBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 
     const user: AuthUser = {
-      id: normalizedId === 'admin' ? 'user-owner' : normalizedId,
+      id: normalizedId === 'admin' ? `user-owner-${branchId}` : normalizedId,
       email: normalizedId.includes('@') ? normalizedId : `${normalizedId}@alburhani.com`,
       name: 'Owner',
       role: 'Owner',
-      counter: 'Godi Road Store',
+      counter,
+      branchId,
+      branchName,
     };
 
     const session: AuthSession = {
@@ -176,6 +196,8 @@ export async function authenticate(
         name: user.name,
         role: user.role,
         counter: user.counter,
+        branchId: user.branchId,
+        branchName: user.branchName,
       } as UserProfile));
     }
 

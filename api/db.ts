@@ -287,6 +287,13 @@ async function ensureSchema(client: Client): Promise<void> {
     'ALTER TABLE orders ADD COLUMN is_settled INTEGER DEFAULT 1;',
     'ALTER TABLE orders ADD COLUMN business_date TEXT;',
     'ALTER TABLE orders ADD COLUMN daily_bill_number INTEGER;',
+    "ALTER TABLE orders ADD COLUMN branch TEXT DEFAULT 'godi_road';",
+    "ALTER TABLE expenses ADD COLUMN branch TEXT DEFAULT 'godi_road';",
+    "ALTER TABLE purchase_bills ADD COLUMN branch TEXT DEFAULT 'godi_road';",
+    "ALTER TABLE customer_orders ADD COLUMN branch TEXT DEFAULT 'godi_road';",
+    "CREATE INDEX IF NOT EXISTS idx_orders_branch ON orders (branch);",
+    "CREATE INDEX IF NOT EXISTS idx_expenses_branch ON expenses (branch);",
+    "CREATE INDEX IF NOT EXISTS idx_purchase_bills_branch ON purchase_bills (branch);",
   ];
 
   for (const alterSql of columnMigrations) {
@@ -494,12 +501,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'fetch-orders') {
       try {
         const type = req.query.type as string | undefined;
-        let query = 'SELECT * FROM orders';
+        const branch = req.query.branch as string | undefined;
+        let query = 'SELECT * FROM orders WHERE 1=1';
         const args: any[] = [];
 
         if (type && type !== 'ALL') {
-          query += ' WHERE transaction_type = ?';
+          query += ' AND transaction_type = ?';
           args.push(type);
+        }
+
+        if (branch && branch !== 'ALL') {
+          if (branch === 'mg_road') {
+            query += ' AND branch = ?';
+            args.push('mg_road');
+          } else {
+            query += " AND (branch = 'godi_road' OR branch IS NULL OR branch = '')";
+          }
         }
 
         query += ' ORDER BY created_at DESC LIMIT 500;';
@@ -522,7 +539,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'fetch-expenses') {
       try {
-        const result = await client.execute('SELECT * FROM expenses ORDER BY created_at DESC LIMIT 200;');
+        const branch = req.query.branch as string | undefined;
+        let query = 'SELECT * FROM expenses';
+        const args: any[] = [];
+
+        if (branch && branch !== 'ALL') {
+          if (branch === 'mg_road') {
+            query += ' WHERE branch = ?';
+            args.push('mg_road');
+          } else {
+            query += " WHERE (branch = 'godi_road' OR branch IS NULL OR branch = '')";
+          }
+        }
+
+        query += ' ORDER BY created_at DESC LIMIT 200;';
+
+        const result = await client.execute({ sql: query, args });
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -540,7 +572,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'fetch-customer-orders') {
       try {
-        const result = await client.execute('SELECT * FROM customer_orders ORDER BY delivery_date ASC, created_at DESC LIMIT 500;');
+        const branch = req.query.branch as string | undefined;
+        let query = 'SELECT * FROM customer_orders';
+        const args: any[] = [];
+
+        if (branch && branch !== 'ALL') {
+          if (branch === 'mg_road') {
+            query += ' WHERE branch = ?';
+            args.push('mg_road');
+          } else {
+            query += " WHERE (branch = 'godi_road' OR branch IS NULL OR branch = '')";
+          }
+        }
+
+        query += ' ORDER BY delivery_date ASC, created_at DESC LIMIT 500;';
+        const result = await client.execute({ sql: query, args });
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -651,7 +697,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fetch Purchase Bills with payments & items
     if (action === 'fetch-purchase-bills') {
       try {
-        const billsRes = await client.execute('SELECT * FROM purchase_bills ORDER BY business_date DESC, daily_bill_number ASC LIMIT 500;');
+        const branch = req.query.branch as string | undefined;
+        let billQuery = 'SELECT * FROM purchase_bills';
+        const args: any[] = [];
+
+        if (branch && branch !== 'ALL') {
+          if (branch === 'mg_road') {
+            billQuery += ' WHERE branch = ?';
+            args.push('mg_road');
+          } else {
+            billQuery += " WHERE (branch = 'godi_road' OR branch IS NULL OR branch = '')";
+          }
+        }
+
+        billQuery += ' ORDER BY business_date DESC, daily_bill_number ASC LIMIT 500;';
+        const billsRes = await client.execute({ sql: billQuery, args });
         const paymentsRes = await client.execute('SELECT * FROM vendor_payments ORDER BY payment_date ASC;');
 
         const paymentsByBill: Record<string, any[]> = {};
@@ -696,6 +756,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             paymentMode: b.payment_mode || 'Cash',
             notes: b.notes,
             status: b.status || 'Active',
+            branch: b.branch || 'godi_road',
             createdAt: b.created_at,
             updatedAt: b.updated_at,
             payments: paymentsByBill[b.id] || [],
@@ -963,28 +1024,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({ success: true, ignored: true, reason: 'Order has been tombstoned / deleted' });
         }
 
+        const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
         const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
+        const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
         let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
         // Check existing order in DB to preserve its assigned daily number across revisions/retries
         const existingOrder = await client.execute({
-          sql: 'SELECT daily_bill_number, business_date FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
+          sql: 'SELECT daily_bill_number, business_date, branch FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
           args: [o.id, o.billNumber]
         });
 
         if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
           dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
         } else if (!dailyBillNum || dailyBillNum <= 0) {
-          // Atomically allocate next sequential daily bill number for this business date
+          // Atomically allocate next sequential daily bill number for this business date & branch
           await client.execute({
             sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
                   VALUES (?, 1)
                   ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
-            args: [istDate]
+            args: [counterKey]
           });
           const counterRes = await client.execute({
             sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-            args: [istDate]
+            args: [counterKey]
           });
           dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
         }
@@ -995,8 +1058,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at,
             timestamp, is_revised, original_grand_total, additional_amount_paid, original_payment_method,
             additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled,
-            business_date, daily_bill_number
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            business_date, daily_bill_number, branch
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             o.id,
             o.billNumber,
@@ -1025,14 +1088,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0)),
             o.isSettled !== undefined ? (o.isSettled ? 1 : 0) : ((o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0))) > 0 ? 0 : 1),
             istDate,
-            dailyBillNum
+            dailyBillNum,
+            branch
           ],
         });
 
         const savedOrder = {
           ...o,
           businessDate: istDate,
-          dailyBillNumber: dailyBillNum
+          dailyBillNumber: dailyBillNum,
+          branch
         };
 
         await logFinancialAudit(client, 'RECORD_SALE', 'order', o.id, Number(o.grandTotal) || 0, o.paymentMethod || 'CASH', {
@@ -1066,28 +1131,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!o || !o.id || !o.billNumber) continue;
           if (deletedIdSet.has(o.id) || (o.billNumber && deletedBillSet.has(o.billNumber))) continue;
 
+          const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
           const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
+          const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
           let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
           // Check if order already has an assigned daily_bill_number in Turso
           const existingOrder = await client.execute({
-            sql: 'SELECT daily_bill_number, business_date FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
+            sql: 'SELECT daily_bill_number, business_date, branch FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
             args: [o.id, o.billNumber]
           });
 
           if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
             dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
           } else if (!dailyBillNum || dailyBillNum <= 0) {
-            // Atomically allocate next sequential daily bill number
+            // Atomically allocate next sequential daily bill number for this branch & business date
             await client.execute({
               sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
                     VALUES (?, 1)
                     ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
-              args: [istDate]
+              args: [counterKey]
             });
             const counterRes = await client.execute({
               sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-              args: [istDate]
+              args: [counterKey]
             });
             dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
           }
@@ -1098,8 +1165,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at,
               timestamp, is_revised, original_grand_total, additional_amount_paid, original_payment_method,
               additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled,
-              business_date, daily_bill_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              business_date, daily_bill_number, branch
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             args: [
               o.id,
               o.billNumber,
@@ -1129,6 +1196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               o.isSettled !== undefined ? (o.isSettled ? 1 : 0) : ((o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0))) > 0 ? 0 : 1),
               istDate,
               dailyBillNum,
+              branch
             ],
           });
           inserted++;
@@ -1197,10 +1265,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       try {
+        const branch = e.branch === 'mg_road' ? 'mg_road' : 'godi_road';
         await client.execute({
           sql: `INSERT OR REPLACE INTO expenses (
-            id, title, category, amount, date, payment_mode, paid_to, notes, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            id, title, category, amount, date, payment_mode, paid_to, notes, created_at, branch
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             e.id,
             e.title,
@@ -1211,6 +1280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             e.paidTo || null,
             e.notes || null,
             e.createdAt || new Date().toISOString(),
+            branch,
           ],
         });
 
@@ -1295,12 +1365,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const advancePaid = Number(o.advancePaid) || 0;
         const balanceDue = Number(o.balanceDue) !== undefined ? Number(o.balanceDue) : Math.max(0, totalAmount - advancePaid);
 
+        const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
         await client.execute({
           sql: `INSERT INTO customer_orders (
             id, order_number, customer_name, customer_phone, items_json, subtotal, discount_amount,
             gst_amount, total_amount, advance_paid, balance_due, order_date, delivery_date,
-            delivery_time, delivery_address, status, payment_method, notes, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            delivery_time, delivery_address, status, payment_method, notes, created_at, updated_at, branch
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
           ON CONFLICT(id) DO UPDATE SET
             order_number=excluded.order_number,
             customer_name=excluded.customer_name,
@@ -1319,6 +1390,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             status=excluded.status,
             payment_method=excluded.payment_method,
             notes=excluded.notes,
+            branch=excluded.branch,
             updated_at=CURRENT_TIMESTAMP;`,
           args: [
             o.id,
@@ -1340,6 +1412,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             o.paymentMethod || 'CASH',
             o.notes || '',
             o.createdAt || new Date().toISOString(),
+            branch
           ],
         });
 
@@ -1477,13 +1550,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       try {
+        const branch = b.branch === 'mg_road' ? 'mg_road' : 'godi_road';
         const istDate = b.businessDate || getKolkataDate(b.purchaseDate || Date.now());
+        const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
         let dailyBillNum = b.dailyBillNumber ? Number(b.dailyBillNumber) : 0;
         let purchaseNum = b.purchaseNumber || '';
 
         // Check if bill already exists (editing)
         const existingRes = await client.execute({
-          sql: 'SELECT id, purchase_number, daily_bill_number, business_date, items_json, status FROM purchase_bills WHERE id = ? LIMIT 1;',
+          sql: 'SELECT id, purchase_number, daily_bill_number, business_date, items_json, status, branch FROM purchase_bills WHERE id = ? LIMIT 1;',
           args: [b.id],
         });
 
@@ -1504,11 +1579,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               sql: `INSERT INTO daily_purchase_counters (business_date, last_bill_number)
                     VALUES (?, 1)
                     ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
-              args: [istDate],
+              args: [counterKey],
             });
             const counterRes = await client.execute({
               sql: 'SELECT last_bill_number FROM daily_purchase_counters WHERE business_date = ?;',
-              args: [istDate],
+              args: [counterKey],
             });
             dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
           }
@@ -1591,8 +1666,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           sql: `INSERT INTO purchase_bills (
             id, purchase_number, daily_bill_number, business_date, vendor_id, vendor_name, vendor_contact,
             vendor_invoice_number, purchase_date, items_json, subtotal, discount, additional_charges,
-            grand_total, amount_paid, balance_due, payment_status, payment_mode, notes, status, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            grand_total, amount_paid, balance_due, payment_status, payment_mode, notes, status, updated_at, branch
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
           ON CONFLICT(id) DO UPDATE SET
             vendor_name = excluded.vendor_name,
             vendor_contact = excluded.vendor_contact,
@@ -1609,6 +1684,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             payment_mode = excluded.payment_mode,
             notes = excluded.notes,
             status = excluded.status,
+            branch = excluded.branch,
             updated_at = CURRENT_TIMESTAMP;`,
           args: [
             b.id,
@@ -1631,6 +1707,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             b.paymentMode || 'Cash',
             b.notes || null,
             b.status || 'Active',
+            branch,
           ],
         });
 
@@ -1662,6 +1739,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           balanceDue,
           paymentStatus,
           status: b.status || 'Active',
+          branch,
         };
 
         await logFinancialAudit(client, isEdit ? 'UPDATE_PURCHASE' : 'RECORD_PURCHASE', 'purchase_bill', b.id, grandTotal, b.paymentMode || 'Cash', {
