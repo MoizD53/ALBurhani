@@ -924,6 +924,7 @@ export function App() {
       const maxDaily = todayBills.reduce((max, b) => Math.max(max, b.dailyBillNumber || 0), 0);
       newOrder.dailyBillNumber = maxDaily + 1;
     }
+    newOrder.billNumber = `Bill #${newOrder.dailyBillNumber}`;
 
     const updatedOrders = [newOrder, ...orders];
 
@@ -965,10 +966,10 @@ export function App() {
       } catch {}
     }
 
-    try {
-      const client = getTursoClient();
-      if (client) {
-        const orderSaved = await saveOrderToTurso(newOrder);
+    // Non-blocking background dispatch to Turso database (instant < 5ms POS checkout response)
+    const client = getTursoClient();
+    if (client) {
+      saveOrderToTurso(newOrder).then((orderSaved) => {
         if (!orderSaved) {
           console.warn('Turso saveOrder returned false — order kept in durable offline queue');
           syncManager.setStatus('error');
@@ -998,10 +999,10 @@ export function App() {
             } catch {}
           }
         }
-      }
-    } catch (tursoErr) {
-      console.warn('Turso dispatch error — order remains in offline queue for auto-retry:', tursoErr);
-      syncManager.setStatus('error');
+      }).catch((tursoErr) => {
+        console.warn('Turso dispatch error — order remains in offline queue for auto-retry:', tursoErr);
+        syncManager.setStatus('error');
+      });
     }
 
     return { success: true, order: newOrder };
@@ -1054,10 +1055,9 @@ export function App() {
     // 1. Immediately record in persistent tombstone storage to prevent resurrection on sync/refresh
     recordDeletedOrder(orderId, billNumber);
 
-    // 2. Immediately update state and localStorage consistently
-    let updatedOrders: OrderBill[] = [];
+    // 2. Immediately update state and localStorage consistently (instant 0ms UI response)
     setOrders((prev) => {
-      updatedOrders = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
+      const updatedOrders = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
       try {
         localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
       } catch (storageErr) {
@@ -1066,17 +1066,12 @@ export function App() {
       return updatedOrders;
     });
 
-    // 3. Delete from Turso database
-    try {
-      const ok = await deleteOrderFromTurso(orderId, billNumber);
-      if (!ok) {
-        console.warn(`Turso deletion for order ${orderId} (${billNumber || ''}) failed or offline. Tombstone will clean it up on sync.`);
-      }
-      return true;
-    } catch (tursoErr) {
-      console.warn('Failed to delete order from Turso:', tursoErr);
-      return true;
-    }
+    // 3. Non-blocking background deletion in Turso database
+    deleteOrderFromTurso(orderId, billNumber).catch((tursoErr) => {
+      console.warn('Turso background deletion error (tombstone will clean on sync):', tursoErr);
+    });
+
+    return true;
   };
 
   const handleStartModifyOrder = (order: OrderBill) => {

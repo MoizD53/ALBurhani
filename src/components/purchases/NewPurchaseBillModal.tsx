@@ -25,6 +25,131 @@ interface NewPurchaseBillModalProps {
   editingBill?: PurchaseBill | null;
 }
 
+interface SearchableProductSelectProps {
+  products: Product[];
+  selectedProductId?: string;
+  onSelect: (product?: Product) => void;
+}
+
+const SearchableProductSelect: React.FC<SearchableProductSelectProps> = ({
+  products,
+  selectedProductId,
+  onSelect,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === selectedProductId),
+    [products, selectedProductId]
+  );
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return products.slice(0, 60);
+    const q = search.toLowerCase().trim();
+    return products.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.includes(q))
+    ).slice(0, 60);
+  }, [products, search]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div className="relative w-full min-w-[130px]" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setSearch('');
+        }}
+        className="w-full px-2 py-1.5 text-[11px] bg-[#FAF8F5] hover:bg-white border border-[#E8DEC8] hover:border-[#C99A18] rounded-lg text-left text-stone-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
+        title="Click to search and link catalogue product"
+      >
+        <span className="truncate font-semibold">
+          {selectedProduct ? `${selectedProduct.name}` : 'Auto-match'}
+        </span>
+        <Search className="w-3 h-3 text-stone-400 shrink-0 ml-1" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white border border-[#E8DEC8] rounded-xl shadow-2xl overflow-hidden animate-fade-in text-left">
+          <div className="p-2 border-b border-[#E8DEC8] bg-[#FAF8F5]">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search by name, SKU or barcode..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-[#E8DEC8] rounded-lg text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#C99A18]"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-52 overflow-y-auto custom-scrollbar divide-y divide-[#F5F2EB]">
+            <button
+              type="button"
+              onClick={() => {
+                onSelect(undefined);
+                setIsOpen(false);
+              }}
+              className={`w-full px-3 py-2 text-left text-xs hover:bg-amber-50 flex items-center justify-between transition-colors cursor-pointer ${
+                !selectedProductId ? 'bg-amber-50 font-bold text-[#8C6D15]' : 'text-stone-600'
+              }`}
+            >
+              <span>Auto-create / Match Product</span>
+              {!selectedProductId && <Check className="w-3.5 h-3.5 text-[#C99A18]" />}
+            </button>
+
+            {filtered.map((p) => {
+              const isSelected = p.id === selectedProductId;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(p);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-xs hover:bg-[#FAF8F5] flex items-center justify-between transition-colors cursor-pointer ${
+                    isSelected ? 'bg-amber-50 font-bold text-[#8C6D15]' : 'text-stone-800'
+                  }`}
+                >
+                  <div className="min-w-0 pr-2">
+                    <div className="truncate font-semibold">{p.name}</div>
+                    <div className="text-[10px] text-stone-400 font-mono">{p.sku} · {p.unit}</div>
+                  </div>
+                  {isSelected && <Check className="w-3.5 h-3.5 text-[#C99A18] shrink-0" />}
+                </button>
+              );
+            })}
+
+            {filtered.length === 0 && (
+              <div className="p-3 text-center text-xs text-stone-400">
+                No matching product found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
   isOpen,
   onClose,
@@ -416,26 +541,17 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
 
                         {/* Optional Product Link */}
                         <td className="py-2 px-3">
-                          <select
-                            value={it.productId || ''}
-                            onChange={(e) => {
-                              const pId = e.target.value;
-                              if (pId) {
-                                const prod = products.find((p) => p.id === pId);
-                                if (prod) handleSelectProduct(idx, prod);
+                          <SearchableProductSelect
+                            products={products}
+                            selectedProductId={it.productId}
+                            onSelect={(prod) => {
+                              if (prod) {
+                                handleSelectProduct(idx, prod);
                               } else {
                                 updateItem(idx, { productId: undefined });
                               }
                             }}
-                            className="w-full px-2 py-1.5 text-[11px] bg-[#FAF8F5] border border-[#E8DEC8] rounded-lg text-stone-700 focus:bg-white focus:border-[#C99A18] focus:outline-none"
-                          >
-                            <option value="">Auto-create / Match Product</option>
-                            {products.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} ({p.unit})
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </td>
 
                         {/* Quantity */}

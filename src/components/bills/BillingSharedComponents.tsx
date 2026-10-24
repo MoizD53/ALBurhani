@@ -7,6 +7,7 @@ import {
   CheckCircle2, 
   AlertCircle 
 } from 'lucide-react';
+import { cleanBillNumber } from '../../lib/utils';
 
 /* ─── 1. Page Header ─── */
 interface BillingPageHeaderProps {
@@ -266,6 +267,7 @@ export const DeleteInvoiceModal: React.FC<DeleteInvoiceModalProps> = ({
   isNoBill = false,
 }) => {
   if (!isOpen) return null;
+  const cleanDisplay = cleanBillNumber(invoiceNumber);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm animate-fade-in">
@@ -296,8 +298,8 @@ export const DeleteInvoiceModal: React.FC<DeleteInvoiceModalProps> = ({
 
         <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] text-xs text-stone-700 space-y-2">
           <p>
-            Are you sure you want to permanently delete {isNoBill ? 'sales entry' : 'invoice'}{' '}
-            <strong className="text-[#1C1917] font-mono">{invoiceNumber}</strong> for{' '}
+            Are you sure you want to permanently delete{' '}
+            <strong className="text-[#1C1917] font-mono">{cleanDisplay}</strong> for{' '}
             <strong className="text-[#B8860B] font-mono">Rs. {amount.toFixed(2)}</strong>?
           </p>
           <p className="text-[11px] text-stone-500">

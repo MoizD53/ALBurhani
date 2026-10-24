@@ -260,6 +260,20 @@ export function formatDisplayBillNumber(order: OrderBill, allOrders: OrderBill[]
 }
 
 /**
+ * Completely purges legacy ALB- prefixes ("ALB-NB-", "ALB-INV-", "ALB-")
+ * and returns clean "Bill #N" format.
+ */
+export function cleanBillNumber(billNumber?: string, dailyBillNumber?: number): string {
+  if (typeof dailyBillNumber === 'number' && dailyBillNumber > 0) {
+    return `Bill #${dailyBillNumber}`;
+  }
+  if (!billNumber || !billNumber.trim()) return 'Bill #1';
+  if (billNumber.startsWith('Bill #')) return billNumber;
+  const stripped = billNumber.replace(/^ALB-(NB|INV|SIM)-?/i, '').replace(/^ALB-?/i, '').trim();
+  return `Bill #${stripped || '1'}`;
+}
+
+/**
  * Universal CSV export helper with UTF-8 BOM encoding for Excel/Google Sheets compatibility.
  */
 export function exportToCsv(filename: string, headers: string[], rows: (string | number | undefined | null)[][]): void {

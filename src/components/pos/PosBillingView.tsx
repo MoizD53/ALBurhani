@@ -747,9 +747,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         return;
       }
 
-      const prefix = transactionType === 'CUSTOMER_BILL' ? 'INV' : 'NB';
       const randomNum = Math.floor(1000 + Math.random() * 9000);
-      const billNumber = `ALB-${prefix}-${randomNum}`;
+      const billNumber = `Bill #${randomNum}`;
       const timestamp = Date.now();
       const todayDate = getKolkataDateString(timestamp);
 
