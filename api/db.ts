@@ -1,4 +1,4 @@
-import { createClient, type Client } from '@libsql/client';
+import { createClient, type Client, type InStatement } from '@libsql/client';
 
 export interface VercelRequest {
   method?: string;
@@ -1846,7 +1846,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Delete Purchase Bill (with Stock Reversal and Permanent Purge)
+    // Delete Purchase Bill (with Atomic Stock Reversal, Payment Cleanup, and Permanent Purge)
     if (action === 'delete-purchase-bill') {
       const { billId } = payload || {};
       if (!billId) {
@@ -1864,8 +1864,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const bill = billRes.rows[0];
+        const batchStatements: InStatement[] = [];
+        const now = Date.now();
 
-        // If not already cancelled, reverse stock on linked products
+        // If not already cancelled, reverse stock on linked products conditionally based on bill presence
         if (bill.status !== 'Cancelled') {
           let items: any[] = [];
           try {
@@ -1874,37 +1876,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           for (const it of items) {
             if (it.productId && typeof it.quantity === 'number') {
-              await client.execute({
-                sql: 'UPDATE products SET stock = MAX(0, stock - ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-                args: [Number(it.quantity), it.productId],
+              const qty = Number(it.quantity);
+              // Conditional update: only decrement stock if the bill is still present and active (prevents duplicate reversals on concurrent requests)
+              batchStatements.push({
+                sql: `UPDATE products 
+                      SET stock = MAX(0, stock - ?), updated_at = CURRENT_TIMESTAMP 
+                      WHERE id = ? AND EXISTS (SELECT 1 FROM purchase_bills WHERE id = ? AND status != 'Cancelled');`,
+                args: [qty, it.productId, billId],
               });
 
-              await client.execute({
+              batchStatements.push({
                 sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
-                      VALUES (?, 'PURCHASE_DELETED', ?, ?, ?, ?);`,
-                args: [it.productId, billId, -Number(it.quantity), `Deleted Purchase ${bill.purchase_number}`, Date.now()],
+                      SELECT ?, 'PURCHASE_DELETED', ?, ?, ?, ?
+                      WHERE EXISTS (SELECT 1 FROM purchase_bills WHERE id = ? AND status != 'Cancelled');`,
+                args: [it.productId, billId, -qty, `Deleted Purchase ${bill.purchase_number}`, now, billId],
               });
             }
           }
         }
 
         // Delete associated payments
-        await client.execute({
+        batchStatements.push({
           sql: 'DELETE FROM vendor_payments WHERE purchase_bill_id = ?;',
           args: [billId],
         });
 
         // Delete the bill permanently
-        await client.execute({
+        batchStatements.push({
           sql: 'DELETE FROM purchase_bills WHERE id = ?;',
           args: [billId],
         });
 
-        await logFinancialAudit(client, 'DELETE_PURCHASE', 'purchase_bill', billId, Number(bill.grand_total) || 0, null, {
-          purchaseNumber: bill.purchase_number,
+        // Financial audit log
+        batchStatements.push({
+          sql: `INSERT INTO financial_audit_logs (action, entity_type, entity_id, amount, payment_method, details_json, actor, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+          args: [
+            'DELETE_PURCHASE',
+            'purchase_bill',
+            billId,
+            Number(bill.grand_total) || 0,
+            null,
+            JSON.stringify({ purchaseNumber: bill.purchase_number }),
+            'Owner',
+            now,
+          ],
         });
 
-        await logSyncEvent(client, 'purchase_bill', billId, 'delete', { id: billId, purchaseNumber: bill.purchase_number }, (bill.branch as string) || 'all');
+        // Sync tombstone
+        const eventBranch = (bill.branch as string) || 'all';
+        batchStatements.push({
+          sql: `INSERT INTO sync_events (entity_type, entity_id, operation, payload_json, server_timestamp, branch)
+                VALUES (?, ?, ?, ?, ?, ?);`,
+          args: [
+            'purchase_bill',
+            billId,
+            'delete',
+            JSON.stringify({ id: billId, purchaseNumber: bill.purchase_number }),
+            now,
+            eventBranch,
+          ],
+        });
+
+        // Execute all mutations atomically in a single write transaction
+        await client.batch(batchStatements, 'write');
+
         return res.status(200).json({ success: true, id: billId });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
