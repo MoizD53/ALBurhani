@@ -101,17 +101,17 @@ describe('Production Verification & Final Acceptance Audit Suite', () => {
       expect(numNextDay).toBe(1); // Reset to 1!
     });
 
-    it('displays bills in ascending order (Bill #1 at the top, Bill #2 underneath)', () => {
+    it('displays bills in descending order (Bill #N at the top, then N-1, N-2 down to 1)', () => {
       const dayBills: OrderBill[] = [
         { id: '3', billNumber: 'B-3', dailyBillNumber: 3, businessDate: '2026-10-23', transactionType: 'NO_BILL', items: [], subtotal: 100, discountAmount: 0, gstAmount: 0, grandTotal: 100, paymentMethod: 'CASH', amountReceived: 100, changeGiven: 0, cashierName: 'Owner', createdAt: '2026-10-23T11:00:00+05:30' },
         { id: '1', billNumber: 'B-1', dailyBillNumber: 1, businessDate: '2026-10-23', transactionType: 'NO_BILL', items: [], subtotal: 100, discountAmount: 0, gstAmount: 0, grandTotal: 100, paymentMethod: 'CASH', amountReceived: 100, changeGiven: 0, cashierName: 'Owner', createdAt: '2026-10-23T09:00:00+05:30' },
         { id: '2', billNumber: 'B-2', dailyBillNumber: 2, businessDate: '2026-10-23', transactionType: 'NO_BILL', items: [], subtotal: 100, discountAmount: 0, gstAmount: 0, grandTotal: 100, paymentMethod: 'CASH', amountReceived: 100, changeGiven: 0, cashierName: 'Owner', createdAt: '2026-10-23T10:00:00+05:30' },
       ];
 
-      const sorted = [...dayBills].sort((a, b) => (a.dailyBillNumber || 0) - (b.dailyBillNumber || 0));
-      expect(sorted[0].dailyBillNumber).toBe(1);
+      const sorted = [...dayBills].sort((a, b) => (b.dailyBillNumber || 0) - (a.dailyBillNumber || 0));
+      expect(sorted[0].dailyBillNumber).toBe(3);
       expect(sorted[1].dailyBillNumber).toBe(2);
-      expect(sorted[2].dailyBillNumber).toBe(3);
+      expect(sorted[2].dailyBillNumber).toBe(1);
     });
   });
 

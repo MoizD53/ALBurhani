@@ -81,7 +81,7 @@ describe('Sequential Daily Bill Numbers & Calendar System', () => {
     expect(ordersDay2[0].businessDate).toBe('2026-10-24');
   });
 
-  it('orders bills in ascending sequence (Bill 1 at top, Bill 2 underneath) when viewing a single date', () => {
+  it('orders bills in descending sequence (Bill N at top, then N-1, N-2) so latest bills are immediately visible', () => {
     const dayOrders: OrderBill[] = [
       {
         id: 'b3',
@@ -136,13 +136,13 @@ describe('Sequential Daily Bill Numbers & Calendar System', () => {
       },
     ];
 
-    const sortedAsc = [...dayOrders].sort(
-      (a, b) => (a.dailyBillNumber || 0) - (b.dailyBillNumber || 0)
+    const sortedDesc = [...dayOrders].sort(
+      (a, b) => (b.dailyBillNumber || 0) - (a.dailyBillNumber || 0)
     );
 
-    expect(sortedAsc[0].dailyBillNumber).toBe(1);
-    expect(sortedAsc[1].dailyBillNumber).toBe(2);
-    expect(sortedAsc[2].dailyBillNumber).toBe(3);
+    expect(sortedDesc[0].dailyBillNumber).toBe(3);
+    expect(sortedDesc[1].dailyBillNumber).toBe(2);
+    expect(sortedDesc[2].dailyBillNumber).toBe(1);
   });
 
   it('computes accurate 8-metric daily activity summary for a chosen calendar date', () => {

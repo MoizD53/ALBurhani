@@ -147,23 +147,16 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         return matchesDate && matchesPayment && matchesSearch;
       })
       .sort((a, b) => {
-        if (selectedDate) {
-          // Guaranteed ascending order: Bill 1 at top, Bill 2 underneath, Bill 3 next
-          const aSeq = a.dailyBillNumber || 0;
-          const bSeq = b.dailyBillNumber || 0;
-          if (aSeq !== bSeq) return aSeq - bSeq;
-          return (extractOrderTimestamp(a) || 0) - (extractOrderTimestamp(b) || 0);
-        }
-
-        // When viewing all dates, newest business date first, ascending by bill number within each date
+        // Newest business date first
         const aDate = a.businessDate || getKolkataDateString(extractOrderTimestamp(a) || Date.now());
         const bDate = b.businessDate || getKolkataDateString(extractOrderTimestamp(b) || Date.now());
         if (aDate !== bDate) return bDate.localeCompare(aDate);
 
-        const aSeq = a.dailyBillNumber || 0;
-        const bSeq = b.dailyBillNumber || 0;
-        if (aSeq !== bSeq) return aSeq - bSeq;
-        return (extractOrderTimestamp(a) || 0) - (extractOrderTimestamp(b) || 0);
+        // Within each date: N at top, then N-1, then N-2 (latest bill at top)
+        const aSeq = resolveDailyBillNumber(a, noBillSales);
+        const bSeq = resolveDailyBillNumber(b, noBillSales);
+        if (aSeq !== bSeq) return bSeq - aSeq;
+        return (extractOrderTimestamp(b) || 0) - (extractOrderTimestamp(a) || 0);
       });
   }, [noBillSales, search, paymentFilter, selectedDate]);
 

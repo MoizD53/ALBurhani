@@ -157,17 +157,13 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
 
       return true;
     }).sort((a, b) => {
-      // If filtering for a specific date, display in ascending daily sequential order (Bill 1 at top)
-      if (selectedDate) {
-        return (a.dailyBillNumber || 0) - (b.dailyBillNumber || 0);
-      }
-      // If showing all dates, sort latest businessDate first, but within that date sort by dailyBillNumber ascending
+      // Sort newest date first, and within each date N at top, then N-1, then N-2
       const dateA = a.businessDate || a.purchaseDate || '';
       const dateB = b.businessDate || b.purchaseDate || '';
       if (dateA !== dateB) {
         return dateB.localeCompare(dateA);
       }
-      return (a.dailyBillNumber || 0) - (b.dailyBillNumber || 0);
+      return (b.dailyBillNumber || 0) - (a.dailyBillNumber || 0);
     });
   }, [purchaseBills, selectedDate, statusFilter, search]);
 
