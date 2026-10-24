@@ -342,7 +342,7 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#B8860B] hover:bg-[#996F09] text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>+ New Purchase Bill</span>
+            <span>New Purchase Bill</span>
           </button>
         </div>
       </div>
@@ -583,7 +583,7 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
                         <p className="text-[11px] text-stone-400 mt-1">
                           {search || selectedDate || statusFilter !== 'ALL'
                             ? 'Try clearing the filters or selecting a different date.'
-                            : 'Click "+ New Purchase Bill" above to record your first inward supply.'}
+                            : 'Click "New Purchase Bill" above to record your first inward supply.'}
                         </p>
                       </td>
                     </tr>
