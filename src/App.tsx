@@ -48,6 +48,7 @@ import {
   fetchVendorsFromTurso
 } from './lib/turso';
 import { syncManager } from './lib/syncManager';
+import { getKolkataDateString, extractOrderTimestamp } from './lib/utils';
 import {
   preserveRealCustomersFromOrders,
   getSavedCustomers,
@@ -853,9 +854,23 @@ export function App() {
       return { success: false, error: `Duplicate order: ${newOrder.billNumber} is already recorded` };
     }
 
+    // 3. Immediately assign IST business date and sequential daily bill number (1, 2, 3... N)
+    const todayKolkata = getKolkataDateString(newOrder.timestamp || Date.now());
+    if (!newOrder.businessDate) {
+      newOrder.businessDate = todayKolkata;
+    }
+    if (!newOrder.dailyBillNumber || newOrder.dailyBillNumber <= 0) {
+      const todayBills = orders.filter((o) => {
+        const oDate = o.businessDate || getKolkataDateString(extractOrderTimestamp(o) || Date.now());
+        return oDate === todayKolkata;
+      });
+      const maxDaily = todayBills.reduce((max, b) => Math.max(max, b.dailyBillNumber || 0), 0);
+      newOrder.dailyBillNumber = maxDaily + 1;
+    }
+
     const updatedOrders = [newOrder, ...orders];
 
-    // 3. Synchronous persistent write before confirming checkout success
+    // 4. Synchronous persistent write before confirming checkout success
     try {
       localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
     } catch (storageErr: any) {
@@ -866,7 +881,7 @@ export function App() {
       };
     }
 
-    // 4. Update component state
+    // 5. Update component state immediately
     setOrders(updatedOrders);
 
     // Save customer if real non-demo customer
@@ -881,7 +896,7 @@ export function App() {
       }
     }
 
-    // 5. Persist to cloud database with durable offline queue tracking
+    // 6. Persist to cloud database with durable offline queue tracking
     if (typeof window !== 'undefined') {
       try {
         const rawQueue = localStorage.getItem('albhurani_pending_sales_queue');
@@ -902,6 +917,19 @@ export function App() {
           syncManager.setStatus('error');
         } else {
           syncManager.setStatus('connected');
+          // Update orders state with server confirmed daily bill number & business date
+          setOrders((prev) => {
+            const next = prev.map((o) =>
+              o.id === newOrder.id
+                ? { ...o, dailyBillNumber: newOrder.dailyBillNumber, businessDate: newOrder.businessDate }
+                : o
+            );
+            try {
+              localStorage.setItem('albhurani_orders', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+
           if (typeof window !== 'undefined') {
             try {
               const rawQueue = localStorage.getItem('albhurani_pending_sales_queue');

@@ -25,7 +25,7 @@ import {
   Check
 } from 'lucide-react';
 import { Product, CartItem, OrderBill, PaymentMethod, TransactionType, CompleteSaleResult } from '../../types';
-import { playBeep } from '../../lib/utils';
+import { playBeep, getKolkataDateString } from '../../lib/utils';
 import { 
   formatPriceWithBasis, 
   lookupProduct, 
@@ -518,6 +518,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const billNumber = `ALB-${prefix}-${randomNum}`;
       const timestamp = Date.now();
+      const todayDate = getKolkataDateString(timestamp);
 
       const finalReceived = (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') ? receivedNum : grandTotal;
       const finalDue = (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') ? pendingDue : 0;
@@ -525,6 +526,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       const newOrder: OrderBill = {
         id: `sale-${timestamp}-${randomNum}`,
         billNumber,
+        businessDate: todayDate,
         transactionType,
         items: [...cart],
         subtotal,

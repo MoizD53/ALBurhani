@@ -98,6 +98,34 @@ export function extractOrderTimestamp(order: OrderBill): number | null {
 }
 
 /**
+ * Resolves the sequential daily bill number (1, 2, 3... N) for an order,
+ * with deterministic fallback to chronological position for that business day.
+ */
+export function resolveDailyBillNumber(order: OrderBill, allOrders: OrderBill[] = []): number {
+  if (typeof order.dailyBillNumber === 'number' && order.dailyBillNumber > 0) {
+    return order.dailyBillNumber;
+  }
+
+  const orderDate = order.businessDate || getKolkataDateString(extractOrderTimestamp(order) || Date.now());
+  const sameDayOrders = allOrders.filter((o) => {
+    const oDate = o.businessDate || getKolkataDateString(extractOrderTimestamp(o) || Date.now());
+    return oDate === orderDate;
+  });
+
+  if (sameDayOrders.length === 0) return 1;
+
+  // Sort same day orders ascending by timestamp / createdAt
+  const sorted = [...sameDayOrders].sort((a, b) => {
+    const tA = extractOrderTimestamp(a) || 0;
+    const tB = extractOrderTimestamp(b) || 0;
+    return tA - tB;
+  });
+
+  const idx = sorted.findIndex((o) => o.id === order.id || o.billNumber === order.billNumber);
+  return idx >= 0 ? idx + 1 : 1;
+}
+
+/**
  * Determines whether an order falls within the requested date range:
  * - 'today': calendar day of today in Asia/Kolkata
  * - '7days': last 7 calendar days

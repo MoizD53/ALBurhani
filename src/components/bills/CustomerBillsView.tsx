@@ -12,7 +12,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { getOrderDue, getKolkataDateString, extractOrderTimestamp } from '../../lib/utils';
+import { getOrderDue, getKolkataDateString, extractOrderTimestamp, resolveDailyBillNumber } from '../../lib/utils';
 import { DailyCalendarPicker } from './DailyCalendarPicker';
 import { DailyActivitySummary, DailyActivityMetrics } from './DailyActivitySummary';
 import {
@@ -339,7 +339,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <span className="font-mono font-bold text-[#A67D0C] text-sm block">
-                    Bill #{b.dailyBillNumber || b.billNumber}
+                    Bill #{resolveDailyBillNumber(b, customerBills)}
                   </span>
                   <span className="text-stone-400 font-mono text-[10px] block">
                     {b.billNumber} · {b.createdAt}
@@ -454,7 +454,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                   {/* 1. Daily Bill # & Invoice # */}
                   <td className="py-3 px-4 whitespace-nowrap">
                     <div className="font-mono font-bold text-[#A67D0C] text-sm">
-                      Bill #{b.dailyBillNumber || b.billNumber}
+                      Bill #{resolveDailyBillNumber(b, customerBills)}
                     </div>
                     <div className="text-[10px] text-stone-400 font-mono">
                       {b.billNumber}

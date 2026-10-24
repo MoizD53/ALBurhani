@@ -1065,13 +1065,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         for (const o of orders) {
           if (!o || !o.id || !o.billNumber) continue;
           if (deletedIdSet.has(o.id) || (o.billNumber && deletedBillSet.has(o.billNumber))) continue;
+
+          const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
+          let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
+
+          // Check if order already has an assigned daily_bill_number in Turso
+          const existingOrder = await client.execute({
+            sql: 'SELECT daily_bill_number, business_date FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
+            args: [o.id, o.billNumber]
+          });
+
+          if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
+            dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
+          } else if (!dailyBillNum || dailyBillNum <= 0) {
+            // Atomically allocate next sequential daily bill number
+            await client.execute({
+              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                    VALUES (?, 1)
+                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
+              args: [istDate]
+            });
+            const counterRes = await client.execute({
+              sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
+              args: [istDate]
+            });
+            dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
+          }
+
           await client.execute({
             sql: `INSERT OR REPLACE INTO orders (
               id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
               payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at,
               timestamp, is_revised, original_grand_total, additional_amount_paid, original_payment_method,
-              additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              additional_payment_method, revised_at, revised_timestamp, revision_count, due_amount, is_settled,
+              business_date, daily_bill_number
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             args: [
               o.id,
               o.billNumber,
@@ -1099,6 +1127,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               Number(o.revisionCount) || 0,
               o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0)),
               o.isSettled !== undefined ? (o.isSettled ? 1 : 0) : ((o.dueAmount !== undefined ? Number(o.dueAmount) : Math.max(0, (Number(o.grandTotal) || 0) - (Number(o.amountReceived) || 0))) > 0 ? 0 : 1),
+              istDate,
+              dailyBillNum,
             ],
           });
           inserted++;
