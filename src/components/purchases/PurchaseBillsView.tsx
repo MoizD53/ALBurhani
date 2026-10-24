@@ -18,10 +18,11 @@ import {
   ChevronRight, 
   RefreshCw,
   Package,
-  ArrowUpDown
+  ArrowUpDown,
+  Download
 } from 'lucide-react';
 import { PurchaseBill, Vendor, Product, VendorPayment } from '../../types';
-import { getKolkataDateString } from '../../lib/utils';
+import { getKolkataDateString, exportToCsv } from '../../lib/utils';
 import { DailyCalendarPicker } from '../bills/DailyCalendarPicker';
 import { NewPurchaseBillModal } from './NewPurchaseBillModal';
 import { AddVendorPaymentModal } from './AddVendorPaymentModal';
@@ -203,6 +204,43 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
     }
   };
 
+  // Export filtered purchase bills to CSV
+  const handleExportCsv = () => {
+    const today = getKolkataDateString();
+    const headers = [
+      'Bill #',
+      'Invoice / Purchase #',
+      'Date',
+      'Vendor Name',
+      'Branch',
+      'Total Amount (Rs)',
+      'Paid Amount (Rs)',
+      'Due Amount (Rs)',
+      'Payment Status',
+      'Payment Mode',
+      'Items Count',
+      'Items Details',
+    ];
+    const rows = filteredBills.map((b) => {
+      const itemsDetail = b.items.map((i) => `${i.productName} (${i.quantity} ${i.unit})`).join('; ');
+      return [
+        b.dailyBillNumber ? `Bill #${b.dailyBillNumber}` : b.purchaseNumber,
+        b.purchaseNumber,
+        b.purchaseDate || b.businessDate,
+        b.vendorName,
+        b.branch === 'mg_road' ? 'MG Road' : 'Godi Road',
+        b.grandTotal.toFixed(2),
+        b.amountPaid.toFixed(2),
+        b.balanceDue.toFixed(2),
+        b.paymentStatus,
+        b.paymentMode,
+        b.items.length,
+        itemsDetail,
+      ];
+    });
+    exportToCsv(`AL_BHURANI_Purchase_Bills_${today}`, headers, rows);
+  };
+
   // Handle Permanent Deletion
   const handleConfirmDelete = async () => {
     if (!billToDelete || !onDeletePurchaseBill) return;
@@ -273,6 +311,16 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-700 bg-white border border-[#E8DEC8] hover:border-[#B8860B] rounded-xl hover:bg-[#FAF8F5] transition-all shadow-xs cursor-pointer"
+            title="Export filtered purchase bills to CSV file"
+          >
+            <Download className="w-3.5 h-3.5 text-[#B8860B]" />
+            <span className="hidden sm:inline">Export</span> CSV
+          </button>
+
           {onSyncNow && (
             <button
               type="button"

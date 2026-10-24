@@ -187,7 +187,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-bold text-[#D4AF37]">
-                        {order.billNumber}
+                        Bill #{order.dailyBillNumber || order.billNumber.replace(/^[A-Z-]+/, '')}
                       </span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-gray-300 border border-white/10">
                         {order.paymentMethod}

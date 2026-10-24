@@ -9,10 +9,11 @@ import {
   IndianRupee,
   Layers,
   Percent,
-  RefreshCw
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { getOrderDue, getKolkataDateString, extractOrderTimestamp, resolveDailyBillNumber } from '../../lib/utils';
+import { getOrderDue, getKolkataDateString, extractOrderTimestamp, resolveDailyBillNumber, exportToCsv } from '../../lib/utils';
 import { DailyCalendarPicker } from './DailyCalendarPicker';
 import { DailyActivitySummary, DailyActivityMetrics } from './DailyActivitySummary';
 import {
@@ -171,6 +172,45 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
     [customerBills, totalBilledRevenue]
   );
 
+  // Export filtered customer bills to CSV
+  const handleExportCsv = () => {
+    const today = getKolkataDateString();
+    const headers = [
+      'Bill #',
+      'Date & Time',
+      'Customer Name',
+      'Customer Phone',
+      'Items Count',
+      'Subtotal (Rs)',
+      'Discount (Rs)',
+      'GST 5% (Rs)',
+      'Grand Total (Rs)',
+      'Amount Received (Rs)',
+      'Due (Rs)',
+      'Payment Method',
+      'Cashier',
+    ];
+    const rows = filteredBills.map((b) => {
+      const dailyNum = resolveDailyBillNumber(b, customerBills);
+      return [
+        `Bill #${dailyNum}`,
+        b.createdAt,
+        b.customerName || 'Walk-in',
+        b.customerPhone || '',
+        b.items.length,
+        b.subtotal.toFixed(2),
+        b.discountAmount.toFixed(2),
+        b.gstAmount.toFixed(2),
+        b.grandTotal.toFixed(2),
+        (b.amountReceived ?? b.grandTotal).toFixed(2),
+        getOrderDue(b).toFixed(2),
+        b.paymentMethod,
+        b.cashierName || 'Owner',
+      ];
+    });
+    exportToCsv(`AL_BHURANI_Customer_Invoices_${today}`, headers, rows);
+  };
+
   // Execute confirmed invoice deletion
   const handleExecuteDelete = async () => {
     if (!pendingDeleteInvoice || isDeleting) return;
@@ -232,17 +272,28 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         subtitle="Formal customer billing records with 5% GST compliance, bill modification, and thermal reprint"
         badge={{ text: 'With GST (5%)', variant: 'gold' }}
         actions={
-          onSyncNow ? (
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleSyncClick}
-              disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-[#C99A18]/40 hover:border-[#C99A18] text-[#8C6D15] hover:text-[#5E4708] hover:bg-[#FAF8F5] transition-all shadow-xs active:scale-95 disabled:opacity-60 cursor-pointer"
-              title="Force live cloud synchronization across all devices"
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-[#E8DEC8] hover:border-[#C99A18] text-stone-700 hover:text-stone-900 hover:bg-[#FAF8F5] transition-all shadow-xs active:scale-95 cursor-pointer"
+              title="Export filtered customer bills to CSV file"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#C99A18]' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Live'}</span>
+              <Download className="w-3.5 h-3.5 text-[#B8860B]" />
+              <span>Export CSV</span>
             </button>
-          ) : undefined
+            {onSyncNow && (
+              <button
+                onClick={handleSyncClick}
+                disabled={isSyncing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-[#C99A18]/40 hover:border-[#C99A18] text-[#8C6D15] hover:text-[#5E4708] hover:bg-[#FAF8F5] transition-all shadow-xs active:scale-95 disabled:opacity-60 cursor-pointer"
+                title="Force live cloud synchronization across all devices"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#C99A18]' : ''}`} />
+                <span>{isSyncing ? 'Syncing...' : 'Sync Live'}</span>
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -336,7 +387,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                     Bill #{resolveDailyBillNumber(b, customerBills)}
                   </span>
                   <span className="text-stone-400 font-mono text-[10px] block">
-                    {b.billNumber} · {b.createdAt}
+                    {b.createdAt}
                   </span>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -445,13 +496,10 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
             ) : (
               filteredBills.map((b) => (
                 <tr key={b.id} className="hover:bg-[#FAF8F5] transition-colors">
-                  {/* 1. Daily Bill # & Invoice # */}
+                  {/* 1. Daily Bill # */}
                   <td className="py-3 px-4 whitespace-nowrap">
                     <div className="font-mono font-bold text-[#A67D0C] text-sm">
                       Bill #{resolveDailyBillNumber(b, customerBills)}
-                    </div>
-                    <div className="text-[10px] text-stone-400 font-mono">
-                      {b.billNumber}
                     </div>
                   </td>
 

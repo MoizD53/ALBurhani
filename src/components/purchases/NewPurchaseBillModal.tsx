@@ -172,6 +172,18 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
       return;
     }
 
+    // Auto-link items to matching products in catalog if not explicitly selected
+    const processedItems = validItems.map((it) => {
+      if (it.productId) return it;
+      const matched = products.find(
+        (p) => p.name.trim().toLowerCase() === it.productName.trim().toLowerCase()
+      );
+      if (matched) {
+        return { ...it, productId: matched.id };
+      }
+      return it;
+    });
+
     setIsSubmitting(true);
     setError(null);
 
@@ -184,7 +196,7 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
       vendorContact: vendorContact.trim() || undefined,
       vendorInvoiceNumber: vendorInvoiceNumber.trim() || undefined,
       purchaseDate,
-      items: validItems,
+      items: processedItems,
       subtotal,
       discount: numDiscount,
       additionalCharges: numCharges,
@@ -417,7 +429,7 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
                             }}
                             className="w-full px-2 py-1.5 text-[11px] bg-[#FAF8F5] border border-[#E8DEC8] rounded-lg text-stone-700 focus:bg-white focus:border-[#C99A18] focus:outline-none"
                           >
-                            <option value="">Non-Inventory</option>
+                            <option value="">Auto-create / Match Product</option>
                             {products.map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.name} ({p.unit})

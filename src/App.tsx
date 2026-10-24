@@ -1457,14 +1457,35 @@ export function App() {
           return next;
         });
 
-        // Update inward stock locally for purchased items without triggering full 342-product database scan
-        if (billWithBranch.items && billWithBranch.items.length > 0) {
+        // Update inward stock locally for purchased items (auto-matching existing products or adding new products to catalog)
+        if (saved.items && saved.items.length > 0) {
           setProducts((prev) => {
-            const updated = prev.map((p) => {
-              const matched = billWithBranch.items.find((item) => item.productId === p.id);
-              if (!matched) return p;
-              return { ...p, stock: (p.stock || 0) + Number(matched.quantity || 0) };
-            });
+            let updated = [...prev];
+            for (const item of saved.items) {
+              const matchedIdx = updated.findIndex((p) => (item.productId && p.id === item.productId) || p.name.trim().toLowerCase() === item.productName.trim().toLowerCase());
+              if (matchedIdx >= 0) {
+                updated[matchedIdx] = {
+                  ...updated[matchedIdx],
+                  stock: (updated[matchedIdx].stock || 0) + Number(item.quantity || 0),
+                  costPrice: Number(item.unitPrice) || updated[matchedIdx].costPrice,
+                };
+              } else {
+                const newP: Product = {
+                  id: item.productId || `prod-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                  sku: `PUR-${Math.floor(1000 + Math.random() * 9000)}`,
+                  barcode: String(Math.floor(100000000000 + Math.random() * 900000000000)),
+                  name: item.productName.trim(),
+                  category: 'General',
+                  unit: (item.unit as any) || 'PCS',
+                  costPrice: Number(item.unitPrice) || 0,
+                  sellingPrice: Math.round((Number(item.unitPrice) || 0) * 1.25) || 100,
+                  stock: Number(item.quantity) || 0,
+                  minStock: 5,
+                  isActive: true,
+                };
+                updated = [newP, ...updated];
+              }
+            }
             if (typeof window !== 'undefined') {
               try {
                 localStorage.setItem('albhurani_products', JSON.stringify(updated));

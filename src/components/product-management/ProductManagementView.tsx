@@ -29,6 +29,7 @@ import {
   validateCategoryName, 
   sanitizeCategoryName 
 } from '../../lib/categories';
+import { exportToCsv, getKolkataDateString } from '../../lib/utils';
 
 interface ProductManagementViewProps {
   products: Product[];
@@ -232,6 +233,39 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setIsCategoryModalOpen(true);
   };
 
+  // Export filtered products to CSV
+  const handleExportCsv = () => {
+    const today = getKolkataDateString();
+    const headers = [
+      'SKU',
+      'Barcode',
+      'Product Name',
+      'Category',
+      'Unit',
+      'Selling Price (Rs)',
+      'Cost Price (Rs)',
+      'Current Stock',
+      'Min Stock Alert',
+      'Status',
+    ];
+    const rows = filteredProducts.map((p) => {
+      const stockStatus = (p.stock || 0) <= 0 ? 'Out of Stock' : (p.stock || 0) <= (p.minStock || 5) ? 'Low Stock' : 'In Stock';
+      return [
+        p.sku,
+        p.barcode || '',
+        p.name,
+        p.category || '',
+        p.unit || 'PCS',
+        p.sellingPrice,
+        p.costPrice || '',
+        p.stock ?? 0,
+        p.minStock ?? 5,
+        p.isActive === false ? 'Inactive' : stockStatus,
+      ];
+    });
+    exportToCsv(`AL_BHURANI_Products_${today}`, headers, rows);
+  };
+
   // Save Category from Categories Tab
   const handleSaveCategoryTab = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,6 +443,16 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                   </button>
                 )}
               </div>
+
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="py-2 px-3 rounded-xl bg-white hover:bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8] text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0 whitespace-nowrap transition-colors"
+                title="Export product catalogue to CSV file"
+              >
+                <Download className="w-3.5 h-3.5 text-[#B8860B]" />
+                <span className="hidden sm:inline">Export</span> CSV
+              </button>
 
               <button
                 onClick={handleOpenAddProduct}

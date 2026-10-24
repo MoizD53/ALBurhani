@@ -231,7 +231,7 @@ export const DueBillsModal: React.FC<DueBillsModalProps> = ({
                           {order.customerName || 'Walk-in Customer'}
                         </span>
                         <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[#FAF8F5] border border-[#E8DEC8] text-stone-600">
-                          {order.billNumber}
+                          Bill #{order.dailyBillNumber || order.billNumber.replace(/^[A-Z-]+/, '')}
                         </span>
                         <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-800 border border-amber-300">
                           {order.paymentMethod === 'CREDIT' ? 'Udhar Sale' : `Partial (${order.paymentMethod})`}

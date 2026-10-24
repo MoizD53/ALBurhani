@@ -278,7 +278,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-stone-900">Send WhatsApp PDF</h4>
-                    <p className="text-[10px] text-stone-500 font-mono">{order.billNumber}</p>
+                    <p className="text-[10px] text-stone-500 font-mono">Bill #{order.dailyBillNumber || order.billNumber.replace(/^[A-Z-]+/, '')}</p>
                   </div>
                 </div>
                 <button
@@ -351,8 +351,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
               <h3 className="font-bold text-stone-900 text-xs truncate">
                 {order.isRevised ? 'Bill Revised Successfully' : 'Sale Saved Successfully'}
               </h3>
-              <p className="text-[10px] text-stone-500 font-mono truncate">
-                {order.billNumber}{order.isRevised ? ` · Revised ${order.revisedAt || ''}` : ''}
+              <p className="text-[10px] text-[#A67D0C] font-mono font-bold truncate">
+                Bill #{order.dailyBillNumber || order.billNumber.replace(/^[A-Z-]+/, '')}{order.isRevised ? ` · Revised ${order.revisedAt || ''}` : ''}
               </p>
             </div>
           </div>
@@ -491,10 +491,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <div className="py-1 border-b border-dashed border-black text-[8.5px] font-bold text-black space-y-0.5">
               <div className="flex justify-between items-baseline">
                 <span className="font-black text-[9.5px]">
-                  {order.dailyBillNumber ? `Daily Bill #${order.dailyBillNumber}` : `Bill: ${order.billNumber}`}
-                  {order.dailyBillNumber && (
-                    <span className="font-normal text-[8px] text-black/70 ml-1">({order.billNumber})</span>
-                  )}
+                  Bill #{order.dailyBillNumber || order.billNumber.replace(/^[A-Z-]+/, '')}
                 </span>
                 <span>Date: {order.createdAt}</span>
               </div>

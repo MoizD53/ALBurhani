@@ -41,6 +41,19 @@ import { CameraBarcodeScannerModal } from '../barcode/CameraBarcodeScannerModal'
 import { ReceiptModal } from './ReceiptModal';
 import { getSavedCustomers } from '../../lib/customers';
 
+export interface HeldBill {
+  id: string;
+  label: string;
+  cart: CartItem[];
+  customerName: string;
+  customerPhone: string;
+  paymentMethod: PaymentMethod;
+  discountPercent: number;
+  transactionType: TransactionType;
+  customAdjustment: number;
+  createdAt: number;
+}
+
 interface PosBillingViewProps {
   products: Product[];
   onCompleteSale: (order: OrderBill) => Promise<CompleteSaleResult | void> | CompleteSaleResult | void;
@@ -67,6 +80,41 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     editingOrder?.transactionType || initialTransactionType
   );
 
+  // Multi-Bill / Concurrent Held Carts State
+  const [heldBills, setHeldBills] = useState<HeldBill[]>(() => {
+    try {
+      const saved = localStorage.getItem('al_bhurani_held_bills_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [
+      {
+        id: 'bill-1',
+        label: 'Bill 1',
+        cart: [],
+        customerName: '',
+        customerPhone: '',
+        paymentMethod: 'CASH',
+        discountPercent: 0,
+        transactionType: initialTransactionType,
+        customAdjustment: 0,
+        createdAt: Date.now(),
+      },
+    ];
+  });
+
+  const [activeBillId, setActiveBillId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('al_bhurani_active_bill_id');
+      if (saved) return saved;
+    } catch (e) {}
+    return 'bill-1';
+  });
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +126,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   const [selectedProductForQuantity, setSelectedProductForQuantity] = useState<Product | null>(null);
   const [quantityModalInitialGrams, setQuantityModalInitialGrams] = useState<number | undefined>(undefined);
   const [quantityModalInitialQty, setQuantityModalInitialQty] = useState<number | undefined>(undefined);
+  const [quantityModalInitialUnitPrice, setQuantityModalInitialUnitPrice] = useState<number | undefined>(undefined);
   const [isQuantityModalEditMode, setIsQuantityModalEditMode] = useState<boolean>(false);
   const [multipleMatchedProducts, setMultipleMatchedProducts] = useState<Product[]>([]);
 
@@ -235,6 +284,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     setSelectedProductForQuantity(product);
     setQuantityModalInitialGrams(undefined);
     setQuantityModalInitialQty(undefined);
+    setQuantityModalInitialUnitPrice(undefined);
     setIsQuantityModalEditMode(false);
   };
 
@@ -243,6 +293,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     setSelectedProductForQuantity(item.product);
     setQuantityModalInitialGrams(item.weightInGrams);
     setQuantityModalInitialQty(item.quantity);
+    setQuantityModalInitialUnitPrice(item.unitPrice);
     setIsQuantityModalEditMode(true);
   };
 
@@ -342,7 +393,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     product: Product,
     quantity: number,
     weightInGrams?: number,
-    isEditMode = false
+    isEditMode = false,
+    customUnitPrice?: number
   ) => {
     playBeep('scan');
 
@@ -354,7 +406,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
       if (isEditMode && existingIdx !== -1) {
         // Direct replacement in edit mode
-        const updatedItem = buildCartItem(product, quantity, weightInGrams, 0);
+        const updatedItem = buildCartItem(product, quantity, weightInGrams, 0, customUnitPrice);
         triggerScanFeedback(`Updated: ${product.name} (${updatedItem.formattedQuantity})`);
         const next = [...prev];
         next[existingIdx] = updatedItem;
@@ -369,7 +421,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         let newQty = existing.quantity + quantity;
         let newGrams = isWeight ? ((existing.weightInGrams || 0) + (weightInGrams || Math.round(quantity * 1000))) : undefined;
 
-        const updatedItem = buildCartItem(product, newQty, newGrams, 0);
+        const updatedItem = buildCartItem(product, newQty, newGrams, 0, customUnitPrice || existing.unitPrice);
         triggerScanFeedback(`Updated: ${product.name} (${updatedItem.formattedQuantity})`);
 
         const next = [...prev];
@@ -378,7 +430,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       }
 
       // Add new cart item
-      const newItem = buildCartItem(product, quantity, weightInGrams, 0);
+      const newItem = buildCartItem(product, quantity, weightInGrams, 0, customUnitPrice);
       triggerScanFeedback(`Added: ${product.name} (${newItem.formattedQuantity})`);
       return [...prev, newItem];
     });
@@ -448,6 +500,187 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   const changeGiven = Math.max(0, receivedNum - grandTotal);
   const pendingDue = (paymentMethod === 'CREDIT' || paymentMethod === 'CASH') ? Math.max(0, grandTotal - receivedNum) : 0;
   const totalCartCount = cart.length;
+
+  // Sync active held bill when cart, customer details, or payment method changes
+  useEffect(() => {
+    if (editingOrder) return;
+    setHeldBills((prev) => {
+      const idx = prev.findIndex((b) => b.id === activeBillId);
+      if (idx === -1) return prev;
+      const current = prev[idx];
+      if (
+        current.cart === cart &&
+        current.customerName === customerName &&
+        current.customerPhone === customerPhone &&
+        current.paymentMethod === paymentMethod &&
+        current.discountPercent === discountPercent &&
+        current.transactionType === transactionType &&
+        current.customAdjustment === customAdjustment
+      ) {
+        return prev;
+      }
+      const next = [...prev];
+      next[idx] = {
+        ...current,
+        cart,
+        customerName,
+        customerPhone,
+        paymentMethod,
+        discountPercent,
+        transactionType,
+        customAdjustment,
+      };
+      try {
+        localStorage.setItem('al_bhurani_held_bills_v1', JSON.stringify(next));
+        localStorage.setItem('al_bhurani_active_bill_id', activeBillId);
+      } catch (e) {}
+      return next;
+    });
+  }, [cart, customerName, customerPhone, paymentMethod, discountPercent, transactionType, customAdjustment, activeBillId, editingOrder]);
+
+  const handleSwitchBill = (targetBillId: string) => {
+    if (targetBillId === activeBillId || editingOrder) return;
+    const target = heldBills.find((b) => b.id === targetBillId);
+    if (!target) return;
+
+    setActiveBillId(targetBillId);
+    setCart(target.cart || []);
+    setCustomerName(target.customerName || '');
+    setCustomerPhone(target.customerPhone || '');
+    setPaymentMethod(target.paymentMethod || 'CASH');
+    setDiscountPercent(target.discountPercent || 0);
+    setTransactionType(target.transactionType || initialTransactionType);
+    setCustomAdjustment(target.customAdjustment || 0);
+    setAmountReceived('');
+    refocusBarcode();
+  };
+
+  const handleAddNewBill = () => {
+    if (editingOrder) return;
+
+    const updatedBills = heldBills.map((b) =>
+      b.id === activeBillId
+        ? {
+            ...b,
+            cart,
+            customerName,
+            customerPhone,
+            paymentMethod,
+            discountPercent,
+            transactionType,
+            customAdjustment,
+          }
+        : b
+    );
+
+    const existingNums = updatedBills.map((b) => {
+      const m = b.label.match(/\d+/);
+      return m ? parseInt(m[0], 10) : 0;
+    });
+    const nextNum = Math.max(0, ...existingNums) + 1;
+    const newId = `bill-${Date.now()}`;
+    const newBill: HeldBill = {
+      id: newId,
+      label: `Bill ${nextNum}`,
+      cart: [],
+      customerName: '',
+      customerPhone: '',
+      paymentMethod: 'CASH',
+      discountPercent: 0,
+      transactionType: initialTransactionType,
+      customAdjustment: 0,
+      createdAt: Date.now(),
+    };
+
+    const finalBills = [...updatedBills, newBill];
+    setHeldBills(finalBills);
+    setActiveBillId(newId);
+
+    setCart([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setPaymentMethod('CASH');
+    setDiscountPercent(0);
+    setTransactionType(initialTransactionType);
+    setCustomAdjustment(0);
+    setAmountReceived('');
+
+    try {
+      localStorage.setItem('al_bhurani_held_bills_v1', JSON.stringify(finalBills));
+      localStorage.setItem('al_bhurani_active_bill_id', newId);
+    } catch (e) {}
+
+    playBeep('scan');
+    triggerScanFeedback(`Switched to new ${newBill.label}`);
+    refocusBarcode();
+  };
+
+  const handleCloseBill = (billIdToClose: string) => {
+    if (editingOrder) return;
+    const target = heldBills.find((b) => b.id === billIdToClose);
+    if (!target) return;
+
+    const itemCount = billIdToClose === activeBillId ? cart.length : target.cart.length;
+    if (itemCount > 0) {
+      const ok = window.confirm(`Discard ${target.label} with ${itemCount} item(s)?`);
+      if (!ok) return;
+    }
+
+    const remaining = heldBills.filter((b) => b.id !== billIdToClose);
+    if (remaining.length === 0) {
+      const defaultBill: HeldBill = {
+        id: `bill-${Date.now()}`,
+        label: 'Bill 1',
+        cart: [],
+        customerName: '',
+        customerPhone: '',
+        paymentMethod: 'CASH',
+        discountPercent: 0,
+        transactionType: initialTransactionType,
+        customAdjustment: 0,
+        createdAt: Date.now(),
+      };
+      setHeldBills([defaultBill]);
+      setActiveBillId(defaultBill.id);
+      setCart([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setPaymentMethod('CASH');
+      setDiscountPercent(0);
+      setTransactionType(initialTransactionType);
+      setCustomAdjustment(0);
+      setAmountReceived('');
+      try {
+        localStorage.setItem('al_bhurani_held_bills_v1', JSON.stringify([defaultBill]));
+        localStorage.setItem('al_bhurani_active_bill_id', defaultBill.id);
+      } catch (e) {}
+      refocusBarcode();
+      return;
+    }
+
+    setHeldBills(remaining);
+    if (billIdToClose === activeBillId) {
+      const nextActive = remaining[0];
+      setActiveBillId(nextActive.id);
+      setCart(nextActive.cart || []);
+      setCustomerName(nextActive.customerName || '');
+      setCustomerPhone(nextActive.customerPhone || '');
+      setPaymentMethod(nextActive.paymentMethod || 'CASH');
+      setDiscountPercent(nextActive.discountPercent || 0);
+      setTransactionType(nextActive.transactionType || initialTransactionType);
+      setCustomAdjustment(nextActive.customAdjustment || 0);
+      setAmountReceived('');
+      try {
+        localStorage.setItem('al_bhurani_active_bill_id', nextActive.id);
+      } catch (e) {}
+    }
+
+    try {
+      localStorage.setItem('al_bhurani_held_bills_v1', JSON.stringify(remaining));
+    } catch (e) {}
+
+    refocusBarcode();
+  };
 
   // Checkout Handler
   const handleCheckout = async () => {
@@ -564,12 +797,52 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
       // Present the optional receipt choice modal (Print, WhatsApp PDF, or No Receipt)
       setCompletedOrder(newOrder);
 
-      // Reset local billing state ONLY after successful save
-      setCart([]);
-      setCustomerName('');
-      setCustomerPhone('');
-      setDiscountPercent(0);
-      setAmountReceived('');
+      // Reset local billing state and advance held bills ONLY after successful save
+      setHeldBills((prev) => {
+        const remaining = prev.filter((b) => b.id !== activeBillId);
+        if (remaining.length === 0) {
+          const freshBill: HeldBill = {
+            id: `bill-${Date.now()}`,
+            label: 'Bill 1',
+            cart: [],
+            customerName: '',
+            customerPhone: '',
+            paymentMethod: 'CASH',
+            discountPercent: 0,
+            transactionType: initialTransactionType,
+            customAdjustment: 0,
+            createdAt: Date.now(),
+          };
+          setActiveBillId(freshBill.id);
+          setCart([]);
+          setCustomerName('');
+          setCustomerPhone('');
+          setDiscountPercent(0);
+          setAmountReceived('');
+          setCustomAdjustment(0);
+          try {
+            localStorage.setItem('al_bhurani_held_bills_v1', JSON.stringify([freshBill]));
+            localStorage.setItem('al_bhurani_active_bill_id', freshBill.id);
+          } catch (e) {}
+          return [freshBill];
+        }
+
+        const nextActive = remaining[0];
+        setActiveBillId(nextActive.id);
+        setCart(nextActive.cart || []);
+        setCustomerName(nextActive.customerName || '');
+        setCustomerPhone(nextActive.customerPhone || '');
+        setPaymentMethod(nextActive.paymentMethod || 'CASH');
+        setDiscountPercent(nextActive.discountPercent || 0);
+        setTransactionType(nextActive.transactionType || initialTransactionType);
+        setCustomAdjustment(nextActive.customAdjustment || 0);
+        setAmountReceived('');
+        try {
+          localStorage.setItem('al_bhurani_held_bills_v1', JSON.stringify(remaining));
+          localStorage.setItem('al_bhurani_active_bill_id', nextActive.id);
+        } catch (e) {}
+        return remaining;
+      });
       refocusBarcode();
     } catch (err: any) {
       playBeep('error');
@@ -601,7 +874,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         <div className="shrink-0 bg-amber-500/15 border-b border-amber-500/30 px-3 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 min-w-0">
             <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 font-bold font-mono shrink-0">
-              EDITING BILL {editingOrder.billNumber}
+              EDITING BILL #{editingOrder.dailyBillNumber || editingOrder.billNumber.replace(/^[A-Z-]+/, '')}
             </span>
             <span className="text-stone-700 truncate text-[11px]">
               Customer: <strong>{editingOrder.customerName || 'Walk-in'}</strong> · Original: <strong>Rs. {(editingOrder.originalGrandTotal ?? editingOrder.grandTotal).toFixed(2)}</strong>
@@ -937,6 +1210,76 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
             </div>
           </div>
 
+          {/* Held Bills / Multi-Cart Tab Bar (hidden when editing historical bill) */}
+          {!editingOrder && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#F5EFE0] border-b border-[#E8DEC8] overflow-x-auto custom-scrollbar shrink-0">
+              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+                <Receipt className="w-3 h-3 text-[#B8860B]" />
+                <span>Bills:</span>
+              </span>
+
+              {heldBills.map((hb) => {
+                const isActive = hb.id === activeBillId;
+                const itemsCount = isActive ? cart.length : hb.cart.length;
+                const totalAmt = isActive
+                  ? grandTotal
+                  : hb.cart.reduce((s, i) => s + i.lineTotal, 0);
+
+                return (
+                  <div
+                    key={hb.id}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold shrink-0 transition-all cursor-pointer select-none ${
+                      isActive
+                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
+                        : 'bg-white hover:bg-[#FAF8F5] text-stone-700 border border-[#E8DEC8]'
+                    }`}
+                    onClick={() => handleSwitchBill(hb.id)}
+                    title={`Switch to ${hb.label}`}
+                  >
+                    <span>{hb.label}</span>
+                    {itemsCount > 0 && (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                          isActive
+                            ? 'bg-white/25 text-white'
+                            : 'bg-amber-100 text-amber-900 border border-amber-200'
+                        }`}
+                      >
+                        {itemsCount} · ₹{Math.round(totalAmt)}
+                      </span>
+                    )}
+
+                    {heldBills.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCloseBill(hb.id);
+                        }}
+                        className={`p-0.5 rounded-full hover:bg-black/10 transition-colors ml-0.5 ${
+                          isActive ? 'text-white/80 hover:text-white' : 'text-stone-400 hover:text-rose-600'
+                        }`}
+                        title={`Close ${hb.label}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={handleAddNewBill}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#8C6D15] hover:text-[#5E4708] bg-white hover:bg-amber-50 border border-[#E8DEC8] hover:border-[#C99A18] rounded-lg transition-all shrink-0 shadow-xs cursor-pointer"
+                title="Hold current cart and open a new bill (+ Add Bill)"
+              >
+                <Plus className="w-3 h-3 stroke-[2.5]" />
+                <span>+ Add Bill</span>
+              </button>
+            </div>
+          )}
+
           {/* Scrollable Workspace Container */}
           <div 
             ref={rightPanelScrollRef} 
@@ -1093,6 +1436,17 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                       <Plus className="w-3 h-3" />
                     </button>
                   </div>
+
+                  {/* Explicit Manual Edit Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModalForCartItem(item)}
+                    className="p-1 rounded-lg text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 transition-colors flex items-center justify-center shrink-0 cursor-pointer shadow-2xs"
+                    title="Manual Edit: Change Quantity, ₹ Rupees Amount, or Rate"
+                    aria-label={`Edit ${item.product.name}`}
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
 
                   {/* Line Total & Remove */}
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -1458,12 +1812,16 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         isOpen={Boolean(selectedProductForQuantity)}
         onClose={() => {
           setSelectedProductForQuantity(null);
+          setQuantityModalInitialGrams(undefined);
+          setQuantityModalInitialQty(undefined);
+          setQuantityModalInitialUnitPrice(undefined);
           setIsQuantityModalEditMode(false);
           refocusBarcode();
         }}
         onConfirm={handleConfirmQuantity}
         initialWeightInGrams={quantityModalInitialGrams}
         initialQuantity={quantityModalInitialQty}
+        initialUnitPrice={quantityModalInitialUnitPrice}
         isEditMode={isQuantityModalEditMode}
         existingCartQuantity={
           selectedProductForQuantity

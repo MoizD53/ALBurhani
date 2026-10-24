@@ -249,3 +249,39 @@ export function calculateDueSummary(orders: OrderBill[]): {
     dueOrders,
   };
 }
+
+/**
+ * Formats a clean customer-facing bill label: "Bill #1", "Bill #2", etc.
+ * Never shows internal raw prefixes like "ALB-NB-1234".
+ */
+export function formatDisplayBillNumber(order: OrderBill, allOrders: OrderBill[] = []): string {
+  const num = resolveDailyBillNumber(order, allOrders);
+  return `Bill #${num}`;
+}
+
+/**
+ * Universal CSV export helper with UTF-8 BOM encoding for Excel/Google Sheets compatibility.
+ */
+export function exportToCsv(filename: string, headers: string[], rows: (string | number | undefined | null)[][]): void {
+  const escapeCell = (cell: string | number | undefined | null): string => {
+    if (cell === null || cell === undefined) return '""';
+    const str = String(cell).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const csvContent = '\uFEFF' + [
+    headers.map(escapeCell).join(','),
+    ...rows.map((row) => row.map(escapeCell).join(','))
+  ].join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename.endsWith('.csv') ? filename : `${filename}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

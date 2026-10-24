@@ -415,10 +415,19 @@ export function buildCartItem(
   product: Product,
   quantity: number,
   weightInGrams?: number,
-  discountPercent = 0
+  discountPercent = 0,
+  customUnitPrice?: number
 ): CartItem {
   const isWeight = isWeightBasedProduct(product);
-  const { lineTotal, unitPrice } = calculateLineTotal(product, {
+  const effectivePrice = (typeof customUnitPrice === 'number' && customUnitPrice > 0)
+    ? customUnitPrice
+    : product.sellingPrice;
+
+  const productForCalc = effectivePrice !== product.sellingPrice
+    ? { ...product, sellingPrice: effectivePrice }
+    : product;
+
+  const { lineTotal, unitPrice } = calculateLineTotal(productForCalc, {
     quantity,
     grams: weightInGrams,
   });
@@ -427,7 +436,7 @@ export function buildCartItem(
   const formattedRate = formatPriceWithBasis(unitPrice, isWeight ? 'KG' : 'PCS');
 
   return {
-    product,
+    product: productForCalc,
     quantity,
     weightInGrams: isWeight ? (weightInGrams ?? Math.round(quantity * 1000)) : undefined,
     unit: isWeight ? 'KG' : 'PCS',

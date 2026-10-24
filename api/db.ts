@@ -1064,19 +1064,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
           dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
-        } else if (!dailyBillNum || dailyBillNum <= 0) {
-          // Atomically allocate next sequential daily bill number for this business date & branch
-          await client.execute({
-            sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                  VALUES (?, 1)
-                  ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
-            args: [counterKey]
-          });
-          const counterRes = await client.execute({
-            sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-            args: [counterKey]
-          });
-          dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
+        } else {
+          // Verify client-proposed daily bill number doesn't conflict with another order on same date & branch
+          let isConflict = false;
+          if (dailyBillNum > 0) {
+            const conflictCheck = await client.execute({
+              sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? AND bill_number != ? LIMIT 1;',
+              args: [istDate, branch, dailyBillNum, o.id, o.billNumber]
+            });
+            if (conflictCheck.rows.length > 0) {
+              isConflict = true;
+            }
+          }
+
+          if (!dailyBillNum || dailyBillNum <= 0 || isConflict) {
+            // Atomically allocate next sequential daily bill number
+            const maxOrderRes = await client.execute({
+              sql: 'SELECT MAX(daily_bill_number) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
+              args: [istDate, branch]
+            });
+            const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
+
+            await client.execute({
+              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                    VALUES (?, ?)
+                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?) + 1;`,
+              args: [counterKey, Math.max(1, maxOrderNum + 1), maxOrderNum]
+            });
+            const counterRes = await client.execute({
+              sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
+              args: [counterKey]
+            });
+            dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || (maxOrderNum + 1);
+          } else {
+            // Ensure counter tracks at least this bill number
+            await client.execute({
+              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                    VALUES (?, ?)
+                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?);`,
+              args: [counterKey, dailyBillNum, dailyBillNum]
+            });
+          }
         }
 
         await client.execute({
@@ -1171,19 +1199,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
             dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
-          } else if (!dailyBillNum || dailyBillNum <= 0) {
-            // Atomically allocate next sequential daily bill number for this branch & business date
-            await client.execute({
-              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                    VALUES (?, 1)
-                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = last_bill_number + 1;`,
-              args: [counterKey]
-            });
-            const counterRes = await client.execute({
-              sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-              args: [counterKey]
-            });
-            dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || 1;
+          } else {
+            let isConflict = false;
+            if (dailyBillNum > 0) {
+              const conflictCheck = await client.execute({
+                sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? AND bill_number != ? LIMIT 1;',
+                args: [istDate, branch, dailyBillNum, o.id, o.billNumber]
+              });
+              if (conflictCheck.rows.length > 0) {
+                isConflict = true;
+              }
+            }
+
+            if (!dailyBillNum || dailyBillNum <= 0 || isConflict) {
+              const maxOrderRes = await client.execute({
+                sql: 'SELECT MAX(daily_bill_number) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
+                args: [istDate, branch]
+              });
+              const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
+
+              await client.execute({
+                sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                      VALUES (?, ?)
+                      ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?) + 1;`,
+                args: [counterKey, Math.max(1, maxOrderNum + 1), maxOrderNum]
+              });
+              const counterRes = await client.execute({
+                sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
+                args: [counterKey]
+              });
+              dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || (maxOrderNum + 1);
+            } else {
+              await client.execute({
+                sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                      VALUES (?, ?)
+                      ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?);`,
+                args: [counterKey, dailyBillNum, dailyBillNum]
+              });
+            }
           }
 
           await client.execute({
@@ -1629,6 +1682,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const newItems = Array.isArray(b.items) ? b.items : [];
+
+        // Inventory Stock Integration: auto-link unlinked items by name or auto-create in products catalog
+        for (const it of newItems) {
+          if (!it.productId && it.productName && it.productName.trim()) {
+            const trimmedName = it.productName.trim();
+            // 1. Try to find existing product by exact or case-insensitive name match
+            const existingProd = await client.execute({
+              sql: 'SELECT id, stock FROM products WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1;',
+              args: [trimmedName],
+            });
+
+            if (existingProd.rows.length > 0) {
+              it.productId = String(existingProd.rows[0].id);
+            } else {
+              // 2. Auto-create new product in products section so inward stock is tracked!
+              const newProdId = `prod-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+              const unit = it.unit || 'PCS';
+              const costPrice = Number(it.unitPrice) || 0;
+              const sellingPrice = Math.round(costPrice > 0 ? costPrice * 1.25 : 100);
+              const sku = `PUR-${String(Math.floor(1000 + Math.random() * 9000))}`;
+              const barcode = String(Math.floor(100000000000 + Math.random() * 900000000000));
+
+              await client.execute({
+                sql: `INSERT INTO products (id, sku, barcode, name, category, unit, cost_price, selling_price, stock, min_stock)
+                      VALUES (?, ?, ?, ?, 'General', ?, ?, ?, 0, 5);`,
+                args: [newProdId, sku, barcode, trimmedName, unit, costPrice, sellingPrice],
+              });
+
+              await logSyncEvent(client, 'product', newProdId, 'save', {
+                id: newProdId,
+                sku,
+                barcode,
+                name: trimmedName,
+                category: 'General',
+                unit,
+                costPrice,
+                sellingPrice,
+                stock: 0,
+                minStock: 5,
+              }, 'all');
+
+              it.productId = newProdId;
+            }
+          }
+        }
 
         // Inventory Stock Integration: calculate deltas for linked products
         const oldProductQtyMap: Record<string, number> = {};

@@ -84,7 +84,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       headers = ['Bill / Ref #', 'Type', 'Date & Time', 'Customer Name', 'Phone', 'Items Count', 'Subtotal (INR)', 'GST (INR)', 'Total Amount (INR)', 'Payment Mode', 'Cashier'];
       rows = targetOrders.map((o) => [
-        `="${o.billNumber}"`,
+        `="$Bill #{o.dailyBillNumber || o.billNumber.replace(/^[A-Z-]+/, '')}"`,
         o.transactionType || 'CUSTOMER_BILL',
         `"${o.createdAt}"`,
         `"${o.customerName || 'Walk-in'}"`,
