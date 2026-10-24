@@ -109,7 +109,7 @@ const VALID_TABS: ActiveTab[] = [
 ];
 
 function getTabFromHash(): ActiveTab {
-  if (typeof window === 'undefined') return 'pos';
+  if (typeof window === 'undefined') return 'overview';
   const raw = window.location.hash.replace(/^#\/?/, '').trim().toLowerCase();
   if (raw === 'dashboard' || raw === 'overview') return 'overview';
   if (raw === 'customer-bills' || raw === 'bills' || raw === 'counter-sales') return 'no-bill-sales';
@@ -117,7 +117,7 @@ function getTabFromHash(): ActiveTab {
   if (raw === 'order' || raw === 'orders') return 'orders';
   if (raw === 'product-management' || raw === 'products' || raw === 'categories') return 'product-management';
   if (raw === 'purchases' || raw === 'purchase-bills' || raw === 'vendors') return 'purchases';
-  return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'pos';
+  return VALID_TABS.includes(raw as ActiveTab) ? (raw as ActiveTab) : 'overview';
 }
 
 export function App() {
@@ -130,7 +130,7 @@ export function App() {
     if (session && isSessionValid(session)) {
       return getTabFromHash();
     }
-    return 'pos';
+    return 'overview';
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -1571,8 +1571,8 @@ export function App() {
       });
     }
     setIsAuthenticated(true);
-    const targetTab = getTabFromHash();
-    setActiveTab(targetTab);
+    // Always open Dashboard (Overview) on login for both branches
+    setActiveTab('overview');
   };
 
   if (!isAuthenticated) {
