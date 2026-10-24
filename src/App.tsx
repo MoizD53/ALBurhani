@@ -44,6 +44,7 @@ import {
   fetchPurchaseBillsFromTurso,
   savePurchaseBillToTurso,
   cancelPurchaseBillOnTurso,
+  deletePurchaseBillOnTurso,
   addVendorPaymentOnTurso,
   fetchVendorsFromTurso
 } from './lib/turso';
@@ -339,14 +340,23 @@ export function App() {
   // Clean up obsolete test mode key from localStorage and sync remote data if configured
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const isSyncingRef = useRef<boolean>(false);
+  const lastSyncTimeRef = useRef<number>(0);
   const productsRef = useRef<Product[]>(products);
+  const activeBranchRef = useRef<string>(activeBranch);
 
   useEffect(() => {
     productsRef.current = products;
   }, [products]);
 
+  useEffect(() => {
+    activeBranchRef.current = activeBranch;
+  }, [activeBranch]);
+
   const syncRemoteData = useCallback(async (forceRefresh = false) => {
     if (isSyncingRef.current) return;
+    const now = Date.now();
+    if (!forceRefresh && now - lastSyncTimeRef.current < 15000) return;
+    lastSyncTimeRef.current = now;
     isSyncingRef.current = true;
     try {
       setIsSyncing(true);
@@ -414,8 +424,9 @@ export function App() {
         });
       }
 
-      // 2. Synchronize orders
-      const remoteOrders = await fetchOrdersFromTurso();
+      // 2. Synchronize orders scoped to current active branch
+      const branchToQuery = activeBranchRef.current || 'godi_road';
+      const remoteOrders = await fetchOrdersFromTurso('ALL', branchToQuery);
       if (remoteOrders !== null) {
         // Clear any accidental local tombstones for orders that exist in authoritative remoteOrders and are NOT in remoteDeleted
         const remoteDeletedIdSet = new Set((remoteDeleted || []).map((r) => r.id.trim()));
@@ -592,6 +603,9 @@ export function App() {
       localStorage.removeItem('albhurani_pos_test_mode');
     } catch {}
 
+    // Strictly gate data sync behind authentication: unauthenticated login screen makes 0 database reads
+    if (!isAuthenticated) return;
+
     syncRemoteData();
 
     // Start background sync manager scoped by active branch (event-driven delta feed)
@@ -600,6 +614,7 @@ export function App() {
 
     // On network reconnect, perform single catch-up sync for durable recovery
     const handleOnlineReconnect = () => {
+      if (!isAuthenticated) return;
       syncRemoteData(false);
       syncManager.pollForEvents();
     };
@@ -705,6 +720,14 @@ export function App() {
           } catch {}
           return next;
         });
+      } else if (ev.operation === 'delete' && ev.entityId) {
+        setPurchaseBills((prev) => {
+          const next = prev.filter((b) => b.id !== ev.entityId && b.purchaseNumber !== ev.entityId);
+          try {
+            localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
       }
     });
 
@@ -773,7 +796,7 @@ export function App() {
       unsubCustomerOrder();
       unsubCategory();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Save states to localStorage
   useEffect(() => {
@@ -1517,6 +1540,54 @@ export function App() {
     }
   };
 
+  const handleDeletePurchaseBill = async (billId: string): Promise<boolean> => {
+    try {
+      const billToDelete = purchaseBills.find((b) => b.id === billId);
+      const ok = await deletePurchaseBillOnTurso(billId);
+      if (ok) {
+        setPurchaseBills((prev) => {
+          const next = prev.filter((b) => b.id !== billId);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        });
+
+        // Reverse inward stock locally if not already cancelled
+        if (billToDelete && billToDelete.items && billToDelete.items.length > 0 && billToDelete.status !== 'Cancelled') {
+          setProducts((prev) => {
+            const updated = prev.map((p) => {
+              const matched = billToDelete.items.find((item) => item.productId === p.id);
+              if (!matched) return p;
+              return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
+            });
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem('albhurani_products', JSON.stringify(updated));
+              } catch {}
+            }
+            return updated;
+          });
+        }
+
+        // Broadcast deletion event
+        syncManager.broadcast({
+          entityType: 'purchase_bill' as any,
+          operation: 'delete',
+          entityId: billId,
+        });
+
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Error deleting purchase bill:', err);
+      return false;
+    }
+  };
+
   const handleAddVendorPayment = async (payment: VendorPayment): Promise<boolean> => {
     try {
       const ok = await addVendorPaymentOnTurso(payment);
@@ -1704,6 +1775,7 @@ export function App() {
               products={products}
               onSavePurchaseBill={handleSavePurchaseBill}
               onCancelPurchaseBill={handleCancelPurchaseBill}
+              onDeletePurchaseBill={handleDeletePurchaseBill}
               onAddVendorPayment={handleAddVendorPayment}
               onSyncNow={syncRemoteData}
               isSyncing={isSyncing}

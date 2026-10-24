@@ -9,6 +9,7 @@ import {
   Printer, 
   Edit2, 
   XCircle, 
+  Trash2,
   CheckCircle2, 
   Clock, 
   AlertCircle, 
@@ -33,6 +34,7 @@ interface PurchaseBillsViewProps {
   products: Product[];
   onSavePurchaseBill: (bill: PurchaseBill) => Promise<boolean>;
   onCancelPurchaseBill: (billId: string) => Promise<boolean>;
+  onDeletePurchaseBill?: (billId: string) => Promise<boolean>;
   onAddVendorPayment: (payment: VendorPayment) => Promise<boolean>;
   onSyncNow?: () => Promise<void> | void;
   isSyncing?: boolean;
@@ -44,6 +46,7 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
   products,
   onSavePurchaseBill,
   onCancelPurchaseBill,
+  onDeletePurchaseBill,
   onAddVendorPayment,
   onSyncNow,
   isSyncing = false,
@@ -63,6 +66,11 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
   // Cancel confirmation state
   const [billToCancel, setBillToCancel] = useState<PurchaseBill | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Delete confirmation state
+  const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
@@ -192,6 +200,34 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
       });
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  // Handle Permanent Deletion
+  const handleConfirmDelete = async () => {
+    if (!billToDelete || !onDeletePurchaseBill) return;
+    setIsDeleting(true);
+    try {
+      const ok = await onDeletePurchaseBill(billToDelete.id);
+      if (ok) {
+        setFeedback({
+          type: 'success',
+          message: `Purchase Bill ${billToDelete.purchaseNumber} deleted successfully.`,
+        });
+        setBillToDelete(null);
+      } else {
+        setFeedback({
+          type: 'error',
+          message: 'Failed to delete purchase bill. Please verify database connection.',
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || 'Error occurred while deleting purchase bill.',
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -671,6 +707,19 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
                                   <XCircle className="w-3.5 h-3.5" />
                                 </button>
                               )}
+
+                              {/* Delete Bill */}
+                              {onDeletePurchaseBill && (
+                                <button
+                                  type="button"
+                                  onClick={() => setBillToDelete(bill)}
+                                  title="Delete Purchase Bill"
+                                  aria-label={`Delete purchase bill ${bill.purchaseNumber}`}
+                                  className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -885,6 +934,57 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
                 className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs disabled:opacity-50"
               >
                 {isCancelling ? 'Cancelling & Reversing Stock...' : 'Yes, Cancel Bill'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Delete Purchase Bill Confirmation Modal */}
+      {billToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-rose-200 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-700">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-700" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base font-serif text-stone-900">
+                  Delete Purchase Bill {billToDelete.purchaseNumber}?
+                </h3>
+                <span className="text-xs text-rose-600 font-mono">
+                  Daily #{billToDelete.dailyBillNumber} • {billToDelete.vendorName} • Rs. {billToDelete.grandTotal.toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="text-xs text-stone-600 space-y-2 bg-rose-50/50 p-3.5 rounded-xl border border-rose-100">
+              <p className="font-medium text-stone-900">
+                Are you sure you want to permanently delete this purchase voucher?
+              </p>
+              <ul className="list-disc pl-4 space-y-1 text-stone-600">
+                <li>Inventory stock added by this bill will be <strong>automatically reversed</strong>.</li>
+                <li>Associated payment records will be removed.</li>
+                <li>This purchase record will be <strong>permanently deleted</strong>.</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setBillToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-800 bg-stone-100 hover:bg-stone-200 rounded-xl"
+              >
+                No, Keep Bill
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                {isDeleting ? 'Deleting & Reversing Stock...' : 'Yes, Delete Bill'}
               </button>
             </div>
           </div>

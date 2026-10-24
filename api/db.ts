@@ -1846,6 +1846,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Delete Purchase Bill (with Stock Reversal and Permanent Purge)
+    if (action === 'delete-purchase-bill') {
+      const { billId } = payload || {};
+      if (!billId) {
+        return res.status(400).json({ success: false, error: 'Missing billId' });
+      }
+
+      try {
+        const billRes = await client.execute({
+          sql: 'SELECT * FROM purchase_bills WHERE id = ? LIMIT 1;',
+          args: [billId],
+        });
+
+        if (billRes.rows.length === 0) {
+          return res.status(200).json({ success: true, message: 'Already deleted or not found' });
+        }
+
+        const bill = billRes.rows[0];
+
+        // If not already cancelled, reverse stock on linked products
+        if (bill.status !== 'Cancelled') {
+          let items: any[] = [];
+          try {
+            items = bill.items_json ? JSON.parse(String(bill.items_json)) : [];
+          } catch {}
+
+          for (const it of items) {
+            if (it.productId && typeof it.quantity === 'number') {
+              await client.execute({
+                sql: 'UPDATE products SET stock = MAX(0, stock - ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+                args: [Number(it.quantity), it.productId],
+              });
+
+              await client.execute({
+                sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
+                      VALUES (?, 'PURCHASE_DELETED', ?, ?, ?, ?);`,
+                args: [it.productId, billId, -Number(it.quantity), `Deleted Purchase ${bill.purchase_number}`, Date.now()],
+              });
+            }
+          }
+        }
+
+        // Delete associated payments
+        await client.execute({
+          sql: 'DELETE FROM vendor_payments WHERE purchase_bill_id = ?;',
+          args: [billId],
+        });
+
+        // Delete the bill permanently
+        await client.execute({
+          sql: 'DELETE FROM purchase_bills WHERE id = ?;',
+          args: [billId],
+        });
+
+        await logFinancialAudit(client, 'DELETE_PURCHASE', 'purchase_bill', billId, Number(bill.grand_total) || 0, null, {
+          purchaseNumber: bill.purchase_number,
+        });
+
+        await logSyncEvent(client, 'purchase_bill', billId, 'delete', { id: billId, purchaseNumber: bill.purchase_number }, (bill.branch as string) || 'all');
+        return res.status(200).json({ success: true, id: billId });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
     // Add Vendor Payment
     if (action === 'add-vendor-payment') {
       const { payment } = payload || {};

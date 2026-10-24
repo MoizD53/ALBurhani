@@ -175,6 +175,27 @@ export async function fetchProductsFromTurso(forceRefresh = false): Promise<Prod
     return productsCache.data;
   }
 
+  // Warm in-memory cache from valid existing localStorage data before making network requests
+  if (!forceRefresh && !productsCache && typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('albhurani_products');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length >= 250 &&
+          parsed[0]?.id &&
+          parsed[0]?.name &&
+          typeof parsed[0]?.sellingPrice === 'number'
+        ) {
+          const { products: clean } = migrateCatalogPrices(parsed);
+          productsCache = { data: clean, timestamp: now };
+          return clean;
+        }
+      }
+    } catch {}
+  }
+
   if (productsFetchPromise) {
     return productsFetchPromise;
   }
@@ -1176,6 +1197,34 @@ export async function cancelPurchaseBillOnTurso(billId: string, reason?: string)
       body: JSON.stringify({
         action: 'cancel-purchase-bill',
         payload: { billId, reason },
+      }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Permanently delete a purchase bill with stock reversal
+ */
+export async function deletePurchaseBillOnTurso(billId: string): Promise<boolean> {
+  invalidatePurchasesCache();
+  invalidateProductsCache();
+  invalidateVendorsCache();
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'delete-purchase-bill',
+        payload: { billId },
       }),
     });
 

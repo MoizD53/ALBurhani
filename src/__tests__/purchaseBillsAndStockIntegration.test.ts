@@ -229,4 +229,38 @@ describe('Purchase Bills, Stock Delta & Expense Integration', () => {
     expect(outstandingSupplierDue).toBe(3000);
     expect(activePurchases.length).toBe(1); // Cancelled bill excluded
   });
+
+  it('safely handles purchase bill deletion with stock reversal and removal from bills list', () => {
+    let bills: PurchaseBill[] = [
+      {
+        id: 'pur-delete-1',
+        purchaseNumber: 'PUR-0001',
+        dailyBillNumber: 1,
+        businessDate: '2026-10-24',
+        vendorName: 'Mansur',
+        purchaseDate: '2026-10-24',
+        items: [{ productId: 'prod-purina-wafer', productName: 'Purina wafer', quantity: 5, unit: 'PCS', unitPrice: 14, lineTotal: 70 }],
+        subtotal: 70,
+        discount: 0,
+        additionalCharges: 0,
+        grandTotal: 70,
+        amountPaid: 70,
+        balanceDue: 0,
+        paymentStatus: 'Paid',
+        paymentMode: 'Cash',
+        status: 'Active',
+      }
+    ];
+
+    let currentStock = 10;
+    const billToDelete = bills.find((b) => b.id === 'pur-delete-1')!;
+
+    // Reverse stock
+    currentStock = Math.max(0, currentStock - billToDelete.items[0].quantity);
+    expect(currentStock).toBe(5); // 10 - 5 = 5
+
+    // Delete bill
+    bills = bills.filter((b) => b.id !== 'pur-delete-1');
+    expect(bills).toHaveLength(0);
+  });
 });

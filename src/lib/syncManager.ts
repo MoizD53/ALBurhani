@@ -76,7 +76,7 @@ class SyncManager {
   }
 
   private initNetworkListeners() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
 
     window.addEventListener('online', () => {
       this.setStatus('syncing');

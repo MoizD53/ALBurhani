@@ -4,8 +4,26 @@ import {
   fetchOrdersFromTurso,
   invalidateProductsCache,
   invalidateOrdersCache,
+  deletePurchaseBillOnTurso,
 } from '../lib/turso';
 import { getTursoBudgetStatus, recordMonthlyUsage } from '../lib/tursoBudget';
+
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => { store[key] = value.toString(); },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; }
+  };
+})();
+
+if (typeof globalThis.localStorage === 'undefined') {
+  Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
+}
+if (typeof globalThis.window === 'undefined') {
+  Object.defineProperty(globalThis, 'window', { value: globalThis, writable: true });
+}
 
 describe('Turso Read Optimization & Shared Cache', () => {
   beforeEach(() => {
@@ -191,5 +209,75 @@ describe('Turso Read Optimization & Shared Cache', () => {
     // After empty poll with serverTime 1700000000000, next poll must advance cleanly without 30s backward rewind
     await syncManager.pollForEvents();
     expect(requestedSince).toBe(1700000000000);
+  });
+
+  it('warms in-memory products cache from valid localStorage data and bypasses network fetch', async () => {
+    let fetchCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async () => {
+      fetchCount++;
+      return { ok: true, json: async () => ({ success: true, rows: [] }) };
+    });
+
+    // Populate localStorage with 250 items
+    const mockCatalog = Array.from({ length: 250 }, (_, i) => ({
+      id: `p-${i}`,
+      sku: `SKU-${i}`,
+      barcode: `BAR-${i}`,
+      name: `Product ${i}`,
+      category: 'Sweets',
+      unit: 'kg',
+      costPrice: 100,
+      sellingPrice: 200,
+      stock: 5,
+      minStock: 1,
+    }));
+    localStorage.setItem('albhurani_products', JSON.stringify(mockCatalog));
+
+    invalidateProductsCache();
+    const result = await fetchProductsFromTurso(false);
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(250);
+    // Bypasses network completely -> 0 network fetches!
+    expect(fetchCount).toBe(0);
+
+    // If forceRefresh is requested, it MUST hit the network
+    await fetchProductsFromTurso(true);
+    expect(fetchCount).toBe(1);
+    localStorage.removeItem('albhurani_products');
+  });
+
+  it('deletePurchaseBillOnTurso sends delete-purchase-bill action and invalidates caches', async () => {
+    let requestedAction = '';
+    let requestedBillId = '';
+
+    globalThis.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      requestedAction = body.action;
+      requestedBillId = body.payload?.billId;
+      return {
+        ok: true,
+        json: async () => ({ success: true, id: requestedBillId })
+      };
+    });
+
+    const success = await deletePurchaseBillOnTurso('pur-voucher-99');
+    expect(success).toBe(true);
+    expect(requestedAction).toBe('delete-purchase-bill');
+    expect(requestedBillId).toBe('pur-voucher-99');
+  });
+
+  it('scopes orders query to specific branch to avoid downloading cross-branch datasets', async () => {
+    let requestedUrl = '';
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      requestedUrl = url;
+      return {
+        ok: true,
+        json: async () => ({ success: true, rows: [] })
+      };
+    });
+
+    await fetchOrdersFromTurso('ALL', 'mg_road');
+    expect(requestedUrl).toContain('branch=mg_road');
   });
 });
