@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   Plus, 
@@ -38,7 +39,12 @@ const SearchableProductSelect: React.FC<SearchableProductSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: 320,
+  });
 
   const selectedProduct = useMemo(
     () => products.find((p) => p.id === selectedProductId),
@@ -46,105 +52,181 @@ const SearchableProductSelect: React.FC<SearchableProductSelectProps> = ({
   );
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return products.slice(0, 60);
+    if (!search.trim()) return products.slice(0, 80);
     const q = search.toLowerCase().trim();
     return products.filter((p) =>
       p.name.toLowerCase().includes(q) ||
       (p.sku && p.sku.toLowerCase().includes(q)) ||
       (p.barcode && p.barcode.includes(q))
-    ).slice(0, 60);
+    ).slice(0, 80);
   }, [products, search]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
+  const updateCoords = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const popoverWidth = 320;
+      let left = rect.left;
+      if (left + popoverWidth > window.innerWidth - 12) {
+        left = Math.max(12, window.innerWidth - popoverWidth - 12);
       }
-    };
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      if (left < 12) left = 12;
+
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const popoverHeight = 320;
+      let top = rect.bottom + 4;
+      if (spaceBelow < popoverHeight && rect.top > popoverHeight) {
+        top = Math.max(10, rect.top - popoverHeight - 4);
+      }
+      setCoords({ top, left, width: popoverWidth });
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updateCoords();
+    window.addEventListener('resize', updateCoords);
+    window.addEventListener('scroll', updateCoords, true);
+    return () => {
+      window.removeEventListener('resize', updateCoords);
+      window.removeEventListener('scroll', updateCoords, true);
+    };
+  }, [isOpen, updateCoords]);
 
   return (
-    <div className="relative w-full min-w-[130px]" ref={containerRef}>
+    <div className="w-full min-w-[130px]">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => {
+          updateCoords();
           setIsOpen(!isOpen);
           setSearch('');
         }}
-        className="w-full px-2 py-1.5 text-[11px] bg-[#FAF8F5] hover:bg-white border border-[#E8DEC8] hover:border-[#C99A18] rounded-lg text-left text-stone-700 flex items-center justify-between transition-colors shadow-2xs cursor-pointer"
-        title="Click to search and link catalogue product"
+        className={`w-full px-2 py-1.5 text-[11px] rounded-lg text-left flex items-center justify-between transition-colors shadow-2xs cursor-pointer border ${
+          selectedProduct
+            ? 'bg-amber-50/90 border-[#C99A18] text-[#8C6D15] font-bold'
+            : 'bg-[#FAF8F5] hover:bg-white border-[#E8DEC8] hover:border-[#C99A18] text-stone-700'
+        }`}
+        title={selectedProduct ? `Linked to ${selectedProduct.name}` : 'Click to search and select product'}
       >
-        <span className="truncate font-semibold">
-          {selectedProduct ? `${selectedProduct.name}` : 'Auto-match'}
+        <span className="truncate">
+          {selectedProduct ? selectedProduct.name : '🔍 Select Product'}
         </span>
         <Search className="w-3 h-3 text-stone-400 shrink-0 ml-1" />
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white border border-[#E8DEC8] rounded-xl shadow-2xl overflow-hidden animate-fade-in text-left">
-          <div className="p-2 border-b border-[#E8DEC8] bg-[#FAF8F5]">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
-              <input
-                type="text"
-                autoFocus
-                placeholder="Search by name, SKU or barcode..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-[#E8DEC8] rounded-lg text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#C99A18]"
-              />
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Backdrop for outside click */}
+          <div
+            className="fixed inset-0 z-[99998] bg-black/15"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+            }}
+          />
+
+          {/* Floating unclipped dropdown */}
+          <div
+            style={{
+              position: 'fixed',
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              width: `${coords.width}px`,
+              zIndex: 99999,
+            }}
+            className="bg-white border-2 border-[#C99A18] rounded-xl shadow-2xl overflow-hidden animate-fade-in text-left flex flex-col max-h-[340px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-2 border-b border-[#E8DEC8] bg-[#FAF8F5] shrink-0">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search by name, SKU or barcode..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-[#E8DEC8] rounded-lg text-stone-900 placeholder:text-stone-400 focus:outline-none focus:border-[#C99A18]"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="text-[10px] text-stone-500 font-medium mt-1 px-1 flex justify-between items-center">
+                <span>{filtered.length} products found</span>
+                <span className="text-[#A67D0C] font-semibold">Click to link & auto-fill</span>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto custom-scrollbar divide-y divide-[#F5F2EB] flex-1">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelect(undefined);
+                  setIsOpen(false);
+                }}
+                className={`w-full px-3 py-2 text-left text-xs hover:bg-amber-50 flex items-center justify-between transition-colors cursor-pointer ${
+                  !selectedProductId ? 'bg-amber-50 font-bold text-[#8C6D15]' : 'text-stone-600'
+                }`}
+              >
+                <div>
+                  <div className="font-semibold text-stone-800">Auto-create / Unlinked Item</div>
+                  <div className="text-[10px] text-stone-400">Creates new catalog item or matches name</div>
+                </div>
+                {!selectedProductId && <Check className="w-4 h-4 text-[#C99A18] shrink-0" />}
+              </button>
+
+              {filtered.map((p) => {
+                const isSelected = p.id === selectedProductId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      onSelect(p);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left text-xs hover:bg-[#FAF8F5] flex items-center justify-between transition-colors cursor-pointer ${
+                      isSelected ? 'bg-amber-50 font-bold text-[#8C6D15]' : 'text-stone-800'
+                    }`}
+                  >
+                    <div className="min-w-0 pr-2 flex-1">
+                      <div className="truncate font-semibold text-stone-900">{p.name}</div>
+                      <div className="text-[10px] text-stone-500 flex items-center gap-2 mt-0.5 font-mono">
+                        <span>{p.category || 'General'}</span>
+                        <span>·</span>
+                        <span>{p.unit}</span>
+                        {p.costPrice > 0 && (
+                          <>
+                            <span>·</span>
+                            <span className="text-emerald-700 font-bold">Cost: Rs.{p.costPrice}</span>
+                          </>
+                        )}
+                        <span>·</span>
+                        <span className="text-stone-600">Stock: {p.stock || 0}</span>
+                      </div>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-[#C99A18] shrink-0 ml-2" />}
+                  </button>
+                );
+              })}
+
+              {filtered.length === 0 && (
+                <div className="p-4 text-center text-xs text-stone-400">
+                  No matching product found for "{search}"
+                </div>
+              )}
             </div>
           </div>
-
-          <div className="max-h-52 overflow-y-auto custom-scrollbar divide-y divide-[#F5F2EB]">
-            <button
-              type="button"
-              onClick={() => {
-                onSelect(undefined);
-                setIsOpen(false);
-              }}
-              className={`w-full px-3 py-2 text-left text-xs hover:bg-amber-50 flex items-center justify-between transition-colors cursor-pointer ${
-                !selectedProductId ? 'bg-amber-50 font-bold text-[#8C6D15]' : 'text-stone-600'
-              }`}
-            >
-              <span>Auto-create / Match Product</span>
-              {!selectedProductId && <Check className="w-3.5 h-3.5 text-[#C99A18]" />}
-            </button>
-
-            {filtered.map((p) => {
-              const isSelected = p.id === selectedProductId;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(p);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left text-xs hover:bg-[#FAF8F5] flex items-center justify-between transition-colors cursor-pointer ${
-                    isSelected ? 'bg-amber-50 font-bold text-[#8C6D15]' : 'text-stone-800'
-                  }`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="truncate font-semibold">{p.name}</div>
-                    <div className="text-[10px] text-stone-400 font-mono">{p.sku} · {p.unit}</div>
-                  </div>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-[#C99A18] shrink-0" />}
-                </button>
-              );
-            })}
-
-            {filtered.length === 0 && (
-              <div className="p-3 text-center text-xs text-stone-400">
-                No matching product found
-              </div>
-            )}
-          </div>
-        </div>
+        </>,
+        document.body
       )}
     </div>
   );
@@ -531,12 +613,28 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
                         <td className="py-2 px-3">
                           <input
                             type="text"
+                            list={`catalog-items-${idx}`}
                             required
                             value={it.productName}
-                            onChange={(e) => updateItem(idx, { productName: e.target.value })}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const matched = products.find((p) => p.name.toLowerCase() === val.toLowerCase());
+                              if (matched) {
+                                handleSelectProduct(idx, matched);
+                              } else {
+                                updateItem(idx, { productName: val });
+                              }
+                            }}
                             placeholder="Enter item name"
                             className="w-full px-2 py-1.5 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-lg text-stone-900 focus:bg-white focus:border-[#C99A18] focus:outline-none font-semibold"
                           />
+                          <datalist id={`catalog-items-${idx}`}>
+                            {products.slice(0, 100).map((p) => (
+                              <option key={p.id} value={p.name}>
+                                {p.category} · Stock: {p.stock} {p.unit}
+                              </option>
+                            ))}
+                          </datalist>
                         </td>
 
                         {/* Optional Product Link */}

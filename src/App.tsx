@@ -1429,86 +1429,116 @@ export function App() {
 
   const handleSavePurchaseBill = async (bill: PurchaseBill): Promise<boolean> => {
     try {
+      const billId = bill.id || `pb-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const istDate = bill.businessDate || getKolkataDateString();
+      const dailyNum = bill.dailyBillNumber || (purchaseBills.filter((b) => (b.businessDate || b.purchaseDate || '').slice(0, 10) === istDate).length + 1);
+
       const billWithBranch: PurchaseBill = {
         ...bill,
+        id: billId,
+        dailyBillNumber: dailyNum,
+        purchaseNumber: bill.purchaseNumber || `Bill #${dailyNum}`,
         branch: bill.branch || activeBranch,
+        createdAt: bill.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
-      const saved = await savePurchaseBillToTurso(billWithBranch);
-      if (saved) {
-        setPurchaseBills((prev) => {
-          const idx = prev.findIndex((b) => b.id === saved.id);
-          let next;
-          if (idx >= 0) {
-            next = [...prev];
-            next[idx] = saved;
-          } else {
-            next = [saved, ...prev];
+
+      // 1. Instant local state & localStorage update (< 5ms)
+      setPurchaseBills((prev) => {
+        const idx = prev.findIndex((b) => b.id === billWithBranch.id);
+        let next;
+        if (idx >= 0) {
+          next = [...prev];
+          next[idx] = billWithBranch;
+        } else {
+          next = [billWithBranch, ...prev];
+        }
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+          } catch {}
+        }
+        return next;
+      });
+
+      // 2. Instant inward stock addition for all purchased products in catalog
+      if (billWithBranch.items && billWithBranch.items.length > 0) {
+        setProducts((prev) => {
+          let updated = [...prev];
+          for (const item of billWithBranch.items) {
+            const matchedIdx = updated.findIndex((p) => (item.productId && p.id === item.productId) || p.name.trim().toLowerCase() === item.productName.trim().toLowerCase());
+            if (matchedIdx >= 0) {
+              updated[matchedIdx] = {
+                ...updated[matchedIdx],
+                stock: (updated[matchedIdx].stock || 0) + Number(item.quantity || 0),
+                costPrice: Number(item.unitPrice) > 0 ? Number(item.unitPrice) : updated[matchedIdx].costPrice,
+              };
+            } else {
+              const newP: Product = {
+                id: item.productId || `prod-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                sku: `PUR-${Math.floor(1000 + Math.random() * 9000)}`,
+                barcode: String(Math.floor(100000000000 + Math.random() * 900000000000)),
+                name: item.productName.trim(),
+                category: 'General',
+                unit: (item.unit as any) || 'PCS',
+                costPrice: Number(item.unitPrice) || 0,
+                sellingPrice: Math.round((Number(item.unitPrice) || 0) * 1.25) || 100,
+                stock: Number(item.quantity) || 0,
+                minStock: 5,
+                isActive: true,
+              };
+              updated = [newP, ...updated];
+            }
           }
           if (typeof window !== 'undefined') {
             try {
-              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+              localStorage.setItem('albhurani_products', JSON.stringify(updated));
             } catch {}
           }
-          return next;
+          return updated;
         });
-
-        // Update inward stock locally for purchased items (auto-matching existing products or adding new products to catalog)
-        if (saved.items && saved.items.length > 0) {
-          setProducts((prev) => {
-            let updated = [...prev];
-            for (const item of saved.items) {
-              const matchedIdx = updated.findIndex((p) => (item.productId && p.id === item.productId) || p.name.trim().toLowerCase() === item.productName.trim().toLowerCase());
-              if (matchedIdx >= 0) {
-                updated[matchedIdx] = {
-                  ...updated[matchedIdx],
-                  stock: (updated[matchedIdx].stock || 0) + Number(item.quantity || 0),
-                  costPrice: Number(item.unitPrice) || updated[matchedIdx].costPrice,
-                };
-              } else {
-                const newP: Product = {
-                  id: item.productId || `prod-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                  sku: `PUR-${Math.floor(1000 + Math.random() * 9000)}`,
-                  barcode: String(Math.floor(100000000000 + Math.random() * 900000000000)),
-                  name: item.productName.trim(),
-                  category: 'General',
-                  unit: (item.unit as any) || 'PCS',
-                  costPrice: Number(item.unitPrice) || 0,
-                  sellingPrice: Math.round((Number(item.unitPrice) || 0) * 1.25) || 100,
-                  stock: Number(item.quantity) || 0,
-                  minStock: 5,
-                  isActive: true,
-                };
-                updated = [newP, ...updated];
-              }
-            }
-            if (typeof window !== 'undefined') {
-              try {
-                localStorage.setItem('albhurani_products', JSON.stringify(updated));
-              } catch {}
-            }
-            return updated;
-          });
-        }
-
-        // Update vendor balance locally
-        if (billWithBranch.vendorId) {
-          setVendors((prev) => {
-            const updated = prev.map((v) => {
-              if (v.id !== billWithBranch.vendorId) return v;
-              return { ...v, balanceDue: (v.balanceDue || 0) + (billWithBranch.balanceDue || 0) };
-            });
-            if (typeof window !== 'undefined') {
-              try {
-                localStorage.setItem('albhurani_vendors', JSON.stringify(updated));
-              } catch {}
-            }
-            return updated;
-          });
-        }
-
-        return true;
       }
-      return false;
+
+      // 3. Instant vendor balance update
+      if (billWithBranch.vendorId) {
+        setVendors((prev) => {
+          const updated = prev.map((v) => {
+            if (v.id !== billWithBranch.vendorId) return v;
+            return { ...v, balanceDue: (v.balanceDue || 0) + (billWithBranch.balanceDue || 0) };
+          });
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('albhurani_vendors', JSON.stringify(updated));
+            } catch {}
+          }
+          return updated;
+        });
+      }
+
+      // 4. Background Turso persistence without blocking cashier / owner UI
+      void (async () => {
+        try {
+          const saved = await savePurchaseBillToTurso(billWithBranch);
+          if (saved) {
+            setPurchaseBills((prev) => {
+              const idx = prev.findIndex((b) => b.id === saved.id || b.id === billWithBranch.id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = saved;
+                try {
+                  localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+                } catch {}
+                return next;
+              }
+              return prev;
+            });
+          }
+        } catch (err) {
+          console.warn('Background purchase sync error (offline cached):', err);
+        }
+      })();
+
+      return true;
     } catch (err) {
       console.error('Error saving purchase bill:', err);
       return false;
@@ -1517,39 +1547,38 @@ export function App() {
 
   const handleCancelPurchaseBill = async (billId: string): Promise<boolean> => {
     try {
-      const ok = await cancelPurchaseBillOnTurso(billId);
-      if (ok) {
-        setPurchaseBills((prev) => {
-          const next = prev.map((b) => (b.id === billId ? { ...b, status: 'Cancelled' as const } : b));
+      // 1. Instant local update
+      setPurchaseBills((prev) => {
+        const next = prev.map((b) => (b.id === billId ? { ...b, status: 'Cancelled' as const } : b));
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+          } catch {}
+        }
+        return next;
+      });
+
+      // 2. Instant inward stock reversal locally
+      const cancelledBill = purchaseBills.find((b) => b.id === billId);
+      if (cancelledBill && cancelledBill.items && cancelledBill.items.length > 0) {
+        setProducts((prev) => {
+          const updated = prev.map((p) => {
+            const matched = cancelledBill.items.find((item) => item.productId === p.id);
+            if (!matched) return p;
+            return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
+          });
           if (typeof window !== 'undefined') {
             try {
-              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+              localStorage.setItem('albhurani_products', JSON.stringify(updated));
             } catch {}
           }
-          return next;
+          return updated;
         });
-
-        // Reverse inward stock locally for cancelled items without downloading full product table
-        const cancelledBill = purchaseBills.find((b) => b.id === billId);
-        if (cancelledBill && cancelledBill.items && cancelledBill.items.length > 0) {
-          setProducts((prev) => {
-            const updated = prev.map((p) => {
-              const matched = cancelledBill.items.find((item) => item.productId === p.id);
-              if (!matched) return p;
-              return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
-            });
-            if (typeof window !== 'undefined') {
-              try {
-                localStorage.setItem('albhurani_products', JSON.stringify(updated));
-              } catch {}
-            }
-            return updated;
-          });
-        }
-
-        return true;
       }
-      return false;
+
+      // 3. Background Turso cancellation
+      void cancelPurchaseBillOnTurso(billId);
+      return true;
     } catch (err) {
       console.error('Error cancelling purchase bill:', err);
       return false;
@@ -1559,45 +1588,38 @@ export function App() {
   const handleDeletePurchaseBill = async (billId: string): Promise<boolean> => {
     try {
       const billToDelete = purchaseBills.find((b) => b.id === billId);
-      const ok = await deletePurchaseBillOnTurso(billId);
-      if (ok) {
-        setPurchaseBills((prev) => {
-          const next = prev.filter((b) => b.id !== billId);
+
+      // 1. Instant local deletion (< 5ms)
+      setPurchaseBills((prev) => {
+        const next = prev.filter((b) => b.id !== billId);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+          } catch {}
+        }
+        return next;
+      });
+
+      // 2. Instant stock reversal locally if not already cancelled
+      if (billToDelete && billToDelete.items && billToDelete.items.length > 0 && billToDelete.status !== 'Cancelled') {
+        setProducts((prev) => {
+          const updated = prev.map((p) => {
+            const matched = billToDelete.items.find((item) => item.productId === p.id);
+            if (!matched) return p;
+            return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
+          });
           if (typeof window !== 'undefined') {
             try {
-              localStorage.setItem('albhurani_purchase_bills', JSON.stringify(next));
+              localStorage.setItem('albhurani_products', JSON.stringify(updated));
             } catch {}
           }
-          return next;
+          return updated;
         });
-
-        // Reverse inward stock locally if not already cancelled
-        if (billToDelete && billToDelete.items && billToDelete.items.length > 0 && billToDelete.status !== 'Cancelled') {
-          setProducts((prev) => {
-            const updated = prev.map((p) => {
-              const matched = billToDelete.items.find((item) => item.productId === p.id);
-              if (!matched) return p;
-              return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
-            });
-            if (typeof window !== 'undefined') {
-              try {
-                localStorage.setItem('albhurani_products', JSON.stringify(updated));
-              } catch {}
-            }
-            return updated;
-          });
-        }
-
-        // Broadcast deletion event
-        syncManager.broadcast({
-          entityType: 'purchase_bill' as any,
-          operation: 'delete',
-          entityId: billId,
-        });
-
-        return true;
       }
-      return false;
+
+      // 3. Background Turso deletion
+      void deletePurchaseBillOnTurso(billId);
+      return true;
     } catch (err) {
       console.error('Error deleting purchase bill:', err);
       return false;
