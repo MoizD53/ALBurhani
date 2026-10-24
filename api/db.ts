@@ -473,11 +473,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // Ensure tables and schema exist
-  try {
-    await ensureSchema(client);
-  } catch (schemaErr: any) {
-    console.error('Schema initialization error:', schemaErr);
+  // Schema verification: Run full DDL check on mutation requests (POST) or explicit health checks
+  // Read-only queries (like fetch-events) execute directly without running 55 DDL statements per request
+  if (!isSchemaInitialized && (req.method === 'POST' || req.query.action === 'status')) {
+    try {
+      await ensureSchema(client);
+    } catch (schemaErr: any) {
+      console.error('Schema initialization error:', schemaErr);
+    }
   }
 
   // 1. GET Requests

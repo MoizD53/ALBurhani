@@ -137,4 +137,32 @@ describe('Turso Read Optimization & Shared Cache', () => {
     expect(status.tier).toBe('NORMAL');
     expect(status.recommendedDeltaIntervalMs).toBe(10_000);
   });
+
+  it('handles idle event sync cursor without backward rewinds', async () => {
+    let requestedSince = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('action=fetch-events')) {
+        const urlObj = new URL(url, 'http://localhost');
+        requestedSince = Number(urlObj.searchParams.get('since') || 0);
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            events: [],
+            serverTime: 1700000000000
+          })
+        };
+      }
+      return { ok: false };
+    });
+
+    const { syncManager } = await import('../lib/syncManager');
+    syncManager.resetSyncTimestamp(1699999900000);
+    await syncManager.pollForEvents();
+
+    expect(requestedSince).toBe(1699999900000);
+    // After empty poll with serverTime 1700000000000, next poll must advance cleanly without 30s backward rewind
+    await syncManager.pollForEvents();
+    expect(requestedSince).toBe(1700000000000);
+  });
 });

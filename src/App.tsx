@@ -594,38 +594,17 @@ export function App() {
 
     syncRemoteData();
 
-    // Start background sync manager scoped by active branch
+    // Start background sync manager scoped by active branch (event-driven delta feed)
     syncManager.setBranch(activeBranch);
-    syncManager.start();
+    syncManager.start(25000); // Modest 25-second background delta heartbeat
 
-    // Gentle reconciliation interval every 2 minutes when tab is visible
-    const reconcileInterval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    // On network reconnect, perform single catch-up sync for durable recovery
+    const handleOnlineReconnect = () => {
       syncRemoteData(false);
-    }, 120000);
-
-    let lastFocusSync = 0;
-    const handleWindowFocus = () => {
-      const now = Date.now();
-      if (now - lastFocusSync > 30000) {
-        lastFocusSync = now;
-        syncRemoteData(false);
-      }
+      syncManager.pollForEvents();
     };
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const now = Date.now();
-        if (now - lastFocusSync > 30000) {
-          lastFocusSync = now;
-          syncRemoteData(false);
-        }
-      }
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    window.addEventListener('online', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnlineReconnect);
 
     // Listen for real-time events from other devices
     const unsubOrder = syncManager.subscribe('order', (ev) => {
@@ -783,10 +762,7 @@ export function App() {
     });
 
     return () => {
-      clearInterval(reconcileInterval);
-      window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('online', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnlineReconnect);
       syncManager.stop();
       unsubOrder();
       unsubProduct();

@@ -87,7 +87,7 @@ class SyncManager {
     });
   }
 
-  public start(intervalMs: number = 10000) {
+  public start(intervalMs: number = 25000) {
     this.currentIntervalMs = intervalMs;
     if (this.pollIntervalId) return;
 
@@ -221,8 +221,8 @@ class SyncManager {
           } catch {}
         }
       } else if (data.serverTime && data.serverTime > this.lastTimestamp) {
-        // Keep timestamp safely updated with a 30-second trailing safety margin to prevent jumping past uncommitted events
-        this.lastTimestamp = Math.max(this.lastTimestamp, data.serverTime - 30000);
+        // Stable cursor advance: do not rewind backward to prevent re-reading the same events repeatedly
+        this.lastTimestamp = data.serverTime;
         if (typeof window !== 'undefined') {
           try {
             localStorage.setItem('albhurani_last_sync_timestamp', String(this.lastTimestamp));
