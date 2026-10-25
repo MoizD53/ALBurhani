@@ -25,6 +25,7 @@ const API_ENDPOINT = '/api/db';
 // Shared In-Memory Caches & Deduplication to prevent runaway database reads
 let productsCache: { data: Product[]; timestamp: number } | null = null;
 let productsFetchPromise: Promise<Product[] | null> | null = null;
+let lastProductsUpdatedAt: string | null = null;
 const PRODUCTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 let ordersCache: Map<string, { data: OrderBill[]; timestamp: number }> = new Map();
@@ -33,6 +34,7 @@ const ORDERS_CACHE_TTL = 30 * 1000; // 30 seconds
 
 let categoriesCache: { data: CategoryItem[]; timestamp: number } | null = null;
 let categoriesFetchPromise: Promise<CategoryItem[] | null> | null = null;
+let lastCategoriesUpdatedAt: string | null = null;
 const CATEGORIES_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 let expensesCache: Map<string, { data: ExpenseItem[]; timestamp: number }> = new Map();
@@ -51,6 +53,9 @@ let settingsCache: { data: Record<string, any>; timestamp: number } | null = nul
 const SETTINGS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 let deletedOrdersCache: { data: { id: string; billNumber?: string }[]; timestamp: number } | null = null;
+let lastDeletedOrdersUpdatedAt: string | null = null;
+let budgetStatusCache: { data: TursoBudgetStatus; timestamp: number } | null = null;
+const BUDGET_STATUS_CACHE_TTL = 30 * 1000; // 30 seconds
 const DELETED_ORDERS_CACHE_TTL = 60 * 1000; // 60 seconds
 
 export function invalidateProductsCache() {
@@ -202,12 +207,33 @@ export async function fetchProductsFromTurso(forceRefresh = false): Promise<Prod
 
   productsFetchPromise = (async () => {
     try {
-      const res = await fetch(`${API_ENDPOINT}?action=fetch-products&_t=${Date.now()}`, { cache: 'no-store' });
+      const sinceParam = (!forceRefresh && lastProductsUpdatedAt) ? `&since=${encodeURIComponent(lastProductsUpdatedAt)}` : '';
+      const res = await fetch(`${API_ENDPOINT}?action=fetch-products${sinceParam}&_t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) return null;
 
       const data = await res.json();
-      if (!data.success || !Array.isArray(data.rows)) return null;
-
+      if (!data.success) return null;
+      if (data.notModified) {
+        if (!productsCache && typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('albhurani_products');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                productsCache = { data: parsed, timestamp: Date.now() };
+              }
+            }
+          } catch {}
+        }
+        if (productsCache) {
+          productsCache.timestamp = Date.now();
+          return productsCache.data;
+        }
+      }
+      if (!Array.isArray(data.rows)) return null;
+      if (data.lastUpdated) {
+        lastProductsUpdatedAt = String(data.lastUpdated);
+      }
       const products: Product[] = data.rows.map((row: any) => ({
         id: String(row.id),
         sku: String(row.sku || row.barcode),
@@ -391,15 +417,23 @@ export async function fetchDeletedOrdersFromTurso(forceRefresh = false): Promise
   }
 
   try {
-    const res = await fetch(`${API_ENDPOINT}?action=fetch-deleted-orders&_t=${Date.now()}`, {
+    const sinceParam = (!forceRefresh && lastDeletedOrdersUpdatedAt) ? `&since=${encodeURIComponent(lastDeletedOrdersUpdatedAt)}` : '';
+    const res = await fetch(`${API_ENDPOINT}?action=fetch-deleted-orders${sinceParam}&_t=${Date.now()}`, {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return null;
 
     const data = await res.json();
-    if (!data.success || !Array.isArray(data.rows)) return null;
-
+    if (!data.success) return null;
+    if (data.notModified && deletedOrdersCache) {
+      deletedOrdersCache.timestamp = Date.now();
+      return deletedOrdersCache.data;
+    }
+    if (!Array.isArray(data.rows)) return null;
+    if (data.lastDeleted) {
+      lastDeletedOrdersUpdatedAt = String(data.lastDeleted);
+    }
     const rows = data.rows.map((row: any) => ({
       id: String(row.id),
       billNumber: row.bill_number ? String(row.bill_number) : undefined,
@@ -991,12 +1025,33 @@ export async function fetchCategoriesFromTurso(forceRefresh = false): Promise<Ca
 
   categoriesFetchPromise = (async () => {
     try {
-      const res = await fetch(`${API_ENDPOINT}?action=fetch-categories&_t=${Date.now()}`);
+      const sinceParam = (!forceRefresh && lastCategoriesUpdatedAt) ? `&since=${encodeURIComponent(lastCategoriesUpdatedAt)}` : '';
+      const res = await fetch(`${API_ENDPOINT}?action=fetch-categories${sinceParam}&_t=${Date.now()}`);
       if (!res.ok) return null;
 
       const data = await res.json();
-      if (!data.success || !Array.isArray(data.rows)) return null;
-
+      if (!data.success) return null;
+      if (data.notModified) {
+        if (!categoriesCache && typeof window !== 'undefined') {
+          try {
+            const raw = localStorage.getItem('albhurani_categories');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                categoriesCache = { data: parsed, timestamp: Date.now() };
+              }
+            }
+          } catch {}
+        }
+        if (categoriesCache) {
+          categoriesCache.timestamp = Date.now();
+          return categoriesCache.data;
+        }
+      }
+      if (!Array.isArray(data.rows)) return null;
+      if (data.lastUpdated) {
+        lastCategoriesUpdatedAt = String(data.lastUpdated);
+      }
       const categories: CategoryItem[] = data.rows.map((row: any) => ({
         id: String(row.id),
         name: String(row.name),
@@ -1259,5 +1314,63 @@ export async function addVendorPaymentOnTurso(payment: VendorPayment): Promise<b
     return Boolean(data.success);
   } catch {
     return false;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Shared 200M Turso Rows Read Budget Diagnostics API
+// ---------------------------------------------------------------------------
+
+export interface TursoBudgetConsumer {
+  action: string;
+  queryCount: number;
+  estimatedRows: number;
+  percentOfTotal: number;
+  lastCalledAt?: string;
+}
+
+export interface TursoBudgetStatus {
+  success: boolean;
+  periodMonth: string;
+  budgetLimit: number;
+  totalEstimatedRowsRead: number;
+  totalQueryCount: number;
+  percentageUsed: number;
+  daysElapsed: number;
+  daysInMonth: number;
+  projectedMonthlyRows: number;
+  projectedPercentage: number;
+  thresholdStatus: 'normal' | '50%' | '70%' | '85%' | '95%' | 'exceeded';
+  alertMessage: string | null;
+  shouldThrottleNonEssential: boolean;
+  criticalOperationsGuaranteed: boolean;
+  metricType: string;
+  clarification: string;
+  topConsumers: TursoBudgetConsumer[];
+}
+
+/**
+ * Fetch real-time shared 200M Turso Rows Read budget status and projections
+ */
+export async function fetchTursoBudgetStatus(forceRefresh = false): Promise<TursoBudgetStatus | null> {
+  const now = Date.now();
+  if (!forceRefresh && budgetStatusCache && (now - budgetStatusCache.timestamp < BUDGET_STATUS_CACHE_TTL)) {
+    return budgetStatusCache.data;
+  }
+
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=turso-budget-status&_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.success) return null;
+
+    budgetStatusCache = { data: data as TursoBudgetStatus, timestamp: Date.now() };
+    return data as TursoBudgetStatus;
+  } catch {
+    return null;
   }
 }

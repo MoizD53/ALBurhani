@@ -53,6 +53,13 @@ class SyncManager {
     }
   }
 
+  private isThrottled: boolean = false;
+
+  public setThrottled(throttled: boolean) {
+    this.isThrottled = throttled;
+    this.baseIntervalMs = throttled ? 60000 : 30000;
+  }
+
   public setBranch(branch: string) {
     this.activeBranch = branch;
   }
@@ -146,7 +153,7 @@ class SyncManager {
     if (idleDuration > 120000) {
       return 90000; // Idle: 90 seconds
     }
-    return Math.max(10000, this.baseIntervalMs);
+    return Math.max(this.isThrottled ? 60000 : 10000, this.baseIntervalMs);
   }
 
   private reschedule() {

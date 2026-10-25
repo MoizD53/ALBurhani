@@ -274,7 +274,15 @@ async function ensureSchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_orders_branch_created ON orders (branch, created_at DESC);`,
     `CREATE INDEX IF NOT EXISTS idx_expenses_branch_date ON expenses (branch, date DESC);`,
     `CREATE INDEX IF NOT EXISTS idx_purchase_bills_branch_date ON purchase_bills (branch, purchase_date DESC);`,
-    `CREATE INDEX IF NOT EXISTS idx_sync_events_ts_branch ON sync_events (server_timestamp ASC, branch);`
+    `CREATE INDEX IF NOT EXISTS idx_sync_events_ts_branch ON sync_events (server_timestamp ASC, branch);`,
+    `CREATE TABLE IF NOT EXISTS turso_usage_metrics (
+      period_month TEXT NOT NULL,
+      action_name TEXT NOT NULL,
+      query_count INTEGER DEFAULT 0,
+      estimated_rows_read INTEGER DEFAULT 0,
+      last_called_at TEXT,
+      PRIMARY KEY (period_month, action_name)
+    );`
   ];
 
   for (const sql of schemaStatements) {
@@ -433,6 +441,25 @@ async function logFinancialAudit(
 }
 
 /**
+ * Asynchronously record estimated Turso rows read in turso_usage_metrics
+ * Non-blocking, best-effort application-level metric tracking.
+ */
+function recordUsage(client: Client, actionName: string, estimatedRows: number = 1): void {
+  try {
+    const periodMonth = new Date().toISOString().slice(0, 7); // e.g. '2026-10'
+    client.execute({
+      sql: `INSERT INTO turso_usage_metrics (period_month, action_name, query_count, estimated_rows_read, last_called_at)
+            VALUES (?, ?, 1, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(period_month, action_name) DO UPDATE SET
+              query_count = query_count + 1,
+              estimated_rows_read = estimated_rows_read + excluded.estimated_rows_read,
+              last_called_at = CURRENT_TIMESTAMP;`,
+      args: [periodMonth, actionName, estimatedRows],
+    }).catch(() => {});
+  } catch {}
+}
+
+/**
  * Verify authorization for destructive actions
  */
 function isAuthorizedDestructiveAction(req: VercelRequest): boolean {
@@ -490,6 +517,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'status') {
       try {
         await client.execute('SELECT 1;');
+        recordUsage(client, 'status', 1);
         return res.status(200).json({
           success: true,
           configured: true,
@@ -507,10 +535,126 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Shared 200M Turso Rows Read Budget Monitoring & Diagnostic Status
+    if (action === 'turso-budget-status') {
+      try {
+        const periodMonth = new Date().toISOString().slice(0, 7); // e.g. '2026-10'
+        const resMetrics = await client.execute({
+          sql: `SELECT action_name, query_count, estimated_rows_read, last_called_at 
+                FROM turso_usage_metrics 
+                WHERE period_month = ? 
+                ORDER BY estimated_rows_read DESC;`,
+          args: [periodMonth],
+        });
+
+        let totalEstimatedRowsRead = 0;
+        let totalQueryCount = 0;
+        const queryBreakdown = resMetrics.rows.map((r: any) => {
+          const estimatedRows = Number(r.estimated_rows_read) || 0;
+          const queryCount = Number(r.query_count) || 0;
+          totalEstimatedRowsRead += estimatedRows;
+          totalQueryCount += queryCount;
+          return {
+            action: String(r.action_name),
+            queryCount,
+            estimatedRows,
+            lastCalledAt: r.last_called_at,
+          };
+        });
+
+        const MONTHLY_BUDGET = 200_000_000;
+        const now = new Date();
+        const dayOfMonth = now.getDate();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const daysElapsed = Math.max(1, dayOfMonth);
+
+        const percentageUsed = Number(((totalEstimatedRowsRead / MONTHLY_BUDGET) * 100).toFixed(4));
+        const dailyAverage = totalEstimatedRowsRead / daysElapsed;
+        const projectedMonthlyRows = Math.round(dailyAverage * daysInMonth);
+        const projectedPercentage = Number(((projectedMonthlyRows / MONTHLY_BUDGET) * 100).toFixed(2));
+
+        // Threshold status determination: 50%, 70%, 85%, 95%, exceeded
+        let thresholdStatus: 'normal' | '50%' | '70%' | '85%' | '95%' | 'exceeded' = 'normal';
+        let alertMessage: string | null = null;
+        let shouldThrottleNonEssential = false;
+
+        if (percentageUsed >= 100 || projectedPercentage >= 100) {
+          thresholdStatus = percentageUsed >= 100 ? 'exceeded' : '95%';
+          alertMessage = percentageUsed >= 100 
+            ? 'CRITICAL ALERT: Monthly budget of 200M rows read has been exceeded!' 
+            : 'WARNING: Projected monthly consumption is on track to exceed the 200M rows budget!';
+          shouldThrottleNonEssential = true;
+        } else if (percentageUsed >= 95 || projectedPercentage >= 95) {
+          thresholdStatus = '95%';
+          alertMessage = 'WARNING: Usage has reached or is projected to reach 95% of monthly budget.';
+          shouldThrottleNonEssential = true;
+        } else if (percentageUsed >= 85 || projectedPercentage >= 85) {
+          thresholdStatus = '85%';
+          alertMessage = 'ADVISORY: Usage has reached 85% of monthly budget. Non-essential refreshes are throttled.';
+          shouldThrottleNonEssential = true;
+        } else if (percentageUsed >= 70 || projectedPercentage >= 70) {
+          thresholdStatus = '70%';
+          alertMessage = 'NOTICE: Usage is at 70% of monthly budget.';
+        } else if (percentageUsed >= 50 || projectedPercentage >= 50) {
+          thresholdStatus = '50%';
+          alertMessage = 'NOTICE: Usage has reached 50% milestone of monthly budget.';
+        }
+
+        recordUsage(client, 'turso-budget-status', 1);
+
+        return res.status(200).json({
+          success: true,
+          periodMonth,
+          budgetLimit: MONTHLY_BUDGET,
+          totalEstimatedRowsRead,
+          totalQueryCount,
+          percentageUsed,
+          daysElapsed,
+          daysInMonth,
+          projectedMonthlyRows,
+          projectedPercentage,
+          thresholdStatus,
+          alertMessage,
+          shouldThrottleNonEssential,
+          criticalOperationsGuaranteed: true,
+          metricType: 'ESTIMATED_APPLICATION_METRIC',
+          clarification: 'This metric is an application-level estimate based on executed statement query profiles and row counts. Official authoritative rows read are tracked directly in the Turso Account Dashboard.',
+          topConsumers: queryBreakdown.slice(0, 10).map((item) => ({
+            ...item,
+            percentOfTotal: totalEstimatedRowsRead > 0 ? Number(((item.estimatedRows / totalEstimatedRowsRead) * 100).toFixed(2)) : 0,
+          })),
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
     if (action === 'fetch-products') {
       try {
+        const since = req.query.since as string | undefined;
+        if (since) {
+          // Usage-conscious optimization: check if catalogue has changed since client timestamp
+          const checkRes = await client.execute('SELECT MAX(updated_at) as last_updated, COUNT(*) as count FROM products;');
+          const checkRow = checkRes.rows[0];
+          const lastUpdated = checkRow?.last_updated ? String(checkRow.last_updated) : null;
+          
+          if (lastUpdated && lastUpdated === since) {
+            recordUsage(client, 'fetch-products:not_modified', 1);
+            return res.status(200).json({
+              success: true,
+              notModified: true,
+              count: Number(checkRow?.count) || 0,
+              lastUpdated,
+            });
+          }
+        }
+
         const result = await client.execute('SELECT * FROM products ORDER BY category ASC, name ASC;');
-        return res.status(200).json({ success: true, rows: result.rows });
+        const checkRes = await client.execute('SELECT MAX(updated_at) as last_updated FROM products;');
+        const lastUpdated = checkRes.rows[0]?.last_updated ? String(checkRes.rows[0].last_updated) : null;
+
+        recordUsage(client, 'fetch-products:full', result.rows.length + 1);
+        return res.status(200).json({ success: true, rows: result.rows, lastUpdated });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -540,6 +684,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         query += ' ORDER BY created_at DESC LIMIT 500;';
 
         const result = await client.execute({ sql: query, args });
+        recordUsage(client, 'fetch-orders', result.rows.length);
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -548,8 +693,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'fetch-deleted-orders') {
       try {
+        const since = req.query.since as string | undefined;
+        if (since) {
+          const checkRes = await client.execute('SELECT MAX(deleted_at) as last_deleted, COUNT(*) as count FROM deleted_orders;');
+          const checkRow = checkRes.rows[0];
+          const lastDeleted = checkRow?.last_deleted ? String(checkRow.last_deleted) : null;
+          if (lastDeleted && lastDeleted === since) {
+            recordUsage(client, 'fetch-deleted-orders:not_modified', 1);
+            return res.status(200).json({
+              success: true,
+              notModified: true,
+              count: Number(checkRow?.count) || 0,
+              lastDeleted,
+            });
+          }
+        }
+
         const result = await client.execute('SELECT id, bill_number, deleted_at FROM deleted_orders ORDER BY deleted_at DESC LIMIT 1000;');
-        return res.status(200).json({ success: true, rows: result.rows });
+        const checkRes = await client.execute('SELECT MAX(deleted_at) as last_deleted FROM deleted_orders;');
+        const lastDeleted = checkRes.rows[0]?.last_deleted ? String(checkRes.rows[0].last_deleted) : null;
+
+        recordUsage(client, 'fetch-deleted-orders:full', result.rows.length + 1);
+        return res.status(200).json({ success: true, rows: result.rows, lastDeleted });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -573,6 +738,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         query += ' ORDER BY created_at DESC LIMIT 200;';
 
         const result = await client.execute({ sql: query, args });
+        recordUsage(client, 'fetch-expenses', result.rows.length);
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -582,6 +748,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'fetch-customers') {
       try {
         const result = await client.execute('SELECT * FROM customers ORDER BY total_spent DESC LIMIT 200;');
+        recordUsage(client, 'fetch-customers', result.rows.length);
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -605,6 +772,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         query += ' ORDER BY delivery_date ASC, created_at DESC LIMIT 500;';
         const result = await client.execute({ sql: query, args });
+        recordUsage(client, 'fetch-customer-orders', result.rows.length);
         return res.status(200).json({ success: true, rows: result.rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -613,8 +781,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'fetch-categories') {
       try {
+        const since = req.query.since as string | undefined;
+        if (since) {
+          const checkRes = await client.execute('SELECT MAX(updated_at) as last_updated, COUNT(*) as count FROM categories;');
+          const checkRow = checkRes.rows[0];
+          const lastUpdated = checkRow?.last_updated ? String(checkRow.last_updated) : null;
+          if (lastUpdated && lastUpdated === since) {
+            recordUsage(client, 'fetch-categories:not_modified', 1);
+            return res.status(200).json({
+              success: true,
+              notModified: true,
+              count: Number(checkRow?.count) || 0,
+              lastUpdated,
+            });
+          }
+        }
+
         const result = await client.execute('SELECT * FROM categories ORDER BY display_order ASC, name ASC;');
-        return res.status(200).json({ success: true, rows: result.rows });
+        const checkRes = await client.execute('SELECT MAX(updated_at) as last_updated FROM categories;');
+        const lastUpdated = checkRes.rows[0]?.last_updated ? String(checkRes.rows[0].last_updated) : null;
+
+        recordUsage(client, 'fetch-categories:full', result.rows.length + 1);
+        return res.status(200).json({ success: true, rows: result.rows, lastUpdated });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -628,6 +816,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             sql: 'SELECT * FROM settings WHERE key = ?;',
             args: [key],
           });
+          recordUsage(client, 'fetch-settings:single', 1);
           const row = result.rows[0];
           return res.status(200).json({
             success: true,
@@ -636,6 +825,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const result = await client.execute('SELECT * FROM settings;');
+        recordUsage(client, 'fetch-settings:all', result.rows.length);
         const settingsMap: Record<string, any> = {};
         for (const row of result.rows) {
           try {
@@ -688,6 +878,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
+      } finally {
+        recordUsage(client, 'fetch-events', 1);
       }
     }
 
@@ -708,6 +900,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const totalOrders = await client.execute('SELECT COUNT(*) as count FROM orders;');
         const totalDeleted = await client.execute('SELECT COUNT(*) as count FROM deleted_orders;');
+
+        recordUsage(client, 'reconcile-check', orderSummary.rows.length + 2);
 
         return res.status(200).json({
           success: true,
@@ -740,6 +934,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         billQuery += ' ORDER BY business_date DESC, daily_bill_number ASC LIMIT 500;';
         const billsRes = await client.execute({ sql: billQuery, args });
         const paymentsRes = await client.execute('SELECT * FROM vendor_payments ORDER BY payment_date ASC;');
+
+        recordUsage(client, 'fetch-purchase-bills', billsRes.rows.length + paymentsRes.rows.length);
 
         const paymentsByBill: Record<string, any[]> = {};
         for (const p of paymentsRes.rows) {
@@ -839,6 +1035,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           };
         });
 
+        recordUsage(client, 'fetch-vendors', vendorsRes.rows.length + statsRes.rows.length);
         return res.status(200).json({ success: true, vendors: rows });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -1163,6 +1360,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           transactionType: o.transactionType
         });
         await logSyncEvent(client, 'order', o.id, 'save', savedOrder);
+        recordUsage(client, 'save-order', 5);
         return res.status(200).json({ success: true, dailyBillNumber: dailyBillNum, businessDate: istDate });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });

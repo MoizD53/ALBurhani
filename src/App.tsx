@@ -87,6 +87,7 @@ import { getCurrentSession, terminateSession, isSessionValid } from './lib/auth'
 import { LoginView } from './components/auth/LoginView';
 import { useAppRoute } from './lib/routing';
 import { PublicWebsite } from './components/public/PublicWebsite';
+import { TursoBudgetModal } from './components/dashboard/TursoBudgetModal';
 
 const DEFAULT_USER: UserProfile = {
   id: 'user-owner',
@@ -329,6 +330,7 @@ export function App() {
   const [stickerModalProduct, setStickerModalProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<OrderBill | null>(null);
   const [barcodeToRegister, setBarcodeToRegister] = useState<string | null>(null);
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState<boolean>(false);
 
   // Customer Orders State (Advance bookings, deliveries)
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(() => {
@@ -1772,6 +1774,7 @@ export function App() {
           onOpenSettings={() => handleTabChange('settings')}
           onSignOut={handleSignOut}
           onViewPublicWebsite={() => navigate('/')}
+          onOpenBudgetDiagnostics={() => setIsBudgetModalOpen(true)}
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
         />
@@ -1924,6 +1927,12 @@ export function App() {
       <BarcodeStickerModal
         product={stickerModalProduct}
         onClose={() => setStickerModalProduct(null)}
+      />
+
+      {/* Turso 200M Shared Read Budget Diagnostic Modal */}
+      <TursoBudgetModal
+        isOpen={isBudgetModalOpen}
+        onClose={() => setIsBudgetModalOpen(false)}
       />
 
     </div>

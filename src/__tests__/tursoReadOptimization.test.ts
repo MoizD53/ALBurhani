@@ -143,17 +143,67 @@ describe('Turso Read Optimization & Shared Cache', () => {
     expect(fetchCount).toBe(2);
   });
 
-  it('correctly calculates 450M monthly budget status and warning tiers', () => {
-    // Test with baseline usage
-    recordMonthlyUsage(32_158_784);
-    const status = getTursoBudgetStatus();
+  it('correctly calculates shared 200M monthly budget status and warning tiers (50%, 70%, 85%, 95%)', () => {
+    // Normal tier: 20M usage (10% of 200M)
+    const normalStatus = getTursoBudgetStatus(20_000_000);
+    expect(normalStatus.monthlyTarget).toBe(200_000_000);
+    expect(normalStatus.tier).toBe('NORMAL');
+    expect(normalStatus.criticalOperationsGuaranteed).toBe(true);
 
-    expect(status.monthlyTarget).toBe(450_000_000);
-    expect(status.planCeiling).toBe(500_000_000);
-    expect(status.currentMonthlyUsage).toBeGreaterThanOrEqual(32_158_784);
-    expect(status.remainingBudget).toBeGreaterThan(417_000_000);
-    expect(status.tier).toBe('NORMAL');
-    expect(status.recommendedDeltaIntervalMs).toBe(10_000);
+    // 50% milestone: 100M usage
+    const elevatedStatus = getTursoBudgetStatus(100_000_000);
+    expect(elevatedStatus.percentUsed).toBe(50);
+    expect(elevatedStatus.tier).toBe('ELEVATED');
+    expect(elevatedStatus.alertMessage).toContain('50% milestone');
+
+    // 70% threshold: 140M usage
+    const warningStatus = getTursoBudgetStatus(140_000_000);
+    expect(warningStatus.percentUsed).toBe(70);
+    expect(warningStatus.tier).toBe('WARNING');
+    expect(warningStatus.alertMessage).toContain('70%');
+
+    // 85% threshold: 170M usage (throttles non-essential queries)
+    const criticalStatus = getTursoBudgetStatus(170_000_000);
+    expect(criticalStatus.percentUsed).toBe(85);
+    expect(criticalStatus.tier).toBe('CRITICAL');
+    expect(criticalStatus.recommendedDeltaIntervalMs).toBe(60_000);
+
+    // 95% threshold: 190M usage (emergency throttle)
+    const emergencyStatus = getTursoBudgetStatus(190_000_000);
+    expect(emergencyStatus.percentUsed).toBe(95);
+    expect(emergencyStatus.tier).toBe('EMERGENCY');
+    expect(emergencyStatus.recommendedDeltaIntervalMs).toBe(120_000);
+    expect(emergencyStatus.criticalOperationsGuaranteed).toBe(true);
+  });
+
+  it('bypasses row scans when conditional query returns notModified', async () => {
+    let callCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      callCount++;
+      if (url.includes('action=fetch-products')) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            notModified: true,
+            count: 305,
+            lastUpdated: '2026-10-25T10:00:00.000Z'
+          })
+        };
+      }
+      return { ok: false };
+    });
+
+    // Provide initial cache
+    invalidateProductsCache();
+    const mockCat = [{ id: 'p-1', name: 'Almond Sweet', barcode: '888', category: 'SWEETS', unit: 'KG', sellingPrice: 500, stock: 5, minStock: 1 }] as any;
+    localStorage.setItem('albhurani_products', JSON.stringify(mockCat));
+
+    // Network fetch returns notModified: true
+    const prods = await fetchProductsFromTurso();
+    expect(prods).not.toBeNull();
+    expect(prods![0].name).toBe('Almond Sweet');
+    localStorage.removeItem('albhurani_products');
   });
 
   it('records user activity and triggers immediate event check when re-activating from idle', async () => {
