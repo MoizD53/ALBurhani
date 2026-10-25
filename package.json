@@ -3,13 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://moizd53.github.io/ALBurhani",
   "scripts": {
     "dev": "vite preview",
     "dev:watch": "vite",
     "build": "tsc -b && vite build",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist",
     "lint": "oxlint",
     "test": "vitest run",
     "preview": "vite preview"
