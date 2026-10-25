@@ -8,7 +8,7 @@ interface LoginViewProps {
   onBackToPublic?: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onBackToPublic }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [userId, setUserId] = useState('admin');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -328,18 +328,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onBackToPu
             <p className="text-[10px] tracking-[0.26em] text-zinc-400 uppercase text-center pt-1.5 font-bold">
               SECURE STORE ACCESS
             </p>
-
-            {onBackToPublic && (
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={onBackToPublic}
-                  className="text-xs text-amber-200/80 hover:text-white transition-colors underline cursor-pointer font-medium"
-                >
-                  ← Back to Public Website
-                </button>
-              </div>
-            )}
           </form>
 
         </div>

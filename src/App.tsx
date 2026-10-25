@@ -1743,7 +1743,6 @@ export function App() {
     return (
       <LoginView 
         onLoginSuccess={handleLoginSuccess}
-        onBackToPublic={() => navigate('/')}
       />
     );
   }
