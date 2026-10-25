@@ -486,6 +486,37 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
   // Effective grand total after custom adjustment (+ / -)
   const grandTotal = Math.max(0, Math.round((rawCalculatedGrandTotal + customAdjustment) * 100) / 100);
 
+  // Distribute bill-level total edits directly into cart product prices so item rates match the bill total!
+  const applyTotalAdjustmentToCart = (newTotal: number) => {
+    if (cart.length === 0 || isNaN(newTotal) || newTotal < 0) return;
+
+    if (cart.length === 1) {
+      const it = cart[0];
+      const newRate = Math.round((newTotal / Math.max(0.001, it.quantity)) * 100) / 100;
+      const updated = buildCartItem(it.product, it.quantity, it.weightInGrams, it.discountPercent, newRate);
+      setCart([updated]);
+      setCustomAdjustment(0);
+    } else {
+      const currentSub = cart.reduce((sum, it) => sum + it.lineTotal, 0);
+      if (currentSub <= 0) return;
+      const ratio = newTotal / currentSub;
+      let runningTotal = 0;
+      const nextCart = cart.map((it, idx) => {
+        if (idx === cart.length - 1) {
+          const targetLineTotal = Math.max(0, Math.round((newTotal - runningTotal) * 100) / 100);
+          const newRate = Math.round((targetLineTotal / Math.max(0.001, it.quantity)) * 100) / 100;
+          return buildCartItem(it.product, it.quantity, it.weightInGrams, it.discountPercent, newRate);
+        }
+        const targetLineTotal = Math.round(it.lineTotal * ratio * 100) / 100;
+        runningTotal += targetLineTotal;
+        const newRate = Math.round((targetLineTotal / Math.max(0.001, it.quantity)) * 100) / 100;
+        return buildCartItem(it.product, it.quantity, it.weightInGrams, it.discountPercent, newRate);
+      });
+      setCart(nextCart);
+      setCustomAdjustment(0);
+    }
+  };
+
   // Auto reset custom adjustment if cart is cleared
   useEffect(() => {
     if (cart.length === 0) {
@@ -1449,9 +1480,14 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
                   {/* Line Total & Remove */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-xs font-bold text-stone-900 font-mono w-14 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModalForCartItem(item)}
+                      className="text-xs font-bold text-stone-900 hover:text-[#A67D0C] font-mono text-right hover:underline cursor-pointer"
+                      title="Click to edit rate or line total"
+                    >
                       Rs. {item.lineTotal.toFixed(2)}
-                    </span>
+                    </button>
                     <button
                       onClick={() => removeFromCart(item.product.id)}
                       className="text-stone-400 hover:text-rose-600 transition-colors p-1 rounded"
@@ -1536,24 +1572,39 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                       type="number"
                       autoFocus
                       value={customTotalInput}
-                      onChange={(e) => {
-                        setCustomTotalInput(e.target.value);
-                        const val = parseFloat(e.target.value);
+                      onChange={(e) => setCustomTotalInput(e.target.value)}
+                      onBlur={() => {
+                        const val = parseFloat(customTotalInput);
                         if (!isNaN(val) && val >= 0) {
-                          setCustomAdjustment(val - rawCalculatedGrandTotal);
+                          applyTotalAdjustmentToCart(val);
                         }
+                        setIsEditingTotal(false);
                       }}
-                      onBlur={() => setIsEditingTotal(false)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') setIsEditingTotal(false);
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = parseFloat(customTotalInput);
+                          if (!isNaN(val) && val >= 0) {
+                            applyTotalAdjustmentToCart(val);
+                          }
+                          setIsEditingTotal(false);
+                        } else if (e.key === 'Escape') {
+                          setIsEditingTotal(false);
+                        }
                       }}
                       className="w-24 text-right py-1 px-2 text-lg font-black font-mono bg-[#FAF8F5] border-2 border-[#C99A18] rounded-lg text-stone-900 focus:outline-none"
                     />
                     <button
                       type="button"
-                      onClick={() => setIsEditingTotal(false)}
-                      className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50"
-                      title="Done"
+                      onClick={() => {
+                        const val = parseFloat(customTotalInput);
+                        if (!isNaN(val) && val >= 0) {
+                          applyTotalAdjustmentToCart(val);
+                        }
+                        setIsEditingTotal(false);
+                      }}
+                      className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                      title="Apply change to bill products"
                     >
                       <Check className="w-4 h-4" />
                     </button>
@@ -1569,8 +1620,8 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                         setCustomTotalInput(grandTotal.toString());
                         setIsEditingTotal(true);
                       }}
-                      className="p-1 text-stone-400 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
-                      title="Click to edit final amount directly"
+                      className="p-1 text-stone-400 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                      title="Click to edit final amount directly (updates product prices in bill)"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
@@ -1578,7 +1629,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 )}
               </div>
 
-              {/* Quick +/- Adjustment Toolbar */}
+              {/* Quick +/- Adjustment Toolbar (Applies directly to bill product rates) */}
               <div className="pt-1.5 border-t border-[#F0EBE0] flex items-center justify-between gap-1 flex-wrap">
                 <span className="text-[9px] font-bold text-stone-500 uppercase tracking-wider">
                   Adjust:
@@ -1586,59 +1637,58 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 <div className="flex items-center gap-1 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => setCustomAdjustment((prev) => prev - 10)}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-rose-50 text-stone-700 hover:text-rose-700 border border-[#E8DEC8] hover:border-rose-200 transition-colors"
-                    title="Subtract Rs. 10"
+                    onClick={() => applyTotalAdjustmentToCart(Math.max(0, grandTotal - 10))}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-rose-50 text-stone-700 hover:text-rose-700 border border-[#E8DEC8] hover:border-rose-200 transition-colors cursor-pointer"
+                    title="Subtract Rs. 10 and adjust product rate"
                   >
                     -10
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCustomAdjustment((prev) => prev - 5)}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-rose-50 text-stone-700 hover:text-rose-700 border border-[#E8DEC8] hover:border-rose-200 transition-colors"
-                    title="Subtract Rs. 5"
+                    onClick={() => applyTotalAdjustmentToCart(Math.max(0, grandTotal - 5))}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-rose-50 text-stone-700 hover:text-rose-700 border border-[#E8DEC8] hover:border-rose-200 transition-colors cursor-pointer"
+                    title="Subtract Rs. 5 and adjust product rate"
                   >
                     -5
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCustomAdjustment((prev) => prev + 5)}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-[#E8DEC8] hover:border-emerald-200 transition-colors"
-                    title="Add Rs. 5"
+                    onClick={() => applyTotalAdjustmentToCart(grandTotal + 5)}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-[#E8DEC8] hover:border-emerald-200 transition-colors cursor-pointer"
+                    title="Add Rs. 5 and adjust product rate"
                   >
                     +5
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCustomAdjustment((prev) => prev + 10)}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-[#E8DEC8] hover:border-emerald-200 transition-colors"
-                    title="Add Rs. 10"
+                    onClick={() => applyTotalAdjustmentToCart(grandTotal + 10)}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FAF8F5] hover:bg-emerald-50 text-stone-700 hover:text-emerald-700 border border-[#E8DEC8] hover:border-emerald-200 transition-colors cursor-pointer"
+                    title="Add Rs. 10 and adjust product rate"
                   >
                     +10
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCustomAdjustment(Math.round(rawCalculatedGrandTotal) - rawCalculatedGrandTotal)}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FBF7EE] hover:bg-[#F3EAD3] text-[#A67D0C] border border-[#C99A18]/40 transition-colors"
+                    onClick={() => applyTotalAdjustmentToCart(Math.round(grandTotal))}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#FBF7EE] hover:bg-[#F3EAD3] text-[#A67D0C] border border-[#C99A18]/40 transition-colors cursor-pointer"
                     title="Round off to nearest rupee"
                   >
                     Round
                   </button>
-                  {customAdjustment !== 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCustomAdjustment(0);
-                        setCustomTotalInput('');
-                        setIsEditingTotal(false);
-                      }}
-                      className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-0.5"
-                      title="Reset adjustment to exact calculated total"
-                    >
-                      <X className="w-2.5 h-2.5" />
-                      <span>Reset</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCart((prev) => prev.map((it) => buildCartItem(it.product, it.quantity, it.weightInGrams, it.discountPercent)));
+                      setCustomAdjustment(0);
+                      setCustomTotalInput('');
+                      setIsEditingTotal(false);
+                    }}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-0.5 cursor-pointer"
+                    title="Reset product prices back to catalog rates"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                    <span>Reset</span>
+                  </button>
                 </div>
               </div>
             </div>

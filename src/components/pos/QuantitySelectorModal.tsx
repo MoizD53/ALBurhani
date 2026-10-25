@@ -40,75 +40,24 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
 }) => {
   const isWeight = isWeightBasedProduct(product);
 
-  // Hooks must be unconditional
-  const [entryMode, setEntryMode] = useState<'qty' | 'rupees'>('qty');
   const [unitMode, setUnitMode] = useState<'g' | 'kg'>('g');
   const [inputValue, setInputValue] = useState<string>('250');
-  const [rupeesValue, setRupeesValue] = useState<string>('50');
+  const [totalInputValue, setTotalInputValue] = useState<string>('');
   const [isEditingRate, setIsEditingRate] = useState<boolean>(false);
   const [customRate, setCustomRate] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const rupeesInputRef = useRef<HTMLInputElement>(null);
+  const lineTotalInputRef = useRef<HTMLInputElement>(null);
+  const lastEditedFieldRef = useRef<'qty' | 'total'>('qty');
 
   const effectiveRate = parseFloat(customRate) > 0 ? parseFloat(customRate) : (product?.sellingPrice || 0);
 
-  // Reset and focus when modal opens
-  useEffect(() => {
-    if (isOpen && product) {
-      setEntryMode('qty');
-      setIsEditingRate(false);
-      setCustomRate(initialUnitPrice ? initialUnitPrice.toString() : '');
-      const weight = isWeightBasedProduct(product);
-      if (weight) {
-        if (initialWeightInGrams && initialWeightInGrams > 0) {
-          if (initialWeightInGrams >= 1000 && initialWeightInGrams % 1000 === 0) {
-            setUnitMode('kg');
-            setInputValue((initialWeightInGrams / 1000).toString());
-          } else {
-            setUnitMode('g');
-            setInputValue(initialWeightInGrams.toString());
-          }
-        } else {
-          setUnitMode('g');
-          setInputValue('250');
-        }
-      } else {
-        if (initialQuantity && initialQuantity > 0) {
-          setInputValue(initialQuantity.toString());
-        } else {
-          setInputValue('1');
-        }
-      }
-      setError(null);
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, product, initialWeightInGrams, initialQuantity, initialUnitPrice]);
-
-  // Quick select presets (includes 300g)
+  // Quick select presets
   const weightPresetsGrams = [50, 100, 200, 250, 300, 500, 1000];
   const piecePresets = [1, 2, 5, 10, 20];
-  const rupeesPresets = [20, 50, 100, 150, 200, 500];
 
-  // Real-time calculation based on entryMode
-  let numericVal = parseFloat(inputValue) || 0;
-  if (entryMode === 'rupees') {
-    const targetRs = parseFloat(rupeesValue) || 0;
-    if (targetRs > 0 && effectiveRate > 0) {
-      if (isWeight) {
-        // grams = targetRs / (effectiveRate / 1000)
-        const calcGrams = Math.round((targetRs / effectiveRate) * 1000);
-        numericVal = unitMode === 'kg' ? calcGrams / 1000 : calcGrams;
-      } else {
-        numericVal = Math.max(1, Math.round(targetRs / effectiveRate));
-      }
-    }
-  }
+  const numericVal = parseFloat(inputValue) || 0;
 
   const effectiveProduct = product && effectiveRate !== product.sellingPrice
     ? { ...product, sellingPrice: effectiveRate }
@@ -125,19 +74,133 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
       })
     : { quantity: 0, grams: undefined, unitPrice: 0, lineTotal: 0, lineTotalPaise: 0 };
 
-  const handlePresetClick = (presetValue: number) => {
-    if (entryMode === 'rupees') {
-      setRupeesValue(presetValue.toString());
-    } else {
-      if (isWeight) {
-        setUnitMode('g');
-        setInputValue(presetValue.toString());
+  // Reset and focus when modal opens
+  useEffect(() => {
+    if (isOpen && product) {
+      lastEditedFieldRef.current = 'qty';
+      setIsEditingRate(false);
+      setCustomRate(initialUnitPrice ? initialUnitPrice.toString() : '');
+      const weight = isWeightBasedProduct(product);
+      let initQty = '1';
+      if (weight) {
+        if (initialWeightInGrams && initialWeightInGrams > 0) {
+          if (initialWeightInGrams >= 1000 && initialWeightInGrams % 1000 === 0) {
+            setUnitMode('kg');
+            initQty = (initialWeightInGrams / 1000).toString();
+          } else {
+            setUnitMode('g');
+            initQty = initialWeightInGrams.toString();
+          }
+        } else {
+          setUnitMode('g');
+          initQty = '250';
+        }
       } else {
-        setInputValue(presetValue.toString());
+        if (initialQuantity && initialQuantity > 0) {
+          initQty = initialQuantity.toString();
+        } else {
+          initQty = '1';
+        }
       }
+      setInputValue(initQty);
+      setError(null);
+
+      const rate = initialUnitPrice && initialUnitPrice > 0 ? initialUnitPrice : product.sellingPrice;
+      const numQ = parseFloat(initQty) || 0;
+      const initialCalc = calculateLineTotal(
+        { ...product, sellingPrice: rate },
+        {
+          quantity: weight ? (unitMode === 'kg' ? numQ : numQ / 1000) : numQ,
+          grams: weight ? (unitMode === 'g' ? numQ : Math.round(numQ * 1000)) : undefined,
+        }
+      );
+      setTotalInputValue(initialCalc.lineTotal > 0 ? initialCalc.lineTotal.toFixed(2) : '');
+
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, product, initialWeightInGrams, initialQuantity, initialUnitPrice]);
+
+  // Keep total input synchronized when user edits quantity or presets
+  useEffect(() => {
+    if (lastEditedFieldRef.current === 'qty') {
+      if (lineCalc.lineTotal > 0) {
+        setTotalInputValue(lineCalc.lineTotal.toFixed(2));
+      } else {
+        setTotalInputValue('');
+      }
+    }
+  }, [lineCalc.lineTotal]);
+
+  const handlePresetClick = (presetValue: number) => {
+    lastEditedFieldRef.current = 'qty';
+    if (isWeight) {
+      setUnitMode('g');
+      setInputValue(presetValue.toString());
+    } else {
+      setInputValue(presetValue.toString());
     }
     setError(null);
     inputRef.current?.focus();
+  };
+
+  const handleQuantityInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    lastEditedFieldRef.current = 'qty';
+    setInputValue(e.target.value);
+    setError(null);
+  };
+
+  // Direct editing in the Line Total Amount box
+  const handleTotalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const valStr = e.target.value;
+    lastEditedFieldRef.current = 'total';
+    setTotalInputValue(valStr);
+    setError(null);
+
+    const enteredTotal = parseFloat(valStr);
+    if (isNaN(enteredTotal) || enteredTotal < 0) return;
+
+    if (enteredTotal === 0) {
+      setInputValue('0');
+      return;
+    }
+
+    if (effectiveRate <= 0) return;
+
+    if (isWeight) {
+      // Calculate exact grams from entered amount: grams = (targetRs / rate_per_kg) * 1000
+      const calcGrams = Math.round((enteredTotal / effectiveRate) * 1000);
+      if (calcGrams > 0) {
+        if (unitMode === 'kg') {
+          setInputValue((calcGrams / 1000).toString());
+        } else {
+          setInputValue(calcGrams.toString());
+        }
+      }
+    } else {
+      // Piece-based product:
+      // If entered total is an exact multiple of the item rate:
+      if (enteredTotal >= effectiveRate && Math.abs(enteredTotal % effectiveRate) < 0.001) {
+        const calcPcs = Math.round(enteredTotal / effectiveRate);
+        setInputValue(calcPcs.toString());
+        setCustomRate('');
+      } else {
+        // Direct price override: customer/admin enters custom total for current quantity
+        const currentQty = Math.max(1, Math.round(parseFloat(inputValue) || 1));
+        const newUnitRate = Math.round((enteredTotal / currentQty) * 100) / 100;
+        setCustomRate(newUnitRate.toString());
+      }
+    }
+  };
+
+  const handleTotalInputBlur = () => {
+    lastEditedFieldRef.current = 'qty';
+    if (lineCalc.lineTotal > 0) {
+      setTotalInputValue(lineCalc.lineTotal.toFixed(2));
+    }
   };
 
   const handleConfirm = () => {
@@ -299,46 +362,11 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
             </div>
           </div>
 
-          {/* Mode Selector: By Quantity vs By Rupees */}
-          <div className="flex rounded-xl bg-[#FAF8F5] p-1 border border-[#E8DEC8]">
-            <button
-              type="button"
-              onClick={() => {
-                setEntryMode('qty');
-                setError(null);
-                setTimeout(() => inputRef.current?.focus(), 50);
-              }}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                entryMode === 'qty'
-                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              {isWeight ? 'By Weight (Grams / KG)' : 'By Quantity (Pieces)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEntryMode('rupees');
-                setError(null);
-                setTimeout(() => rupeesInputRef.current?.focus(), 50);
-              }}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${
-                entryMode === 'rupees'
-                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              <IndianRupee className="w-3.5 h-3.5" />
-              <span>By Target Amount (₹)</span>
-            </button>
-          </div>
-
           {/* Quick Presets Row */}
           <div>
             <div className="text-[11px] font-bold text-stone-700 mb-1.5 flex items-center justify-between">
-              <span>{entryMode === 'rupees' ? 'Quick Rupees (₹):' : 'Quick Select:'}</span>
-              {entryMode === 'qty' && isWeight && (
+              <span>Quick Select:</span>
+              {isWeight && (
                 <div className="flex items-center gap-1 bg-[#FAF8F5] p-0.5 rounded-lg border border-[#E8DEC8]">
                   <button
                     type="button"
@@ -348,9 +376,9 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                         setInputValue(Math.round(numericVal * 1000).toString());
                       }
                     }}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded cursor-pointer ${
                       unitMode === 'g'
-                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
@@ -364,9 +392,9 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                         setInputValue((numericVal / 1000).toString());
                       }
                     }}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded cursor-pointer ${
                       unitMode === 'kg'
-                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-sm'
+                        ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white shadow-xs'
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
@@ -377,25 +405,7 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
             </div>
 
             <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5">
-              {entryMode === 'rupees'
-                ? rupeesPresets.map((rs) => {
-                    const isSelected = parseFloat(rupeesValue) === rs;
-                    return (
-                      <button
-                        key={rs}
-                        type="button"
-                        onClick={() => handlePresetClick(rs)}
-                        className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all ${
-                          isSelected
-                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-sm'
-                            : 'bg-[#FAF8F5] text-stone-700 border-[#E8DEC8] hover:bg-[#F5F2EB] hover:text-stone-900'
-                        }`}
-                      >
-                        ₹{rs}
-                      </button>
-                    );
-                  })
-                : isWeight
+              {isWeight
                 ? weightPresetsGrams.map((grams) => {
                     const isSelected = unitMode === 'g' && numericVal === grams;
                     const label = grams >= 1000 ? `${grams / 1000}kg` : `${grams}g`;
@@ -404,9 +414,9 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                         key={grams}
                         type="button"
                         onClick={() => handlePresetClick(grams)}
-                        className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all ${
+                        className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-sm'
+                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-xs'
                             : 'bg-[#FAF8F5] text-stone-700 border-[#E8DEC8] hover:bg-[#F5F2EB] hover:text-stone-900'
                         }`}
                       >
@@ -421,9 +431,9 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
                         key={pcs}
                         type="button"
                         onClick={() => handlePresetClick(pcs)}
-                        className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all ${
+                        className={`py-2 px-1 text-xs font-mono font-bold rounded-xl border transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-sm'
+                            ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white border-[#B8860B] shadow-xs'
                             : 'bg-[#FAF8F5] text-stone-700 border-[#E8DEC8] hover:bg-[#F5F2EB] hover:text-stone-900'
                         }`}
                       >
@@ -434,82 +444,42 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
             </div>
           </div>
 
-          {/* Custom Input Field */}
+          {/* Custom Quantity Input Field */}
           <div>
             <label className="text-[11px] font-bold text-stone-700 block mb-1">
-              {entryMode === 'rupees' ? (
-                <span>Enter Amount (in ₹ Rupees):</span>
-              ) : isWeight ? (
+              {isWeight ? (
                 <span>Enter Exact Weight ({unitMode === 'g' ? 'Grams' : 'Kilograms'}):</span>
               ) : (
                 <span>Enter Quantity (Number of Pieces):</span>
               )}
             </label>
             <div className="relative">
-              {entryMode === 'rupees' ? (
-                <>
-                  <input
-                    ref={rupeesInputRef}
-                    type="number"
-                    step="1"
-                    min="1"
-                    value={rupeesValue}
-                    onChange={(e) => {
-                      setRupeesValue(e.target.value);
-                      setError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleConfirm();
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        onClose();
-                      }
-                    }}
-                    className="w-full py-2.5 pl-8 pr-16 text-lg font-mono font-bold bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 placeholder:text-stone-400 focus:bg-white focus:border-[#C99A18] focus:outline-none"
-                    placeholder="e.g. 50, 100"
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm font-bold text-stone-500 pointer-events-none">
-                    ₹
-                  </span>
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-stone-400 uppercase pointer-events-none">
-                    RUPEES
-                  </span>
-                </>
-              ) : (
-                <>
-                  <input
-                    ref={inputRef}
-                    type="number"
-                    step={isWeight && unitMode === 'kg' ? '0.05' : '1'}
-                    min="1"
-                    value={inputValue}
-                    onChange={(e) => {
-                      setInputValue(e.target.value);
-                      setError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleConfirm();
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        onClose();
-                      }
-                    }}
-                    className={`w-full py-2.5 pl-4 pr-16 text-lg font-mono font-bold bg-[#FAF8F5] border rounded-xl text-stone-900 placeholder:text-stone-400 focus:bg-white focus:outline-none transition-colors ${
-                      !validation.isValid || error
-                        ? 'border-rose-400 focus:border-rose-500'
-                        : 'border-[#E8DEC8] focus:border-[#C99A18]'
-                    }`}
-                    placeholder={isWeight ? (unitMode === 'g' ? 'e.g. 250, 375' : 'e.g. 0.25, 1.25') : 'e.g. 5'}
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-stone-400 uppercase pointer-events-none">
-                    {isWeight ? (unitMode === 'g' ? 'GRAMS' : 'KG') : 'PIECES'}
-                  </span>
-                </>
-              )}
+              <input
+                ref={inputRef}
+                type="number"
+                step={isWeight && unitMode === 'kg' ? '0.05' : '1'}
+                min="0.001"
+                value={inputValue}
+                onChange={handleQuantityInputChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirm();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    onClose();
+                  }
+                }}
+                className={`w-full py-2.5 pl-4 pr-16 text-lg font-mono font-bold bg-[#FAF8F5] border rounded-xl text-stone-900 placeholder:text-stone-400 focus:bg-white focus:outline-none transition-colors ${
+                  !validation.isValid || error
+                    ? 'border-rose-400 focus:border-rose-500'
+                    : 'border-[#E8DEC8] focus:border-[#C99A18]'
+                }`}
+                placeholder={isWeight ? (unitMode === 'g' ? 'e.g. 250, 375' : 'e.g. 0.25, 1.25') : 'e.g. 5'}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-stone-400 uppercase pointer-events-none">
+                {isWeight ? (unitMode === 'g' ? 'GRAMS' : 'KG') : 'PIECES'}
+              </span>
             </div>
 
             {/* Error Message */}
@@ -521,22 +491,47 @@ export const QuantitySelectorModal: React.FC<QuantitySelectorModalProps> = ({
             )}
           </div>
 
-          {/* Live Calculation Preview Banner */}
-          <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#FBF7EE] to-[#FAF8F5] border border-[#E8DEC8] flex items-center justify-between">
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-500 block leading-tight">
-                Line Total Amount
-              </span>
-              <span className="text-xs text-stone-600 font-mono mt-0.5 block">
+          {/* Directly Editable Line Total Amount Banner */}
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#FBF7EE] to-[#FAF8F5] border-2 border-[#C99A18]/60 focus-within:border-[#C99A18] focus-within:ring-2 focus-within:ring-[#C99A18]/20 transition-all flex items-center justify-between gap-3 shadow-2xs">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-stone-600 block leading-tight">
+                  Line Total Amount
+                </span>
+                <span className="text-[9px] font-bold text-[#8C6D15] bg-[#F5EACB] px-1.5 py-0.5 rounded leading-none">
+                  Directly Editable
+                </span>
+              </div>
+              <span className="text-xs text-stone-600 font-mono mt-1 block truncate">
                 {isWeight
                   ? `${formatQuantity(lineCalc.quantity, 'KG', lineCalc.grams)} × ${formatPriceWithBasis(lineCalc.unitPrice, 'KG')}`
                   : `${lineCalc.quantity} pcs × ${formatPriceWithBasis(lineCalc.unitPrice, 'PCS')}`}
               </span>
             </div>
-            <div className="text-right">
-              <span className="text-2xl font-black font-mono text-stone-900 tracking-tight">
-                Rs. {lineCalc.lineTotal.toFixed(2)}
-              </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-base font-black font-mono text-stone-700">Rs.</span>
+              <input
+                ref={lineTotalInputRef}
+                type="number"
+                step="any"
+                min="0"
+                value={totalInputValue}
+                onChange={handleTotalInputChange}
+                onBlur={handleTotalInputBlur}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirm();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    onClose();
+                  }
+                }}
+                placeholder="0.00"
+                className="w-28 sm:w-36 py-1 px-2 text-xl sm:text-2xl font-black font-mono text-right text-stone-900 bg-white border border-[#E8DEC8] focus:border-[#C99A18] rounded-lg focus:outline-none shadow-2xs"
+                title="Type target total amount directly to auto-calculate price or quantity"
+              />
             </div>
           </div>
 
