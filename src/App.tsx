@@ -85,6 +85,8 @@ import { BarcodeStickerModal } from './components/barcode/BarcodeStickerModal';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
 import { getCurrentSession, terminateSession, isSessionValid } from './lib/auth';
 import { LoginView } from './components/auth/LoginView';
+import { useAppRoute } from './lib/routing';
+import { PublicWebsite } from './components/public/PublicWebsite';
 
 const DEFAULT_USER: UserProfile = {
   id: 'user-owner',
@@ -122,6 +124,8 @@ function getTabFromHash(): ActiveTab {
 }
 
 export function App() {
+  const { route, navigate } = useAppRoute();
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const session = getCurrentSession();
     return Boolean(session && isSessionValid(session));
@@ -129,10 +133,28 @@ export function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
     const session = getCurrentSession();
     if (session && isSessionValid(session)) {
+      if (route.type === 'admin' && route.subRoute) {
+        return route.subRoute;
+      }
       return getTabFromHash();
     }
     return 'overview';
   });
+
+  // Synchronize active tab when admin subRoute is navigated
+  useEffect(() => {
+    if (route.type === 'admin' && route.subRoute) {
+      setActiveTab(route.subRoute);
+    }
+  }, [route]);
+
+  const handleTabChange = useCallback((tab: ActiveTab) => {
+    setActiveTab(tab);
+    if (route.type === 'admin') {
+      navigate(`/admin/${tab}`, { replace: true });
+    }
+  }, [route.type, navigate]);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
@@ -1683,9 +1705,7 @@ export function App() {
     setCurrentUser(DEFAULT_USER);
     setActiveTab('overview');
     setIsMobileMenuOpen(false);
-    if (typeof window !== 'undefined' && window.location.hash) {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    }
+    navigate('/admin', { replace: true });
   };
 
   const handleLoginSuccess = () => {
@@ -1701,12 +1721,29 @@ export function App() {
       });
     }
     setIsAuthenticated(true);
-    // Always open Dashboard (Overview) on login for both branches
-    setActiveTab('overview');
+    const targetTab = (route.type === 'admin' && route.subRoute) ? route.subRoute : 'overview';
+    setActiveTab(targetTab);
+    navigate(`/admin/${targetTab}`, { replace: true });
   };
 
+  // 1. Future public business website landing page foundation
+  if (route.type === 'public') {
+    return (
+      <PublicWebsite
+        onNavigateToAdmin={() => navigate('/admin')}
+        currentUser={isAuthenticated ? currentUser : null}
+      />
+    );
+  }
+
+  // 2. Admin portal login gate (unauthenticated users cannot view POS data)
   if (!isAuthenticated) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <LoginView 
+        onLoginSuccess={handleLoginSuccess}
+        onBackToPublic={() => navigate('/')}
+      />
+    );
   }
 
   return (
@@ -1715,12 +1752,13 @@ export function App() {
       {/* Sidebar Navigation */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
         isMobileOpen={isMobileMenuOpen}
         setIsMobileOpen={setIsMobileMenuOpen}
         currentUser={currentUser}
+        onViewPublicWebsite={() => navigate('/')}
       />
 
       {/* Main Content Area */}
@@ -1731,8 +1769,9 @@ export function App() {
           activeTab={activeTab}
           onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
           currentUser={currentUser}
-          onOpenSettings={() => setActiveTab('settings')}
+          onOpenSettings={() => handleTabChange('settings')}
           onSignOut={handleSignOut}
+          onViewPublicWebsite={() => navigate('/')}
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
         />
@@ -1749,7 +1788,7 @@ export function App() {
               orders={branchOrders}
               expenses={branchExpenses}
               customerOrders={branchCustomerOrders}
-              onNavigateToTab={setActiveTab}
+              onNavigateToTab={handleTabChange}
               onDeleteOrder={handleDeleteOrder}
               onModifyOrder={handleStartModifyOrder}
               onSettleOrder={handleSettleOrder}
@@ -1767,7 +1806,7 @@ export function App() {
               onSaveModifiedOrder={handleSaveModifiedOrder}
               onNavigateToProducts={(code) => {
                 setBarcodeToRegister(code || null);
-                setActiveTab('product-management');
+                handleTabChange('product-management');
               }}
             />
           )}
@@ -1876,7 +1915,7 @@ export function App() {
         {/* Mobile Bottom Navigation Bar (Phones & Small Screens) */}
         <BottomNav
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={handleTabChange}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
       </div>

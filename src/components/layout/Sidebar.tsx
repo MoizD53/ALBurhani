@@ -15,7 +15,8 @@ import {
   Tag,
   ClipboardList,
   Layers,
-  Truck
+  Truck,
+  Globe
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 
@@ -40,6 +41,7 @@ interface SidebarProps {
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
   currentUser: UserProfile;
+  onViewPublicWebsite?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -50,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen,
   setIsMobileOpen,
   currentUser,
+  onViewPublicWebsite,
 }) => {
   const navItems = [
     {
@@ -240,6 +243,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <ShieldCheck className="w-4 h-4" />
             </div>
+          </div>
+        )}
+
+        {/* Public Website Shortcut */}
+        {onViewPublicWebsite && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={onViewPublicWebsite}
+              className={`w-full py-1.5 ${showLabels ? 'px-2.5 justify-start gap-2' : 'px-0 justify-center'} rounded-lg text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5] transition-colors flex items-center text-xs font-semibold cursor-pointer`}
+              title="View Public Website"
+            >
+              <Globe className="w-3.5 h-3.5 shrink-0 text-[#C99A18]" />
+              {showLabels && <span className="text-[11px] truncate">Public Website ↗</span>}
+            </button>
           </div>
         )}
 

@@ -9,7 +9,8 @@ import {
   ChevronRight,
   Bell,
   Calendar,
-  LogOut
+  LogOut,
+  Globe
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { ActiveTab } from './Sidebar';
@@ -20,6 +21,7 @@ interface HeaderProps {
   currentUser: UserProfile;
   onOpenSettings?: () => void;
   onSignOut?: () => void;
+  onViewPublicWebsite?: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -30,6 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenSettings,
   onSignOut,
+  onViewPublicWebsite,
   isSidebarCollapsed,
   onToggleSidebar,
 }) => {
@@ -196,6 +199,19 @@ export const Header: React.FC<HeaderProps> = ({
                   Owner · {currentUser.counter || (currentUser.branchId === 'mg_road' ? 'MG Road Store' : 'Godi Road Store')}
                 </span>
               </div>
+
+              {onViewPublicWebsite && (
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    onViewPublicWebsite();
+                  }}
+                  className="w-full px-3.5 py-2 text-left text-stone-700 hover:text-stone-900 hover:bg-[#FAF8F5] flex items-center gap-2.5 transition-colors font-medium rounded-lg group cursor-pointer"
+                >
+                  <Globe className="w-3.5 h-3.5 text-[#C99A18] group-hover:text-amber-600" />
+                  <span>Public Website</span>
+                </button>
+              )}
 
               <button
                 onClick={() => {
