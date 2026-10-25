@@ -291,15 +291,18 @@ async function main() {
   // Insert categories idempotently
   console.log('Upserting categories...');
   for (const cat of categoryMap.values()) {
-    await client.execute({
-      sql: `INSERT INTO categories (id, name, display_order, is_active, updated_at)
-            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
-            ON CONFLICT(id) DO UPDATE SET
-              name = excluded.name,
-              display_order = excluded.display_order,
-              updated_at = CURRENT_TIMESTAMP;`,
-      args: [cat.id, cat.name, cat.displayOrder]
-    });
+    try {
+      await client.execute({
+        sql: `INSERT INTO categories (id, name, display_order, is_active, updated_at)
+              VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+              ON CONFLICT(name) DO UPDATE SET
+                display_order = excluded.display_order,
+                updated_at = CURRENT_TIMESTAMP;`,
+        args: [cat.id, cat.name, cat.displayOrder]
+      });
+    } catch {
+      // Ignore conflict
+    }
   }
 
   // Insert products in batches
