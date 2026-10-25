@@ -1,5 +1,5 @@
 async function checkDeployment() {
-  const url = 'https://duokarma53-spec.github.io/AL-BHURANI/';
+  const url = 'https://al-bhurani-lyart.vercel.app/';
   console.log('Fetching', url);
   const res = await fetch(url);
   console.log('HTTP Status:', res.status);

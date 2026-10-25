@@ -13,7 +13,7 @@ dotenv.split(/\r?\n/).forEach(line => {
 
 const url = env.TURSO_DB_URL.replace('libsql://', 'https://');
 async function test() {
-  const endpoints = ['/v1/stats', '/stats', '/v2/pipeline', '/health', '/v1', '/v1/organization/duokarma53/database/al-bhurani/usage'];
+  const endpoints = ['/health', '/v1/stats'];
   for (const ep of endpoints) {
     try {
       const res = await fetch(url + ep, {

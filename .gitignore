@@ -29,3 +29,6 @@ dist-ssr
 # Database backups
 backups/
 scratch/
+
+.vercel
+.env*
