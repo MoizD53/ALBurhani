@@ -41,6 +41,7 @@ interface ProductManagementViewProps {
   onUpdateCategory: (category: CategoryItem, oldName?: string) => Promise<boolean>;
   onToggleCategoryActive?: (categoryId: string) => Promise<boolean>;
   onDeleteProduct?: (productId: string) => Promise<boolean> | boolean | void;
+  onUpdateStock?: (productId: string, newStock: number) => Promise<boolean> | boolean | void;
   initialBarcodeToRegister?: string | null;
   onClearInitialBarcode?: () => void;
 }
@@ -55,6 +56,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   onUpdateCategory,
   onToggleCategoryActive,
   onDeleteProduct,
+  onUpdateStock,
   initialBarcodeToRegister,
   onClearInitialBarcode,
 }) => {
@@ -68,6 +70,24 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
 
   // Product Add / Edit Modal State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [stock, setStock] = useState<number | string>(0);
+  const [editingStockId, setEditingStockId] = useState<string | null>(null);
+  const [inlineStockVal, setInlineStockVal] = useState<string>('');
+
+  const handleSaveInlineStock = async (product: Product) => {
+    const numVal = Number(inlineStockVal);
+    if (isNaN(numVal)) {
+      setEditingStockId(null);
+      return;
+    }
+    const updated = { ...product, stock: numVal };
+    if (onUpdateStock) {
+      await onUpdateStock(product.id, numVal);
+    } else {
+      onUpdateProduct(updated);
+    }
+    setEditingStockId(null);
+  };
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
@@ -116,6 +136,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setUnit('KG');
     setSellingPrice(100);
     setMrp(100);
+    setStock(0);
     setPriceTiers([]);
     setIsProductModalOpen(true);
   };
@@ -139,6 +160,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setUnit(product.unit as SellingUnit);
     setSellingPrice(product.sellingPrice);
     setMrp(product.mrp || product.sellingPrice);
+    setStock(product.stock ?? 0);
     setPriceTiers(product.priceTiers || []);
     setIsProductModalOpen(true);
   };
@@ -163,6 +185,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
       sellingPrice: Number(sellingPrice) || 0,
       mrp: Number(mrp) || Number(sellingPrice),
       taxRate: editingProduct?.taxRate ?? 5,
+      stock: Number(stock) || 0,
       isActive: editingProduct ? (editingProduct.isActive ?? true) : true,
       priceTiers: priceTiers.filter((t) => t.minQuantity > 0 && t.price > 0),
     };
@@ -492,6 +515,57 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                     </span>
                   </div>
 
+                  <div className="flex items-center justify-between text-xs font-semibold text-stone-700 bg-[#FAF8F5] p-2 rounded-xl border border-[#E8DEC8]">
+                    <span className="text-[11px] text-stone-500 font-bold">Stock:</span>
+                    {editingStockId === p.id ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="number"
+                          step={p.unit === 'KG' ? '0.001' : '1'}
+                          autoFocus
+                          value={inlineStockVal}
+                          onChange={(e) => setInlineStockVal(e.target.value)}
+                          className="w-16 px-1.5 py-0.5 text-xs text-center font-mono font-bold bg-white border border-[#C99A18] rounded"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveInlineStock(p)}
+                          className="p-1 rounded bg-emerald-600 text-white"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingStockId(null)}
+                          className="p-1 rounded bg-stone-200 text-stone-700"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`font-mono font-bold ${
+                            (p.stock ?? 0) > 0 ? 'text-emerald-700' : (p.stock ?? 0) === 0 ? 'text-stone-500' : 'text-red-600 font-extrabold'
+                          }`}
+                        >
+                          {(p.stock ?? 0) > 0 ? `+${p.stock}` : `${p.stock ?? 0}`} {p.unit}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingStockId(p.id);
+                            setInlineStockVal(String(p.stock ?? 0));
+                          }}
+                          className="p-1 text-stone-400 hover:text-[#B8860B]"
+                          title="Edit stock"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-between pt-2 border-t border-[#F5F2EB]">
                     <div>
                       <div className="font-mono font-bold text-stone-900 text-base">
@@ -559,6 +633,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                     <th className="py-3 px-4">Barcode</th>
                     <th className="py-3 px-4 text-center">Unit Basis</th>
                     <th className="py-3 px-4 text-right">Selling Price</th>
+                    <th className="py-3 px-4 text-center">Stock</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -596,6 +671,68 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                         {/* Selling Price */}
                         <td className="py-3 px-4 text-right font-mono font-bold text-[#B8860B]">
                           Rs. {p.sellingPrice.toFixed(2)}
+                        </td>
+
+                        {/* Stock with quick edit */}
+                        <td className="py-3 px-4 text-center">
+                          {editingStockId === p.id ? (
+                            <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="number"
+                                step={p.unit === 'KG' ? '0.001' : '1'}
+                                autoFocus
+                                value={inlineStockVal}
+                                onChange={(e) => setInlineStockVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveInlineStock(p);
+                                  if (e.key === 'Escape') setEditingStockId(null);
+                                }}
+                                className="w-20 px-2 py-0.5 text-xs text-center font-mono font-bold bg-white border-2 border-[#C99A18] rounded-lg text-stone-900 focus:outline-none shadow-sm"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveInlineStock(p)}
+                                className="p-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs cursor-pointer"
+                                title="Save stock"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingStockId(null)}
+                                className="p-1 rounded-md bg-stone-200 text-stone-700 hover:bg-stone-300 shadow-xs cursor-pointer"
+                                title="Cancel"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1.5 group">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full font-mono text-[11px] font-bold border transition-colors ${
+                                  (p.stock ?? 0) > 0
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : (p.stock ?? 0) === 0
+                                    ? 'bg-stone-100 text-stone-600 border-stone-200'
+                                    : 'bg-red-50 text-red-700 border-red-200 font-extrabold'
+                                }`}
+                                title={(p.stock ?? 0) < 0 ? 'Negative stock (sold beyond recorded stock)' : `Current stock: ${p.stock ?? 0} ${p.unit}`}
+                              >
+                                {(p.stock ?? 0) > 0 ? `+${p.stock}` : `${p.stock ?? 0}`} {p.unit}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingStockId(p.id);
+                                  setInlineStockVal(String(p.stock ?? 0));
+                                }}
+                                className="p-1 rounded-md text-stone-400 hover:text-[#B8860B] hover:bg-amber-50 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                                title="Click to edit stock number"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
                         </td>
 
                         {/* Status */}
@@ -890,7 +1027,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
               </div>
 
               {/* Unit, Selling Price, MRP Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="text-xs font-bold text-stone-700 block mb-1">
                     Selling Unit
@@ -936,6 +1073,20 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                     value={mrp}
                     onChange={(e) => setMrp(parseFloat(e.target.value) || 0)}
                     className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-mono focus:bg-white focus:border-[#C99A18] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">
+                    Stock Quantity ({unit})
+                  </label>
+                  <input
+                    type="number"
+                    step={unit === 'KG' ? '0.001' : '1'}
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-mono font-bold focus:bg-white focus:border-[#C99A18] focus:outline-none"
+                    placeholder="0"
                   />
                 </div>
               </div>

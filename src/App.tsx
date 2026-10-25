@@ -13,7 +13,7 @@ import {
   VendorPayment
 } from './types';
 import { IMPORTED_PRODUCTS } from './data/importedProducts';
-import { isWeightBasedProduct } from './lib/pricing';
+import { isWeightBasedProduct, deductStock, restoreStock } from './lib/pricing';
 import { 
   getTursoClient, 
   fetchOrdersFromTurso, 
@@ -21,6 +21,8 @@ import {
   saveOrderToTurso, 
   batchSaveOrdersToTurso,
   saveProductToTurso,
+  updateStockOnTurso,
+  invalidateProductsCache,
   deleteProductFromTurso,
   batchSaveProductsToTurso,
   clearOrdersFromTurso,
@@ -206,6 +208,18 @@ export function App() {
             const zeroStockProducts = IMPORTED_PRODUCTS.map((p) => ({ ...p, stock: 0 }));
             localStorage.setItem('albhurani_products', JSON.stringify(zeroStockProducts));
             return zeroStockProducts;
+          }
+
+          // Guarantee all 338 products from IMPORTED_PRODUCTS exist in local cache
+          if (parsed.length < IMPORTED_PRODUCTS.length) {
+            const existingIds = new Set(parsed.map((p: Product) => p.id));
+            const missing = IMPORTED_PRODUCTS.filter((p) => !existingIds.has(p.id));
+            if (missing.length > 0) {
+              parsed.push(...missing.map((p) => ({ ...p, stock: 0 })));
+              try {
+                localStorage.setItem('albhurani_products', JSON.stringify(parsed));
+              } catch {}
+            }
           }
 
           // Apply approved 41-item KG price conversion if stored with old per-gram rates
@@ -1029,6 +1043,23 @@ export function App() {
       });
     }
 
+    // Deduct stock for sold items (allows stock to go negative if 0)
+    if (Array.isArray(newOrder.items) && newOrder.items.length > 0) {
+      setProducts((prev) => {
+        const updated = prev.map((p) => {
+          const sold = newOrder.items.find((it) => (it.product?.id === p.id) || (it.product?.barcode && it.product.barcode === p.barcode));
+          if (!sold) return p;
+          const isWeight = p.unit === 'KG';
+          const newStock = deductStock(p.stock ?? 0, Number(sold.quantity) || 0, isWeight);
+          return { ...p, stock: newStock };
+        });
+        try {
+          localStorage.setItem('albhurani_products', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+
     return { success: true, order: newOrder };
   };
 
@@ -1078,6 +1109,23 @@ export function App() {
 
     // 1. Immediately record in persistent tombstone storage to prevent resurrection on sync/refresh
     recordDeletedOrder(orderId, billNumber);
+
+    // Restore stock for deleted order items
+    if (orderToDelete && Array.isArray(orderToDelete.items) && orderToDelete.items.length > 0) {
+      setProducts((prev) => {
+        const updated = prev.map((p) => {
+          const matched = orderToDelete.items.find((it) => (it.product?.id === p.id) || (it.product?.barcode && it.product.barcode === p.barcode));
+          if (!matched) return p;
+          const isWeight = p.unit === 'KG';
+          const newStock = restoreStock(p.stock ?? 0, Number(matched.quantity) || 0, isWeight);
+          return { ...p, stock: newStock };
+        });
+        try {
+          localStorage.setItem('albhurani_products', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
 
     // 2. Immediately update state and localStorage consistently (instant 0ms UI response)
     setOrders((prev) => {
@@ -1203,6 +1251,24 @@ export function App() {
       syncManager.setStatus('error');
     } else {
       syncManager.setStatus('connected');
+    }
+  };
+
+  const handleUpdateStock = async (productId: string, newStock: number): Promise<boolean> => {
+    setProducts((prev) => {
+      const updated = prev.map((p) => (p.id === productId ? { ...p, stock: newStock } : p));
+      try {
+        localStorage.setItem('albhurani_products', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    invalidateProductsCache();
+    try {
+      await updateStockOnTurso(productId, newStock);
+      return true;
+    } catch (err) {
+      console.warn('Background Turso stock update error:', err);
+      return false;
     }
   };
 
@@ -1522,6 +1588,8 @@ export function App() {
           return updated;
         });
       }
+
+      invalidateProductsCache();
 
       // 3. Instant vendor balance update
       if (billWithBranch.vendorId) {
@@ -1868,6 +1936,7 @@ export function App() {
               onAddProduct={handleAddProduct}
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}
+              onUpdateStock={handleUpdateStock}
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}

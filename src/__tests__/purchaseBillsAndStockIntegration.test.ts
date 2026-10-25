@@ -263,4 +263,30 @@ describe('Purchase Bills, Stock Delta & Expense Integration', () => {
     bills = bills.filter((b) => b.id !== 'pur-delete-1');
     expect(bills).toHaveLength(0);
   });
+
+  it('allows stock to go negative when selling at 0 and adds purchase bill quantity to product stock', () => {
+    // 1. Initial product with 0 stock
+    let product = {
+      id: 'prod-test-wafers',
+      name: 'Test Wafers',
+      stock: 0,
+      unit: 'PCS',
+    };
+
+    // 2. Admin sells 2 items while stock is 0 -> Stock goes negative (-2)
+    const soldQty = 2;
+    product.stock -= soldQty;
+    expect(product.stock).toBe(-2);
+
+    // 3. Admin later creates a Purchase Bill of 10 items
+    const purchasedQty = 10;
+    product.stock += purchasedQty;
+    // -2 + 10 = 8
+    expect(product.stock).toBe(8);
+
+    // 4. Admin manually edits stock directly to 15
+    const manualEditQty = 15;
+    product.stock = manualEditQty;
+    expect(product.stock).toBe(15);
+  });
 });

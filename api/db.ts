@@ -1143,7 +1143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (typeof delta === 'number') {
           // Atomic relative stock adjustment — safe for concurrent multi-device sales
           await client.execute({
-            sql: 'UPDATE products SET stock = MAX(0, stock + ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+            sql: 'UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
             args: [delta, productId],
           });
           // Fetch the actual resulting stock for the sync event
@@ -1158,7 +1158,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Absolute stock set — used for manual inventory entry
           await client.execute({
             sql: 'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-            args: [Math.max(0, stock), productId],
+            args: [stock, productId],
           });
           await logSyncEvent(client, 'product', productId, 'stock', { productId, stock });
           return res.status(200).json({ success: true });
@@ -1344,6 +1344,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             branch
           ],
         });
+
+        // Deduct inventory stock for sold items (allows negative stock if 0)
+        if (Array.isArray(o.items)) {
+          for (const it of o.items) {
+            const qty = Number(it.quantity) || 0;
+            if (qty > 0) {
+              const prodId = it.product?.id || it.id || (it.productId ? String(it.productId) : null);
+              const barcode = it.product?.barcode || (it.barcode ? String(it.barcode) : null);
+              if (prodId || barcode) {
+                await client.execute({
+                  sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?);',
+                  args: [qty, prodId || '', barcode || ''],
+                });
+                await client.execute({
+                  sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
+                        VALUES ((SELECT id FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1), 'SALE', ?, ?, ?, ?);`,
+                  args: [prodId || '', barcode || '', o.id, -qty, `Sale ${o.billNumber} (-${qty})`, Date.now()],
+                });
+              }
+            }
+          }
+        }
 
         const savedOrder = {
           ...o,
@@ -1950,7 +1972,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           if (delta !== 0) {
             await client.execute({
-              sql: 'UPDATE products SET stock = MAX(0, stock + ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+              sql: 'UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
               args: [delta, prodId],
             });
 
@@ -2112,7 +2134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         for (const it of items) {
           if (it.productId && typeof it.quantity === 'number') {
             await client.execute({
-              sql: 'UPDATE products SET stock = MAX(0, stock - ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+              sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
               args: [Number(it.quantity), it.productId],
             });
 
@@ -2176,7 +2198,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               // Conditional update: only decrement stock if the bill is still present and active (prevents duplicate reversals on concurrent requests)
               batchStatements.push({
                 sql: `UPDATE products 
-                      SET stock = MAX(0, stock - ?), updated_at = CURRENT_TIMESTAMP 
+                      SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP 
                       WHERE id = ? AND EXISTS (SELECT 1 FROM purchase_bills WHERE id = ? AND status != 'Cancelled');`,
                 args: [qty, it.productId, billId],
               });

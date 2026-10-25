@@ -318,9 +318,9 @@ export function generateEan13Barcode(): string {
  */
 export function deductStock(currentStock: number, soldQuantity: number, isWeight: boolean): number {
   if (isWeight) {
-    return Math.max(0, Math.round((currentStock - soldQuantity) * 1000) / 1000);
+    return Math.round((currentStock - soldQuantity) * 1000) / 1000;
   }
-  return Math.max(0, Math.round(currentStock - soldQuantity));
+  return Math.round(currentStock - soldQuantity);
 }
 
 /**

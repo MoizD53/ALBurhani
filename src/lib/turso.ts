@@ -1216,6 +1216,7 @@ export async function fetchVendorsFromTurso(forceRefresh = false): Promise<Vendo
  */
 export async function savePurchaseBillToTurso(bill: PurchaseBill): Promise<PurchaseBill | null> {
   invalidatePurchasesCache();
+  invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
       method: 'POST',
