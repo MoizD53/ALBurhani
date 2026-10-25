@@ -106,7 +106,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   // Filter products for dropdown
   const pickerFilteredProducts = useMemo(() => {
     const q = productSearchQuery.trim().toLowerCase();
-    if (!q) return products.slice(0, 50);
+    if (!q) return products;
     return products.filter((p) =>
       p.name.toLowerCase().includes(q) ||
       p.sku.toLowerCase().includes(q) ||

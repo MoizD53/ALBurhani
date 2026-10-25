@@ -52,13 +52,14 @@ const SearchableProductSelect: React.FC<SearchableProductSelectProps> = ({
   );
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return products.slice(0, 80);
+    if (!search.trim()) return products;
     const q = search.toLowerCase().trim();
     return products.filter((p) =>
       p.name.toLowerCase().includes(q) ||
       (p.sku && p.sku.toLowerCase().includes(q)) ||
-      (p.barcode && p.barcode.includes(q))
-    ).slice(0, 80);
+      (p.barcode && p.barcode.includes(q)) ||
+      (p.category && p.category.toLowerCase().includes(q))
+    );
   }, [products, search]);
 
   const updateCoords = useCallback(() => {
@@ -160,7 +161,7 @@ const SearchableProductSelect: React.FC<SearchableProductSelectProps> = ({
                 )}
               </div>
               <div className="text-[10px] text-stone-500 font-medium mt-1 px-1 flex justify-between items-center">
-                <span>{filtered.length} products found</span>
+                <span>{filtered.length} of {products.length} products</span>
                 <span className="text-[#A67D0C] font-semibold">Click to link & auto-fill</span>
               </div>
             </div>
@@ -629,7 +630,7 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
                             className="w-full px-2 py-1.5 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-lg text-stone-900 focus:bg-white focus:border-[#C99A18] focus:outline-none font-semibold"
                           />
                           <datalist id={`catalog-items-${idx}`}>
-                            {products.slice(0, 100).map((p) => (
+                            {products.map((p) => (
                               <option key={p.id} value={p.name}>
                                 {p.category} · Stock: {p.stock} {p.unit}
                               </option>
