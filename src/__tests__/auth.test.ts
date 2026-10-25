@@ -31,8 +31,8 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
     mockSessionStorage.clear();
   });
 
-  it('authenticates successfully with configured admin ID and admin123 password', async () => {
-    const res = await authenticate('admin', 'admin123');
+  it('authenticates successfully with configured admin ID and admin@godiroad password', async () => {
+    const res = await authenticate('admin', 'admin@godiroad');
     expect(res.success).toBe(true);
     expect(res.session).toBeDefined();
     expect(res.session?.user.role).toBe('Owner');
@@ -44,8 +44,14 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
   });
 
   it('authenticates admin ID case-insensitively', async () => {
-    const res = await authenticate('ADMIN', 'admin123');
+    const res = await authenticate('ADMIN', 'admin@godiroad');
     expect(res.success).toBe(true);
+  });
+
+  it('rejects legacy admin123 password', async () => {
+    const res = await authenticate('admin', 'admin123');
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('Invalid ID or password');
   });
 
   it('rejects admin ID with wrong password', async () => {
@@ -56,7 +62,7 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
   });
 
   it('rejects empty ID or empty password', async () => {
-    const res1 = await authenticate('', 'admin123');
+    const res1 = await authenticate('', 'admin@godiroad');
     expect(res1.success).toBe(false);
 
     const res2 = await authenticate('admin', '');
@@ -83,7 +89,7 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
 
   /* ─── Scenario 2: Successful login → Dashboard ─── */
   it('Scenario 2: Successful login establishes active session for Dashboard', async () => {
-    const res = await authenticate('admin', 'admin123');
+    const res = await authenticate('admin', 'admin@godiroad');
     expect(res.success).toBe(true);
     expect(res.session).toBeDefined();
 
@@ -95,7 +101,7 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
 
   /* ─── Scenario 3: Refresh while authenticated → Dashboard ─── */
   it('Scenario 3: Refresh while authenticated preserves session in sessionStorage', async () => {
-    await authenticate('admin', 'admin123');
+    await authenticate('admin', 'admin@godiroad');
     const firstSession = getCurrentSession();
     expect(firstSession).not.toBeNull();
 
@@ -108,7 +114,7 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
 
   /* ─── Scenario 4: Logout → Login ─── */
   it('Scenario 4: Logout purges active session and user cache', async () => {
-    await authenticate('admin', 'admin123');
+    await authenticate('admin', 'admin@godiroad');
     expect(getCurrentSession()).not.toBeNull();
 
     terminateSession();
@@ -119,7 +125,7 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
 
   /* ─── Scenario 5: Refresh after logout → Login ─── */
   it('Scenario 5: Refresh after logout leaves session unauthenticated', async () => {
-    await authenticate('admin', 'admin123');
+    await authenticate('admin', 'admin@godiroad');
     terminateSession();
 
     // Refresh simulation
@@ -177,14 +183,14 @@ describe('AL-BURHANI Authentication Service & Session Routing', () => {
       expect(res.session?.user.counter).toBe('MG Road Store');
     });
 
-    it('authenticates when using username godiroad or mgroad', async () => {
+    it('rejects any usernames other than admin (e.g. godiroad, mgroad)', async () => {
       const resGodi = await authenticate('godiroad', 'admin@godiroad');
-      expect(resGodi.success).toBe(true);
-      expect(resGodi.session?.user.branchId).toBe('godi_road');
+      expect(resGodi.success).toBe(false);
+      expect(resGodi.error).toContain('Invalid ID or password');
 
       const resMg = await authenticate('mgroad', 'admin@mgroad');
-      expect(resMg.success).toBe(true);
-      expect(resMg.session?.user.branchId).toBe('mg_road');
+      expect(resMg.success).toBe(false);
+      expect(resMg.error).toContain('Invalid ID or password');
     });
 
     it('rejects cross-matching passwords (e.g. wrong branch password)', async () => {

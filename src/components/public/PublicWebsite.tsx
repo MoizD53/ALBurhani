@@ -13,13 +13,12 @@ import {
   ChevronRight,
   Store,
   Menu,
-  X,
-  Lock
+  X
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 
 interface PublicWebsiteProps {
-  onNavigateToAdmin: () => void;
+  onNavigateToAdmin?: () => void;
   currentUser?: UserProfile | null;
 }
 
@@ -79,43 +78,7 @@ export const PublicWebsite: React.FC<PublicWebsiteProps> = ({
   return (
     <div className="min-h-screen bg-[#FCFAF6] text-[#1C1917] flex flex-col font-sans selection:bg-[#C99A18]/20 selection:text-[#7A5B0B]">
       
-      {/* 1. Top Announcement Foundation Ribbon */}
-      <div className="bg-[#1C1917] text-amber-100 text-[11px] sm:text-xs py-2 px-4 border-b border-[#C99A18]/30">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 truncate">
-            <span className="inline-flex items-center gap-1 bg-[#C99A18]/20 text-[#E5B537] px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide uppercase">
-              <Sparkles className="w-3 h-3" /> Foundation Preview
-            </span>
-            <span className="hidden sm:inline text-stone-300 font-medium truncate">
-              AL-BURHANI Sweets & Dry Items Franchise · Dahod (Godi Road & MG Road)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            {currentUser ? (
-              <button
-                type="button"
-                onClick={onNavigateToAdmin}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#E5B537] hover:text-white transition-colors cursor-pointer"
-              >
-                <span>Logged in as <strong>{currentUser.name}</strong></span>
-                <span className="underline ml-1">Go to POS Dashboard →</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onNavigateToAdmin}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-200/90 hover:text-white transition-colors cursor-pointer"
-              >
-                <Lock className="w-3 h-3" />
-                <span>Staff & Admin Portal →</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Main Navigation Bar */}
+      {/* Main Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#E8DEC8] shadow-2xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           
@@ -158,14 +121,15 @@ export const PublicWebsite: React.FC<PublicWebsiteProps> = ({
 
           {/* Action CTA */}
           <div className="hidden md:flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={onNavigateToAdmin}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#FAF8F5] hover:bg-[#F3EAD3] text-[#8C6D15] border border-[#C99A18]/50 shadow-2xs transition-all active:scale-95 cursor-pointer"
+            <a
+              href="https://wa.me/919876543210?text=Hello%20AL-BURHANI,%20I%20would%20like%20to%20inquire%20about%20your%20products"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#25D366] hover:bg-[#20ba59] text-white shadow-2xs transition-all active:scale-95"
             >
-              <Store className="w-3.5 h-3.5 text-[#C99A18]" />
-              <span>{currentUser ? 'POS Dashboard' : 'Admin / POS Login'}</span>
-            </button>
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>WhatsApp Us</span>
+            </a>
           </div>
 
           {/* Mobile Menu Button */}
@@ -221,17 +185,16 @@ export const PublicWebsite: React.FC<PublicWebsiteProps> = ({
             </nav>
 
             <div className="pt-2 border-t border-[#E8DEC8]">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onNavigateToAdmin();
-                }}
-                className="w-full py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-white flex items-center justify-center gap-1.5 shadow-sm"
+              <a
+                href="https://wa.me/919876543210?text=Hello%20AL-BURHANI,%20I%20would%20like%20to%20inquire%20about%20your%20products"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full py-2.5 rounded-xl text-xs font-bold bg-[#25D366] hover:bg-[#20ba59] text-white flex items-center justify-center gap-1.5 shadow-sm"
               >
-                <Lock className="w-3.5 h-3.5" />
-                <span>{currentUser ? 'Go to POS Dashboard' : 'Admin & Staff POS Portal'}</span>
-              </button>
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>WhatsApp Us</span>
+              </a>
             </div>
           </div>
         )}
@@ -273,15 +236,6 @@ export const PublicWebsite: React.FC<PublicWebsiteProps> = ({
               <MapPin className="w-4 h-4 text-[#C99A18]" />
               <span>Visit Our Stores</span>
             </a>
-
-            <button
-              type="button"
-              onClick={onNavigateToAdmin}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#FAF8F5] hover:bg-[#F3EAD3] text-[#8C6D15] border border-[#C99A18]/40 shadow-2xs transition-all active:scale-95 cursor-pointer"
-            >
-              <Store className="w-4 h-4 text-[#C99A18]" />
-              <span>{currentUser ? 'Open POS Dashboard' : 'Staff / Admin Portal'}</span>
-            </button>
           </div>
 
           {/* Key Trust Highlights */}
@@ -669,13 +623,7 @@ export const PublicWebsite: React.FC<PublicWebsiteProps> = ({
             <a href="#products" className="hover:text-amber-200 transition-colors">Products</a>
             <a href="#about" className="hover:text-amber-200 transition-colors">About</a>
             <a href="#stores" className="hover:text-amber-200 transition-colors">Store Locations</a>
-            <button
-              type="button"
-              onClick={onNavigateToAdmin}
-              className="hover:text-amber-300 font-bold text-amber-200/90 underline cursor-pointer"
-            >
-              Admin & Staff POS Login →
-            </button>
+            <a href="#contact" className="hover:text-amber-200 transition-colors">Contact</a>
           </div>
         </div>
       </footer>

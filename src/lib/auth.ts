@@ -19,10 +19,16 @@ export interface AuthSession {
 }
 
 const SESSION_STORAGE_KEY = 'albhurani_auth_session';
-const CREDENTIALS_STORAGE_KEY = 'albhurani_auth_vault';
 
 /** Maximum session duration (24 hours) */
 export const MAX_SESSION_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Purge any legacy auth vault from client storage
+if (typeof localStorage !== 'undefined') {
+  try {
+    localStorage.removeItem('albhurani_auth_vault');
+  } catch {}
+}
 
 /**
  * Access the active session storage (sessionStorage in browser, falling back to polyfilled or global storage)
@@ -39,17 +45,6 @@ function getSessionStorage(): Storage | null {
     // blocked or restricted
   }
   return null;
-}
-
-/**
- * SHA-256 helper for client-side password hashing without external dependencies
- */
-async function hashSecret(secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(secret);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -128,32 +123,15 @@ export async function authenticate(
   try {
     const cleanPassword = password.trim();
 
-    // 1. Direct configured branch credentials
-    // Godi Road branch (existing): id: admin, pass: admin@godiroad (with legacy admin123 compatibility)
-    const isGodiMatch =
-      (normalizedId === 'admin' || normalizedId === 'godiroad' || normalizedId === 'godi_road' || normalizedId === 'godi') &&
-      (cleanPassword === 'admin@godiroad' || cleanPassword === 'admin123');
+    // STRICT BRANCH CREDENTIALS:
+    // Only two authorized logins exist across the entire application:
+    // 1. Godi Road Branch: ID 'admin', Password 'admin@godiroad'
+    // 2. MG Road Branch: ID 'admin', Password 'admin@mgroad'
+    // All other credentials, passwords (including legacy admin123), aliases, and vault logins are strictly rejected.
+    const isGodiMatch = normalizedId === 'admin' && cleanPassword === 'admin@godiroad';
+    const isMgMatch = normalizedId === 'admin' && cleanPassword === 'admin@mgroad';
 
-    // MG Road branch (new): id: admin, pass: admin@mgroad
-    const isMgMatch =
-      (normalizedId === 'admin' || normalizedId === 'mgroad' || normalizedId === 'mg_road' || normalizedId === 'mg') &&
-      cleanPassword === 'admin@mgroad';
-
-    // 2. Encrypted device vault verification
-    let isVaultMatch = false;
-    const passwordHash = await hashSecret(`${normalizedId}:::${cleanPassword}`);
-    const vaultRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(CREDENTIALS_STORAGE_KEY) : null;
-
-    if (vaultRaw) {
-      try {
-        const vaultData = JSON.parse(vaultRaw);
-        if (vaultData.email === normalizedId && vaultData.hash === passwordHash) {
-          isVaultMatch = true;
-        }
-      } catch {}
-    }
-
-    if (!isGodiMatch && !isMgMatch && !isVaultMatch) {
+    if (!isGodiMatch && !isMgMatch) {
       return { success: false, error: 'Invalid ID or password. Please verify your branch credentials.' };
     }
 
