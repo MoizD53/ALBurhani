@@ -51,7 +51,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.loca
   });
 
   window.addEventListener('load', () => {
-    const swPath = new URL('sw.js', window.location.href).href;
+    const swPath = '/sw.js';
     navigator.serviceWorker
       .register(swPath, { updateViaCache: 'none' })
       .then((registration) => {

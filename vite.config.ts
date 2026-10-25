@@ -74,7 +74,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    base: './',
+    base: '/',
     plugins: [react(), apiDevServerPlugin(env)],
     server: {
       port: 5175,
