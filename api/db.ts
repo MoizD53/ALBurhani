@@ -1134,7 +1134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Update Stock
     if (action === 'update-stock') {
-      const { productId, stock, delta } = payload || {};
+      const { productId, stock, delta, reason, actor } = payload || {};
       if (!productId) {
         return res.status(400).json({ success: false, error: 'Invalid stock update payload: missing productId' });
       }
@@ -1148,20 +1148,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
           // Fetch the actual resulting stock for the sync event
           const result = await client.execute({
-            sql: 'SELECT stock FROM products WHERE id = ?;',
+            sql: 'SELECT stock, name FROM products WHERE id = ?;',
             args: [productId],
           });
           const actualStock = result.rows[0] ? Number(result.rows[0].stock) : 0;
-          await logSyncEvent(client, 'product', productId, 'stock', { productId, stock: actualStock });
+          await client.execute({
+            sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
+                  VALUES (?, 'STOCK_DELTA', ?, ?, ?, ?);`,
+            args: [productId, `adj-${Date.now()}`, delta, `${reason || 'Stock delta adjustment'} (${delta >= 0 ? '+' : ''}${delta})`, Date.now()],
+          });
+          await logSyncEvent(client, 'product', productId, 'stock', { productId, stock: actualStock, delta, actor: actor || 'Admin' });
           return res.status(200).json({ success: true, stock: actualStock });
         } else if (typeof stock === 'number') {
-          // Absolute stock set — used for manual inventory entry
-          await client.execute({
-            sql: 'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-            args: [stock, productId],
+          // Absolute stock set — used for manual inventory entry with full audit trail
+          const prevRes = await client.execute({
+            sql: 'SELECT stock, name FROM products WHERE id = ? LIMIT 1;',
+            args: [productId],
           });
-          await logSyncEvent(client, 'product', productId, 'stock', { productId, stock });
-          return res.status(200).json({ success: true });
+          const prevStock = prevRes.rows[0] ? Number(prevRes.rows[0].stock) : 0;
+          const prodName = prevRes.rows[0] ? String(prevRes.rows[0].name) : '';
+          const diff = stock - prevStock;
+          const actingUser = actor || 'Admin';
+          const adjustmentReason = reason || 'Manual inventory edit';
+
+          const batchStatements: InStatement[] = [
+            {
+              sql: 'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+              args: [stock, productId],
+            },
+            {
+              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
+                    VALUES (?, 'MANUAL_EDIT', ?, ?, ?, ?);`,
+              args: [productId, `adj-${Date.now()}`, diff, `${adjustmentReason} by ${actingUser}: ${prevStock} -> ${stock} (${diff >= 0 ? '+' : ''}${diff})`, Date.now()],
+            },
+            {
+              sql: `INSERT INTO financial_audit_logs (action, entity_type, entity_id, amount, payment_method, details_json, actor, timestamp)
+                    VALUES ('MANUAL_STOCK_ADJUSTMENT', 'product', ?, 0, NULL, ?, ?, ?);`,
+              args: [
+                productId,
+                JSON.stringify({
+                  productName: prodName,
+                  previousStock: prevStock,
+                  newStock: stock,
+                  difference: diff,
+                  reason: adjustmentReason,
+                  actor: actingUser,
+                }),
+                actingUser,
+                Date.now(),
+              ],
+            },
+          ];
+
+          await client.batch(batchStatements, 'write');
+
+          await logSyncEvent(client, 'product', productId, 'stock', {
+            productId,
+            stock,
+            previousStock: prevStock,
+            difference: diff,
+            reason: adjustmentReason,
+            actor: actingUser,
+          });
+
+          return res.status(200).json({ success: true, stock, previousStock: prevStock, difference: diff });
         } else {
           return res.status(400).json({ success: false, error: 'Invalid stock update payload: need stock or delta' });
         }
@@ -1963,7 +2013,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // Apply stock deltas
+        // Apply stock deltas, bill record, and payments atomically via batch transaction
+        const batchStatements: InStatement[] = [];
         const allProductIds = new Set([...Object.keys(oldProductQtyMap), ...Object.keys(newProductQtyMap)]);
         for (const prodId of allProductIds) {
           const oldQty = oldProductQtyMap[prodId] || 0;
@@ -1971,12 +2022,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const delta = newQty - oldQty;
 
           if (delta !== 0) {
-            await client.execute({
+            batchStatements.push({
               sql: 'UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
               args: [delta, prodId],
             });
 
-            await client.execute({
+            batchStatements.push({
               sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
                     VALUES (?, 'PURCHASE', ?, ?, ?, ?);`,
               args: [prodId, b.id, delta, `Purchase Bill ${purchaseNum} (${delta > 0 ? '+' : ''}${delta})`, Date.now()],
@@ -1987,7 +2038,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Upsert Vendor record
         if (b.vendorName) {
           const vendorId = b.vendorId || `ven-${b.vendorName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-          await client.execute({
+          batchStatements.push({
             sql: `INSERT INTO vendors (id, name, contact_number, address, notes, updated_at)
                   VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                   ON CONFLICT(id) DO UPDATE SET
@@ -2007,7 +2058,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const paymentStatus = balanceDue <= 0.01 ? 'Paid' : (amountPaid > 0 ? 'Partially Paid' : 'Unpaid');
 
         // Save Purchase Bill
-        await client.execute({
+        batchStatements.push({
           sql: `INSERT INTO purchase_bills (
             id, purchase_number, daily_bill_number, business_date, vendor_id, vendor_name, vendor_contact,
             vendor_invoice_number, purchase_date, items_json, subtotal, discount, additional_charges,
@@ -2059,7 +2110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Record initial payment in vendor_payments if not previously recorded and amountPaid > 0
         if (!isEdit && amountPaid > 0) {
           const payId = `pay-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-          await client.execute({
+          batchStatements.push({
             sql: `INSERT INTO vendor_payments (id, purchase_bill_id, vendor_id, payment_date, amount, payment_mode, notes)
                   VALUES (?, ?, ?, ?, ?, ?, ?);`,
             args: [
@@ -2072,6 +2123,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               `Initial payment for ${purchaseNum}`,
             ],
           });
+        }
+
+        // Execute all updates in a single atomic database batch transaction
+        if (batchStatements.length > 0) {
+          await client.batch(batchStatements, 'write');
+        }
+
+        // Broadcast updated stock for all affected products across connected devices
+        for (const prodId of allProductIds) {
+          if (newProductQtyMap[prodId] !== oldProductQtyMap[prodId]) {
+            try {
+              const prodRes = await client.execute({ sql: 'SELECT id, stock FROM products WHERE id = ?;', args: [prodId] });
+              if (prodRes.rows[0]) {
+                await logSyncEvent(client, 'product', prodId, 'stock', { productId: prodId, stock: Number(prodRes.rows[0].stock) });
+              }
+            } catch {}
+          }
         }
 
         const savedBill = {
@@ -2131,14 +2199,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           items = bill.items_json ? JSON.parse(String(bill.items_json)) : [];
         } catch {}
 
+        const batchStatements: InStatement[] = [];
+
         for (const it of items) {
           if (it.productId && typeof it.quantity === 'number') {
-            await client.execute({
+            batchStatements.push({
               sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
               args: [Number(it.quantity), it.productId],
             });
 
-            await client.execute({
+            batchStatements.push({
               sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
                     VALUES (?, 'PURCHASE_CANCEL', ?, ?, ?, ?);`,
               args: [it.productId, billId, -Number(it.quantity), `Cancelled Purchase ${bill.purchase_number}`, Date.now()],
@@ -2147,10 +2217,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Soft-cancel the bill
-        await client.execute({
+        batchStatements.push({
           sql: "UPDATE purchase_bills SET status = 'Cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?;",
           args: [billId],
         });
+
+        if (batchStatements.length > 0) {
+          await client.batch(batchStatements, 'write');
+        }
 
         await logFinancialAudit(client, 'CANCEL_PURCHASE', 'purchase_bill', billId, Number(bill.grand_total) || 0, null, {
           purchaseNumber: bill.purchase_number,

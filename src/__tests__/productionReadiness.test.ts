@@ -8,23 +8,20 @@ import { Product, OrderBill, ExpenseItem } from '../types';
 describe('AL-BURHANI POS Production Readiness & Delivery Verification', () => {
 
   describe('1. Inventory Reset & Stock Zeroing Verification', () => {
-    it('verifies all imported products have opening stock correctly preserved from source', () => {
+    it('verifies all imported products have stock = 0 for fresh manual opening entry', () => {
       expect(IMPORTED_PRODUCTS.length).toBeGreaterThanOrEqual(305);
 
       const nonZeroProducts = IMPORTED_PRODUCTS.filter((p) => p.stock !== 0);
-      // 'al burhani new stock 27-10-2026.xlsx' preserves exact source stock:
-      // exactly 7 products have non-zero opening inventory, while 335 items are 0.
-      expect(nonZeroProducts.length).toBe(7);
+      expect(nonZeroProducts.length).toBe(0);
 
-      // Verify all products have intact required metadata
+      // Verify all products have intact required metadata and strictly 0 initial stock
       for (const p of IMPORTED_PRODUCTS) {
         expect(p.id).toBeTruthy();
         expect(p.name).toBeTruthy();
         expect(p.sellingPrice).toBeGreaterThanOrEqual(0);
         expect(p.unit).toBeTruthy();
         expect(p.category).toBeTruthy();
-        expect(typeof p.stock).toBe('number');
-        expect(p.stock).toBeGreaterThanOrEqual(0);
+        expect(p.stock).toBe(0);
       }
     });
 

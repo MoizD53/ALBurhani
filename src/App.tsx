@@ -1254,7 +1254,15 @@ export function App() {
     }
   };
 
-  const handleUpdateStock = async (productId: string, newStock: number): Promise<boolean> => {
+  const handleUpdateStock = async (
+    productId: string, 
+    newStock: number, 
+    reason = 'Manual adjustment', 
+    actor = 'Admin'
+  ): Promise<boolean> => {
+    const prevProd = products.find(p => p.id === productId);
+    const prevStock = prevProd ? (prevProd.stock ?? 0) : 0;
+
     setProducts((prev) => {
       const updated = prev.map((p) => (p.id === productId ? { ...p, stock: newStock } : p));
       try {
@@ -1264,7 +1272,13 @@ export function App() {
     });
     invalidateProductsCache();
     try {
-      await updateStockOnTurso(productId, newStock);
+      await updateStockOnTurso(productId, newStock, reason, actor);
+      syncManager.broadcast({
+        entityType: 'product',
+        entityId: productId,
+        operation: 'stock',
+        payload: { productId, stock: newStock, previousStock: prevStock, reason, actor },
+      });
       return true;
     } catch (err) {
       console.warn('Background Turso stock update error:', err);
@@ -1551,18 +1565,40 @@ export function App() {
         return next;
       });
 
-      // 2. Instant inward stock addition for all purchased products in catalog
+      // 2. Inward stock addition with duplicate prevention and delta calculation
       if (billWithBranch.items && billWithBranch.items.length > 0) {
+        const existingBill = purchaseBills.find((b) => b.id === billWithBranch.id);
+        const oldQtyMap: Record<string, number> = {};
+        if (existingBill && Array.isArray(existingBill.items)) {
+          for (const item of existingBill.items) {
+            const key = item.productId || item.productName.trim().toLowerCase();
+            oldQtyMap[key] = (oldQtyMap[key] || 0) + Number(item.quantity || 0);
+          }
+        }
+
+        const newQtyMap: Record<string, number> = {};
+        for (const item of billWithBranch.items) {
+          const key = item.productId || item.productName.trim().toLowerCase();
+          newQtyMap[key] = (newQtyMap[key] || 0) + Number(item.quantity || 0);
+        }
+
         setProducts((prev) => {
           let updated = [...prev];
           for (const item of billWithBranch.items) {
+            const key = item.productId || item.productName.trim().toLowerCase();
+            const oldQty = oldQtyMap[key] || 0;
+            const newQty = newQtyMap[key] || 0;
+            const delta = newQty - oldQty;
+
             const matchedIdx = updated.findIndex((p) => (item.productId && p.id === item.productId) || p.name.trim().toLowerCase() === item.productName.trim().toLowerCase());
             if (matchedIdx >= 0) {
-              updated[matchedIdx] = {
-                ...updated[matchedIdx],
-                stock: (updated[matchedIdx].stock || 0) + Number(item.quantity || 0),
-                costPrice: Number(item.unitPrice) > 0 ? Number(item.unitPrice) : updated[matchedIdx].costPrice,
-              };
+              if (delta !== 0) {
+                updated[matchedIdx] = {
+                  ...updated[matchedIdx],
+                  stock: (updated[matchedIdx].stock || 0) + delta,
+                  costPrice: Number(item.unitPrice) > 0 ? Number(item.unitPrice) : updated[matchedIdx].costPrice,
+                };
+              }
             } else {
               const newP: Product = {
                 id: item.productId || `prod-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -1639,6 +1675,12 @@ export function App() {
 
   const handleCancelPurchaseBill = async (billId: string): Promise<boolean> => {
     try {
+      const cancelledBill = purchaseBills.find((b) => b.id === billId);
+      if (!cancelledBill || cancelledBill.status === 'Cancelled') {
+        // Prevent duplicate stock reversals if bill is already cancelled
+        return true;
+      }
+
       // 1. Instant local update
       setPurchaseBills((prev) => {
         const next = prev.map((b) => (b.id === billId ? { ...b, status: 'Cancelled' as const } : b));
@@ -1650,14 +1692,13 @@ export function App() {
         return next;
       });
 
-      // 2. Instant inward stock reversal locally
-      const cancelledBill = purchaseBills.find((b) => b.id === billId);
-      if (cancelledBill && cancelledBill.items && cancelledBill.items.length > 0) {
+      // 2. Instant inward stock reversal locally (permits negative stock if sold)
+      if (cancelledBill.items && cancelledBill.items.length > 0) {
         setProducts((prev) => {
           const updated = prev.map((p) => {
             const matched = cancelledBill.items.find((item) => item.productId === p.id);
             if (!matched) return p;
-            return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
+            return { ...p, stock: (p.stock || 0) - Number(matched.quantity || 0) };
           });
           if (typeof window !== 'undefined') {
             try {
@@ -1692,13 +1733,13 @@ export function App() {
         return next;
       });
 
-      // 2. Instant stock reversal locally if not already cancelled
+      // 2. Instant stock reversal locally if not already cancelled (permits negative stock)
       if (billToDelete && billToDelete.items && billToDelete.items.length > 0 && billToDelete.status !== 'Cancelled') {
         setProducts((prev) => {
           const updated = prev.map((p) => {
             const matched = billToDelete.items.find((item) => item.productId === p.id);
             if (!matched) return p;
-            return { ...p, stock: Math.max(0, (p.stock || 0) - Number(matched.quantity || 0)) };
+            return { ...p, stock: (p.stock || 0) - Number(matched.quantity || 0) };
           });
           if (typeof window !== 'undefined') {
             try {
@@ -1937,6 +1978,7 @@ export function App() {
               onUpdateProduct={handleUpdateProduct}
               onDeleteProduct={handleDeleteProduct}
               onUpdateStock={handleUpdateStock}
+              actingUser="Admin"
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}

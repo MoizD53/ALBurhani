@@ -324,7 +324,12 @@ export async function batchSaveProductsToTurso(products: Product[]): Promise<boo
   }
 }
 
-export async function updateStockOnTurso(productId: string, newStock: number): Promise<boolean> {
+export async function updateStockOnTurso(
+  productId: string, 
+  newStock: number, 
+  reason = 'Manual adjustment', 
+  actor = 'Admin'
+): Promise<boolean> {
   invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
@@ -338,6 +343,8 @@ export async function updateStockOnTurso(productId: string, newStock: number): P
         payload: {
           productId,
           stock: newStock,
+          reason,
+          actor,
         },
       }),
     });
