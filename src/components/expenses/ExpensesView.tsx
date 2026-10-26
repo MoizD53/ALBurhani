@@ -545,7 +545,6 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Packaging Box Batch, Commercial Electricity Bill"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"
@@ -608,7 +607,6 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Electric Company, Landlord"
                     value={paidTo}
                     onChange={(e) => setPaidTo(e.target.value)}
                     className="w-full text-xs py-2 px-3 bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:ring-1 focus:ring-[#C99A18] focus:outline-none shadow-sm"

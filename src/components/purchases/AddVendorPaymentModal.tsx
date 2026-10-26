@@ -167,7 +167,6 @@ export const AddVendorPaymentModal: React.FC<AddVendorPaymentModalProps> = ({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. UPI Ref #439281, partial settlement"
               className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 focus:bg-white focus:border-[#C99A18] focus:outline-none"
             />
           </div>

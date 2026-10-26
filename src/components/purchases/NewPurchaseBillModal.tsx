@@ -494,7 +494,6 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
                     setShowVendorSuggestions(true);
                   }}
                   onFocus={() => setShowVendorSuggestions(true)}
-                  placeholder="e.g. Ramesh Dry Fruits Traders"
                   className="w-full px-3 py-2 text-xs bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:outline-none font-semibold"
                 />
 
@@ -527,7 +526,6 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
                   type="text"
                   value={vendorContact}
                   onChange={(e) => setVendorContact(e.target.value)}
-                  placeholder="e.g. 9876543210"
                   className="w-full px-3 py-2 text-xs bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:outline-none font-mono"
                 />
               </div>
@@ -556,7 +554,6 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
                   type="text"
                   value={vendorInvoiceNumber}
                   onChange={(e) => setVendorInvoiceNumber(e.target.value)}
-                  placeholder="e.g. INV-2026-9924"
                   className="w-full px-3 py-2 text-xs bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:outline-none font-mono"
                 />
               </div>
@@ -569,7 +566,6 @@ export const NewPurchaseBillModal: React.FC<NewPurchaseBillModalProps> = ({
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Premium quality almonds, batch Oct-26"
                   className="w-full px-3 py-2 text-xs bg-white border border-[#E8DEC8] rounded-xl text-stone-900 focus:border-[#C99A18] focus:outline-none"
                 />
               </div>
