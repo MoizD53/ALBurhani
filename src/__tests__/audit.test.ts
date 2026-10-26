@@ -51,11 +51,11 @@ describe('AL-BURHANI Comprehensive Product & POS Audit', () => {
 
     it('flags items with 0 price for manual review without throwing unhandled exceptions', () => {
       const zeroPrices = IMPORTED_PRODUCTS.filter((p) => p.sellingPrice === 0);
-      // As verified in Excel row 51 and 65, exactly 2 items had sale price 0 in original spreadsheet:
-      // MIX COOKIES MC (65903137346) and SUBHAN PISTA BISCUITS 200 GRAM SPB (39969993000)
-      expect(zeroPrices.length).toBe(2);
+      // In authoritative Excel 27-10-2026, exactly 3 items have selling price 0:
+      // MIX COOKIES MC (65903137346), SUBHAN PISTA BISCUITS 200 GRAM SPB (39969993000), and DCUBE JUVAR PUFF PUDINA CHESSY (38674197464)
+      expect(zeroPrices.length).toBe(3);
       expect(zeroPrices.map((p) => p.name)).toEqual(
-        expect.arrayContaining(['MIX COOKIES MC', 'SUBHAN PISTA BISCUITS 200 GRAM SPB'])
+        expect.arrayContaining(['MIX COOKIES MC', 'SUBHAN PISTA BISCUITS 200 GRAM SPB', 'DCUBE JUVAR PUFF PUDINA CHESSY'])
       );
     });
 
@@ -107,7 +107,7 @@ describe('AL-BURHANI Comprehensive Product & POS Audit', () => {
       const matches = lookupProduct(IMPORTED_PRODUCTS, patra!.barcode);
       expect(matches.length).toBe(1);
       expect(matches[0].name).toBe('DRY PATRA DP');
-      expect(matches[0].sellingPrice).toBe(120);
+      expect(matches[0].sellingPrice).toBe(135);
     });
 
     it('simulates catalog click on every product and verifies exact product ID is preserved', () => {

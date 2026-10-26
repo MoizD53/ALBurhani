@@ -211,13 +211,13 @@ describe('AL-BURHANI POS Pricing & Quantity Calculations', () => {
   });
 
   // Test Requirement: Real Excel Import Verification
-  it('correctly maps all 304 products from al burhani stock - Copy.xlsx', () => {
-    expect(EXCEL_IMPORT_SUMMARY.totalRows).toBe(304);
-    expect(EXCEL_IMPORT_SUMMARY.importedCount).toBe(305);
-    expect(IMPORTED_PRODUCTS.length).toBeGreaterThanOrEqual(305);
-    expect(EXCEL_IMPORT_SUMMARY.weightItemsCount).toBe(98);
-    expect(EXCEL_IMPORT_SUMMARY.pieceItemsCount).toBe(207);
-    expect(EXCEL_IMPORT_SUMMARY.withOriginalBarcodes).toBe(292);
+  it('correctly maps all 342 products from al burhani new stock 27-10-2026.xlsx', () => {
+    expect(EXCEL_IMPORT_SUMMARY.totalRows).toBe(343);
+    expect(EXCEL_IMPORT_SUMMARY.importedCount).toBe(342);
+    expect(IMPORTED_PRODUCTS.length).toBe(342);
+    expect(EXCEL_IMPORT_SUMMARY.weightItemsCount).toBe(111);
+    expect(EXCEL_IMPORT_SUMMARY.pieceItemsCount).toBe(231);
+    expect(EXCEL_IMPORT_SUMMARY.withOriginalBarcodes).toBe(342);
     expect(EXCEL_IMPORT_SUMMARY.duplicatesFound).toBe(0);
 
     // Verify barcode scanner lookup on real Excel barcodes
@@ -307,7 +307,7 @@ describe('AL-BURHANI POS Pricing & Quantity Calculations', () => {
       const patra = IMPORTED_PRODUCTS.find((p) => p.name.includes('DRY PATRA'));
       expect(patra).toBeDefined();
       expect(patra?.barcode).not.toBe('0001');
-      expect(patra?.sellingPrice).toBe(120);
+      expect(patra?.sellingPrice).toBe(135);
 
       const patraLookup = lookupProduct(IMPORTED_PRODUCTS, patra!.barcode);
       expect(patraLookup.length).toBe(1);

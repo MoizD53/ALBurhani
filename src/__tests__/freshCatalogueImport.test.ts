@@ -56,10 +56,10 @@ describe('Fresh Catalogue Import & Validation', () => {
     expect(stat.size).toBeGreaterThan(1000);
   });
 
-  it('2. Contains all validated products (338 products)', () => {
+  it('2. Contains all validated products (342 products)', () => {
     const content = fs.readFileSync(csvPath, 'utf8');
     const products = parseCsv(content);
-    expect(products.length).toBe(338);
+    expect(products.length).toBe(342);
   });
 
   it('3. Every product has unique primary ID and valid barcode', () => {
@@ -85,7 +85,7 @@ describe('Fresh Catalogue Import & Validation', () => {
       expect(Number(p.sellingPrice)).toBeGreaterThanOrEqual(0);
     }
 
-    expect(ids.size).toBe(338);
+    expect(ids.size).toBe(342);
     expect(barcodes.size).toBeGreaterThanOrEqual(305);
   });
 
@@ -111,14 +111,14 @@ describe('Fresh Catalogue Import & Validation', () => {
     for (const p of products) {
       dbTable.set(p.id, { ...p, updated_at: 'first_run' });
     }
-    expect(dbTable.size).toBe(338);
+    expect(dbTable.size).toBe(342);
 
     // 2nd run (idempotent repeated import)
     for (const p of products) {
       dbTable.set(p.id, { ...p, updated_at: 'second_run' });
     }
-    // Size remains strictly 338 with zero duplicates
-    expect(dbTable.size).toBe(338);
+    // Size remains strictly 342 with zero duplicates
+    expect(dbTable.size).toBe(342);
     expect(dbTable.get('alb-0001').updated_at).toBe('second_run');
   });
 });

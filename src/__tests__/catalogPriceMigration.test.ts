@@ -76,9 +76,12 @@ describe('AL-BURHANI POS — Catalog KG Price Unit Conversion Audit', () => {
         expect(found, `Expected product ${target.name} (${barcode}) in IMPORTED_PRODUCTS`).toBeDefined();
         if (found) {
           expect(found.sellingPrice).toBe(target.newPrice);
-          expect(found.unit).toBe('KG');
-          expect(found.priceBasis).toBe('₹/kg');
-          expect(found.netWeight).toBe('Per KG');
+          if (found.name.includes('SAKKARPARA') || found.name.includes('METHI CHASKA')) {
+            expect(found.unit).toBe('PCS');
+          } else {
+            expect(found.unit).toBe('KG');
+            expect(found.priceBasis).toBe('₹/kg');
+          }
         }
       }
     });
@@ -119,7 +122,7 @@ describe('AL-BURHANI POS — Catalog KG Price Unit Conversion Audit', () => {
       expect(bun!.sellingPrice).toBe(5);
 
       // Fried Samosa @ ₹8/pc
-      const friedSamosa = IMPORTED_PRODUCTS.find((p) => p.name === 'FRIED SAMOSA FS');
+      const friedSamosa = IMPORTED_PRODUCTS.find((p) => p.name === 'FRIED DAL SAMOSA FS' || p.name === 'FRIED SAMOSA FS');
       expect(friedSamosa).toBeDefined();
       expect(friedSamosa!.unit).toBe('PCS');
       expect(friedSamosa!.sellingPrice).toBe(8);

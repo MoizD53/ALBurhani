@@ -9,6 +9,7 @@ import {
   X, 
   Tag, 
   AlertTriangle, 
+  AlertCircle,
   Download, 
   CheckCircle2, 
   Filter,
@@ -101,6 +102,11 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   const [sellingPrice, setSellingPrice] = useState<number>(100);
   const [mrp, setMrp] = useState<number>(100);
   const [priceTiers, setPriceTiers] = useState<{ minQuantity: number; price: number }[]>([]);
+  const [costPrice, setCostPrice] = useState<number | string>(0);
+  const [minStock, setMinStock] = useState<number | string>(5);
+  const [isActiveStatus, setIsActiveStatus] = useState<boolean>(true);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Category Quick Add Modal (inside Product form)
   const [isQuickCategoryModalOpen, setIsQuickCategoryModalOpen] = useState(false);
@@ -137,6 +143,10 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setSellingPrice(100);
     setMrp(100);
     setStock(0);
+    setCostPrice(0);
+    setMinStock(5);
+    setIsActiveStatus(true);
+    setFormError(null);
     setPriceTiers([]);
     setIsProductModalOpen(true);
   };
@@ -161,40 +171,89 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
     setSellingPrice(product.sellingPrice);
     setMrp(product.mrp || product.sellingPrice);
     setStock(product.stock ?? 0);
+    setCostPrice(product.costPrice ?? 0);
+    setMinStock(product.minStock ?? 5);
+    setIsActiveStatus(product.isActive !== false);
+    setFormError(null);
     setPriceTiers(product.priceTiers || []);
     setIsProductModalOpen(true);
   };
 
-  // Save Product
+  // Save Product with validation and duplicate checks
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !sku.trim() || !barcode.trim()) return;
+    setFormError(null);
+
+    const cleanName = name.trim();
+    const cleanSku = sku.trim();
+    const cleanBarcode = barcode.trim();
+
+    if (!cleanName) {
+      setFormError('Product Name is required.');
+      return;
+    }
+    if (!cleanSku) {
+      setFormError('SKU / Code is required.');
+      return;
+    }
+    if (!cleanBarcode) {
+      setFormError('Barcode Number is required.');
+      return;
+    }
+
+    const numSellingPrice = Number(sellingPrice);
+    if (isNaN(numSellingPrice) || numSellingPrice < 0) {
+      setFormError('Selling Price must be a valid non-negative number.');
+      return;
+    }
+
+    // Duplicate SKU check
+    const dupSku = products.find(
+      (p) => p.id !== editingProduct?.id && p.sku.trim().toLowerCase() === cleanSku.toLowerCase()
+    );
+    if (dupSku) {
+      setFormError(`SKU "${cleanSku}" is already assigned to "${dupSku.name}". Each product must have a unique SKU.`);
+      return;
+    }
+
+    // Duplicate Barcode check
+    const dupBc = products.find(
+      (p) => p.id !== editingProduct?.id && p.barcode.trim() === cleanBarcode
+    );
+    if (dupBc) {
+      setFormError(`Barcode "${cleanBarcode}" is already assigned to "${dupBc.name}". Each product must have a unique Barcode.`);
+      return;
+    }
 
     const isWeight = unit === 'KG';
     const priceBasis = isWeight ? 'Rs./kg' : 'Rs./pc';
 
     const productPayload: Product = {
       id: editingProduct ? editingProduct.id : Date.now().toString(),
-      name: name.trim(),
-      sku: sku.trim(),
-      barcode: barcode.trim(),
+      name: cleanName,
+      sku: cleanSku,
+      barcode: cleanBarcode,
       category: productCategory,
       unit,
       priceBasis,
-      costPrice: editingProduct?.costPrice ?? 0,
-      sellingPrice: Number(sellingPrice) || 0,
-      mrp: Number(mrp) || Number(sellingPrice),
+      costPrice: Number(costPrice) || 0,
+      sellingPrice: numSellingPrice,
+      mrp: Number(mrp) || numSellingPrice,
       taxRate: editingProduct?.taxRate ?? 5,
       stock: Number(stock) || 0,
-      isActive: editingProduct ? (editingProduct.isActive ?? true) : true,
+      minStock: Number(minStock) || 0,
+      isActive: isActiveStatus,
       priceTiers: priceTiers.filter((t) => t.minQuantity > 0 && t.price > 0),
     };
 
     if (editingProduct) {
       onUpdateProduct(productPayload);
+      setFeedback({ type: 'success', message: `Product "${cleanName}" updated successfully.` });
     } else {
       onAddProduct(productPayload);
+      setFeedback({ type: 'success', message: `Product "${cleanName}" added successfully.` });
     }
+    setTimeout(() => setFeedback(null), 4000);
     setIsProductModalOpen(false);
   };
 
@@ -928,6 +987,12 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
 
             {/* Form */}
             <form onSubmit={handleSaveProduct} className="p-5 space-y-3.5 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              {formError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                  <span className="font-semibold">{formError}</span>
+                </div>
+              )}
               
               {/* Product Name */}
               <div>
@@ -1088,6 +1153,53 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                     className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-mono font-bold focus:bg-white focus:border-[#C99A18] focus:outline-none"
                     placeholder="0"
                   />
+                </div>
+              </div>
+
+              {/* Cost Price, Min Stock Alert, and Status Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">
+                    Cost Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={costPrice}
+                    onChange={(e) => setCostPrice(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-mono focus:bg-white focus:border-[#C99A18] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">
+                    Min Stock Alert
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={minStock}
+                    onChange={(e) => setMinStock(parseFloat(e.target.value) || 0)}
+                    placeholder="5"
+                    className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-mono focus:bg-white focus:border-[#C99A18] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">
+                    Catalog Status
+                  </label>
+                  <select
+                    value={isActiveStatus ? 'active' : 'inactive'}
+                    onChange={(e) => setIsActiveStatus(e.target.value === 'active')}
+                    className="w-full px-3 py-2 text-xs bg-[#FAF8F5] border border-[#E8DEC8] rounded-xl text-stone-900 font-bold focus:bg-white focus:border-[#C99A18] focus:outline-none"
+                  >
+                    <option value="active">Active (Available)</option>
+                    <option value="inactive">Inactive (Discontinued)</option>
+                  </select>
                 </div>
               </div>
 

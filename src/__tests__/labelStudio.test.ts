@@ -238,4 +238,41 @@ describe('AL-BURHANI POS — Label Studio Specification & Verification', () => {
       expect(baseDims.printScale).toBe(100);
     });
   });
+
+  describe('6. Exact Barcode String Preservation & SKU on Every Label', () => {
+    it('verifies every label data item contains SKU, exact barcode as string, and product name', () => {
+      const testItem = mockProducts[0]; // Kaju Katli (SKU: '0001', Barcode: '0001')
+      expect(typeof testItem.barcode).toBe('string');
+      expect(testItem.barcode).toBe('0001'); // Not converted to number 1
+      expect(testItem.sku).toBe('0001');
+
+      // Expanded label payload must include SKU
+      const labelPayload = {
+        productId: testItem.id,
+        productName: testItem.name,
+        sku: testItem.sku,
+        barcode: testItem.barcode,
+        sellingPrice: testItem.sellingPrice,
+      };
+
+      expect(labelPayload.sku).toBe('0001');
+      expect(labelPayload.barcode).toBe('0001');
+      expect(labelPayload.productName).toBe('KAJU KATLI 250G');
+    });
+
+    it('preserves label dimensions strictly without changing width, height, or paper geometry', () => {
+      // Dimensions must remain exact
+      const p24 = PRESETS['technova-24l-canon'].dims;
+      expect(p24.labelWidthMm).toBe(64);
+      expect(p24.labelHeightMm).toBe(34);
+      expect(p24.columns).toBe(3);
+      expect(p24.rows).toBe(8);
+
+      const p48 = PRESETS['technova-48l-canon'].dims;
+      expect(p48.labelWidthMm).toBe(48);
+      expect(p48.labelHeightMm).toBe(24);
+      expect(p48.columns).toBe(4);
+      expect(p48.rows).toBe(12);
+    });
+  });
 });

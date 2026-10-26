@@ -119,8 +119,16 @@ export const BarcodeLabelItem: React.FC<BarcodeLabelItemProps> = ({
         )}
       </div>
 
-      {/* 4. MRP / Selling Price (Prominent Jet Black Bold) */}
-      <div className="w-full text-center shrink-0 leading-none my-0.5">
+      {/* 4. SKU & MRP Row (Prominent Jet Black Bold, SKU on every label) */}
+      <div className="w-full flex justify-between items-center px-1 shrink-0 leading-none my-0.5">
+        <span
+          style={{ color: '#000000' }}
+          className={`font-bold font-mono text-black leading-none ${
+            isCompact ? 'text-[6.5px]' : 'text-[8px]'
+          }`}
+        >
+          SKU: {product.sku}
+        </span>
         <span
           style={{ color: '#000000' }}
           className={`font-black font-mono text-black leading-none ${

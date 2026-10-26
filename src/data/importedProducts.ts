@@ -15,12 +15,12 @@ export interface ImportSummary {
 }
 
 export const EXCEL_IMPORT_SUMMARY: ImportSummary = {
-  fileName: 'al burhani stock - Copy.xlsx',
-  totalRows: 304,
-  importedCount: 305,
-  weightItemsCount: 98,
-  pieceItemsCount: 207,
-  withOriginalBarcodes: 292,
-  generatedBarcodesCount: 13,
+  fileName: 'al burhani new stock 27-10-2026.xlsx',
+  totalRows: 343,
+  importedCount: 342,
+  weightItemsCount: 111,
+  pieceItemsCount: 231,
+  withOriginalBarcodes: 342,
+  generatedBarcodesCount: 0,
   duplicatesFound: 0,
 };
