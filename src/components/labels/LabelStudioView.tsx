@@ -506,9 +506,6 @@ export const LabelStudioView: React.FC<LabelStudioViewProps> = ({ products }) =>
                   Admin Only
                 </span>
               </h2>
-              <p className="text-xs text-zinc-400">
-                NovaJet MPL A4 sticker sheet formatting (24L & 48L) with calibrated physical margins.
-              </p>
             </div>
           </div>
         </div>

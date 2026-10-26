@@ -260,7 +260,6 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
       <BillingPageHeader
         icon={FileText}
         title="Customer Tax Invoices"
-        subtitle="Formal customer billing records with 5% GST compliance, bill modification, and thermal reprint"
         badge={{ text: 'With GST (5%)', variant: 'gold' }}
         actions={
           <div className="flex items-center gap-2">
@@ -435,44 +434,13 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPendingDeleteInvoice(pendingDeleteInvoice?.id === b.id ? null : b);
+                        setPendingDeleteInvoice(b);
                       }}
                       className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
                       aria-label={`Delete Bill #${resolveDailyBillNumber(b, customerBills)}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-
-                    {pendingDeleteInvoice?.id === b.id && (
-                      <div
-                        className="absolute right-0 bottom-full mb-2 z-50 w-56 p-3 bg-white border border-[#E8DEC8] rounded-2xl shadow-2xl animate-fade-in text-left select-none"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 mb-1">
-                          <Trash2 className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                          <span>Delete Bill #{resolveDailyBillNumber(b, customerBills)}?</span>
-                        </div>
-                        <p className="text-[11px] text-stone-600 mb-2">
-                          Total: <strong className="font-mono text-stone-900 font-bold">Rs. {b.grandTotal.toFixed(2)}</strong>
-                        </p>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setPendingDeleteInvoice(null)}
-                            className="px-2.5 py-1 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteDelete(b)}
-                            className="px-3 py-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -623,7 +591,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setPendingDeleteInvoice(pendingDeleteInvoice?.id === b.id ? null : b);
+                            setPendingDeleteInvoice(b);
                           }}
                           className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50 cursor-pointer"
                           title={`Delete Bill #${resolveDailyBillNumber(b, customerBills)}`}
@@ -631,37 +599,6 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-
-                        {pendingDeleteInvoice?.id === b.id && (
-                          <div
-                            className="absolute right-0 bottom-full mb-1.5 z-50 w-56 p-3 bg-white border border-[#E8DEC8] rounded-2xl shadow-2xl animate-fade-in text-left select-none"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 mb-1">
-                              <Trash2 className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                              <span>Delete Bill #{resolveDailyBillNumber(b, customerBills)}?</span>
-                            </div>
-                            <p className="text-[11px] text-stone-600 mb-2">
-                              Total: <strong className="font-mono text-stone-900 font-bold">Rs. {b.grandTotal.toFixed(2)}</strong>
-                            </p>
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => setPendingDeleteInvoice(null)}
-                                className="px-2.5 py-1 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleExecuteDelete(b)}
-                                className="px-3 py-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all cursor-pointer"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </td>
                   )}
@@ -683,11 +620,16 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         />
       )}
 
-      {/* Backdrop for closing inline popover */}
+      {/* 7. Delete Confirmation Modal */}
       {pendingDeleteInvoice && (
-        <div
-          className="fixed inset-0 z-40 bg-transparent"
-          onClick={() => setPendingDeleteInvoice(null)}
+        <DeleteInvoiceModal
+          isOpen={Boolean(pendingDeleteInvoice)}
+          invoiceNumber={`Bill #${resolveDailyBillNumber(pendingDeleteInvoice, customerBills)}`}
+          amount={pendingDeleteInvoice.grandTotal}
+          onConfirm={() => handleExecuteDelete(pendingDeleteInvoice)}
+          onCancel={() => setPendingDeleteInvoice(null)}
+          title="Delete Customer Bill"
+          isNoBill={false}
         />
       )}
 

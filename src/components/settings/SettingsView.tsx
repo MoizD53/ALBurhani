@@ -149,9 +149,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <Settings className="w-5 h-5 text-[#B8860B]" />
           <span>System Settings & Hardware Diagnostics</span>
         </h2>
-        <p className="text-xs text-stone-500 mt-0.5">
-          Store parameters and hardware scanner bench diagnostics
-        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

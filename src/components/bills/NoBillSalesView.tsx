@@ -270,9 +270,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
       {/* 1. Standardized Page Header */}
       <BillingPageHeader
         icon={ReceiptText}
-        title="No-Bill Counter Sales Audit"
-        subtitle="Internal recorded sales without customer tax invoice · Direct counter billing · 0% GST"
-        badge={{ text: 'Without GST (0%)', variant: 'zinc' }}
+        title="Sales Bills"
         actions={
           <div className="flex items-center gap-2">
             <button
@@ -458,44 +456,13 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPendingDeleteSale(pendingDeleteSale?.id === s.id ? null : s);
+                        setPendingDeleteSale(s);
                       }}
                       className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
                       aria-label={`Delete Bill #${resolveDailyBillNumber(s, noBillSales)}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-
-                    {pendingDeleteSale?.id === s.id && (
-                      <div
-                        className="absolute right-0 bottom-full mb-2 z-50 w-56 p-3 bg-white border border-[#E8DEC8] rounded-2xl shadow-2xl animate-fade-in text-left select-none"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 mb-1">
-                          <Trash2 className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                          <span>Delete Bill #{resolveDailyBillNumber(s, noBillSales)}?</span>
-                        </div>
-                        <p className="text-[11px] text-stone-600 mb-2">
-                          Total: <strong className="font-mono text-stone-900 font-bold">Rs. {s.grandTotal.toFixed(2)}</strong>
-                        </p>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setPendingDeleteSale(null)}
-                            className="px-2.5 py-1 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleExecuteDelete(s)}
-                            className="px-3 py-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -649,51 +616,18 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
                               </button>
                             )}
                             {onDeleteOrder && (
-                              <div className="relative inline-block text-left">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPendingDeleteSale(pendingDeleteSale?.id === s.id ? null : s);
-                                  }}
-                                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50 cursor-pointer"
-                                  title={`Delete Bill #${resolveDailyBillNumber(s, noBillSales)}`}
-                                  aria-label={`Delete Bill #${resolveDailyBillNumber(s, noBillSales)}`}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-
-                                {pendingDeleteSale?.id === s.id && (
-                                  <div
-                                    className="absolute right-0 bottom-full mb-1.5 z-50 w-56 p-3 bg-white border border-[#E8DEC8] rounded-2xl shadow-2xl animate-fade-in text-left select-none"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 mb-1">
-                                      <Trash2 className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                                      <span>Delete Bill #{resolveDailyBillNumber(s, noBillSales)}?</span>
-                                    </div>
-                                    <p className="text-[11px] text-stone-600 mb-2">
-                                      Total: <strong className="font-mono text-stone-900 font-bold">Rs. {s.grandTotal.toFixed(2)}</strong>
-                                    </p>
-                                    <div className="flex items-center justify-end gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => setPendingDeleteSale(null)}
-                                        className="px-2.5 py-1 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleExecuteDelete(s)}
-                                        className="px-3 py-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:scale-95 rounded-lg shadow-sm transition-all cursor-pointer"
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendingDeleteSale(s);
+                                }}
+                                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50 cursor-pointer"
+                                title={`Delete Bill #${resolveDailyBillNumber(s, noBillSales)}`}
+                                aria-label={`Delete Bill #${resolveDailyBillNumber(s, noBillSales)}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             )}
                           </div>
                         </td>
@@ -751,11 +685,16 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         />
       )}
 
-      {/* Backdrop for closing inline popover */}
+      {/* 7. Delete Confirmation Modal */}
       {pendingDeleteSale && (
-        <div
-          className="fixed inset-0 z-40 bg-transparent"
-          onClick={() => setPendingDeleteSale(null)}
+        <DeleteInvoiceModal
+          isOpen={Boolean(pendingDeleteSale)}
+          invoiceNumber={`Bill #${resolveDailyBillNumber(pendingDeleteSale, noBillSales)}`}
+          amount={pendingDeleteSale.grandTotal}
+          onConfirm={() => handleExecuteDelete(pendingDeleteSale)}
+          onCancel={() => setPendingDeleteSale(null)}
+          title="Delete Sales Bill"
+          isNoBill={true}
         />
       )}
 

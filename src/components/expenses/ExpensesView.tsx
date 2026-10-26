@@ -225,9 +225,6 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
             <TrendingDown className="w-5 h-5 text-rose-600" />
             <span>Store Outflows & Expense Management</span>
           </h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Operating expenses, staff wages, utilities, and automatic supplier inward procurement
-          </p>
         </div>
 
         <div className="flex items-center gap-2">

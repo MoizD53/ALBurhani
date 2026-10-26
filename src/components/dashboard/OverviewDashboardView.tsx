@@ -195,7 +195,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             Dashboard
           </h1>
           <p className="text-[11px] font-bold tracking-[0.22em] text-[#A67D0C] uppercase mt-1">
-            EXECUTIVE OVERVIEW • {todayFormatted}
+            {todayFormatted}
           </p>
         </div>
 

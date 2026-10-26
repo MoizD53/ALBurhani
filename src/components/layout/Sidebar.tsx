@@ -15,8 +15,7 @@ import {
   Tag,
   ClipboardList,
   Layers,
-  Truck,
-  Globe
+  Truck
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 
@@ -66,8 +65,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: ShoppingBag,
     },
     {
+      id: 'product-management' as ActiveTab,
+      label: 'Product Management',
+      icon: Layers,
+    },
+    {
       id: 'no-bill-sales' as ActiveTab,
-      label: 'Bills / Counter Sales',
+      label: 'Sales Bills',
       icon: ReceiptText,
     },
     {
@@ -81,19 +85,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: ClipboardList,
     },
     {
-      id: 'product-management' as ActiveTab,
-      label: 'Product Management',
-      icon: Layers,
+      id: 'label-studio' as ActiveTab,
+      label: 'Label Studio',
+      icon: Tag,
     },
-    ...(currentUser.role === 'Owner'
-      ? [
-          {
-            id: 'label-studio' as ActiveTab,
-            label: 'Label Studio',
-            icon: Tag,
-          },
-        ]
-      : []),
     {
       id: 'expenses' as ActiveTab,
       label: 'Expenses',
@@ -246,20 +241,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Public Website Shortcut */}
-        {onViewPublicWebsite && (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={onViewPublicWebsite}
-              className={`w-full py-1.5 ${showLabels ? 'px-2.5 justify-start gap-2' : 'px-0 justify-center'} rounded-lg text-stone-600 hover:text-stone-900 hover:bg-[#FAF8F5] transition-colors flex items-center text-xs font-semibold cursor-pointer`}
-              title="View Public Website"
-            >
-              <Globe className="w-3.5 h-3.5 shrink-0 text-[#C99A18]" />
-              {showLabels && <span className="text-[11px] truncate">Public Website ↗</span>}
-            </button>
-          </div>
-        )}
 
         {/* Desktop Sidebar Collapse Toggle */}
         <div className="hidden lg:block pt-0.5">

@@ -1305,7 +1305,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
                 title="Hold current cart and open a new bill (+ Add Bill)"
               >
                 <Plus className="w-3 h-3 stroke-[2.5]" />
-                <span>+ Add Bill</span>
+                <span>Add Bill</span>
               </button>
             </div>
           )}

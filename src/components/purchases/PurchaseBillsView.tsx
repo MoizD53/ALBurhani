@@ -304,9 +304,6 @@ export const PurchaseBillsView: React.FC<PurchaseBillsViewProps> = ({
                 {purchaseBills.length} Bills
               </span>
             </div>
-            <p className="text-xs text-stone-500 font-medium">
-              Vendor procurement, inward inventory stock movements, and payables ledger
-            </p>
           </div>
         </div>
 

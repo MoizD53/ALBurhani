@@ -371,9 +371,6 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
             <ClipboardList className="w-6 h-6 text-[#B8860B]" />
             <span>Customer Orders & Advance Bookings</span>
           </h1>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Accept custom sweet boxes, dry fruit hampers, advance party bookings & scheduled deliveries
-          </p>
         </div>
 
         <button
@@ -381,7 +378,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
           className="btn-gold py-2.5 px-4 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md shrink-0"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>+ New Order</span>
+          <span>New Order</span>
         </button>
       </div>
 

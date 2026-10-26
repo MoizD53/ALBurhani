@@ -13,7 +13,7 @@ import { cleanBillNumber } from '../../lib/utils';
 interface BillingPageHeaderProps {
   icon: LucideIcon;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   badge?: {
     text: string;
     variant?: 'gold' | 'zinc' | 'emerald';
@@ -51,9 +51,11 @@ export const BillingPageHeader: React.FC<BillingPageHeaderProps> = ({
               </span>
             )}
           </div>
-          <p className="text-xs text-stone-500 mt-1 font-medium leading-normal">
-            {subtitle}
-          </p>
+          {subtitle && (
+            <p className="text-xs text-stone-500 mt-1 font-medium leading-normal">
+              {subtitle}
+            </p>
+          )}
         </div>
       </div>
       {actions && (
@@ -249,7 +251,7 @@ interface DeleteInvoiceModalProps {
   isOpen: boolean;
   invoiceNumber: string;
   amount: number;
-  isDeleting: boolean;
+  isDeleting?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   title?: string;
@@ -260,7 +262,7 @@ export const DeleteInvoiceModal: React.FC<DeleteInvoiceModalProps> = ({
   isOpen,
   invoiceNumber,
   amount,
-  isDeleting,
+  isDeleting = false,
   onConfirm,
   onCancel,
   title = 'Delete Invoice Entry',

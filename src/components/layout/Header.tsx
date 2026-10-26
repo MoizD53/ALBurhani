@@ -59,17 +59,17 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const tabTitles: Record<ActiveTab, { title: string; subtitle: string }> = {
-    'overview': { title: 'Dashboard', subtitle: 'Executive Overview' },
-    'pos': { title: 'POS Billing', subtitle: 'Barcode Scan & Rapid Checkout' },
-    'orders': { title: 'Customer Orders', subtitle: 'Advance Bookings & Scheduled Deliveries' },
-    'customer-bills': { title: 'Customer Bills', subtitle: 'Tax Invoices & Receipts History' },
-    'no-bill-sales': { title: 'No-Bill Sales', subtitle: 'Internal Counter Sales Records' },
-    'purchases': { title: 'Purchase Bills', subtitle: 'Vendor Procurement & Inward Stock' },
-    'product-management': { title: 'Product Management', subtitle: 'Categories & Item Master Setup' },
-    'label-studio': { title: 'Label Studio', subtitle: 'Barcode Label Designer & Multi-Label Sheet Printing' },
-    'expenses': { title: 'Expenses Tracker', subtitle: 'Daily Shop Operating Costs' },
-    'reports': { title: 'Reports & Analytics', subtitle: 'Financial Audit & Excel Exports' },
-    'settings': { title: 'Settings', subtitle: 'Hardware Diagnostics & Store Preferences' },
+    'overview': { title: 'Dashboard', subtitle: '' },
+    'pos': { title: 'POS Billing', subtitle: '' },
+    'orders': { title: 'Orders', subtitle: '' },
+    'customer-bills': { title: 'Customer Bills', subtitle: '' },
+    'no-bill-sales': { title: 'Sales Bills', subtitle: '' },
+    'purchases': { title: 'Purchase Bills', subtitle: '' },
+    'product-management': { title: 'Product Management', subtitle: '' },
+    'label-studio': { title: 'Label Studio', subtitle: '' },
+    'expenses': { title: 'Expenses', subtitle: '' },
+    'reports': { title: 'Reports', subtitle: '' },
+    'settings': { title: 'Settings', subtitle: '' },
   };
 
   const currentTabInfo = tabTitles[activeTab] || { title: 'AL-BURHANI POS', subtitle: 'Retail POS' };
@@ -124,10 +124,6 @@ export const Header: React.FC<HeaderProps> = ({
             <h2 className="text-sm font-bold text-[#1C1917] tracking-tight truncate font-serif">
               {currentTabInfo.title}
             </h2>
-            <span className="text-[#C99A18]">·</span>
-            <span className="text-xs text-stone-500 truncate">
-              {currentTabInfo.subtitle}
-            </span>
           </div>
         )}
       </div>

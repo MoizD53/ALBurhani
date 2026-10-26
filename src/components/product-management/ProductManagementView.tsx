@@ -482,9 +482,6 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
             <Layers className="w-6 h-6 text-[#B8860B]" />
             <span>Product & Category Management</span>
           </h1>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Configure product catalog, master item specifications, prices, barcodes and categories
-          </p>
         </div>
 
         {/* Sub-Tab Selector: Items / Products vs Categories */}

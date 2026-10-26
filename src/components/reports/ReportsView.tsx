@@ -153,9 +153,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <BarChart3 className="w-5 h-5 text-[#B8860B]" />
             <span>Store Reports & Export Engine</span>
           </h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Real data reconciliation with Excel (.xlsx) and CSV exports preserving leading zeroes
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -194,9 +191,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Report Type Navigation Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-[#E8DEC8]">
         {[
-          { id: 'combined-sales', label: 'Combined Sales Summary' },
-          { id: 'customer-bills', label: 'Customer Bills' },
-          { id: 'no-bill-sales', label: 'No-Bill Sales' },
+          { id: 'combined-sales', label: 'Sales Bills' },
           { id: 'product-sales', label: 'Product-Wise Sales' },
           { id: 'category-sales', label: 'Category-Wise Sales' },
           { id: 'payment-reconciliation', label: 'Payment Reconciliation' },
