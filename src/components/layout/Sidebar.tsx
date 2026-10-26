@@ -163,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Section Label */}
         {showLabels && (
           <div className="text-[10px] font-bold tracking-[0.22em] text-[#A67D0C] uppercase px-3 py-1.5">
-            NAVIGATION
+            MAIN MENU
           </div>
         )}
 
