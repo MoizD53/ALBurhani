@@ -883,16 +883,13 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
     }
   };
 
-  // Filter products by search query and category
+  // Filter products by search query (name only) and category
   const filteredProducts = products.filter((p) => {
     const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
     const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
-      p.name.toLowerCase().includes(q) ||
-      (p.sku && p.sku.toLowerCase().includes(q)) ||
-      (p.barcode && p.barcode.toLowerCase().includes(q)) ||
-      p.category.toLowerCase().includes(q);
+      p.name.toLowerCase().includes(q);
     return matchesCat && matchesSearch;
   });
 
@@ -1040,7 +1037,7 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search name or SKU..."
+                placeholder="Search product by name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
