@@ -553,7 +553,9 @@ export async function saveOrderToTurso(order: OrderBill): Promise<boolean> {
     const data = await res.json();
     if (data.success) {
       if (data.dailyBillNumber) order.dailyBillNumber = Number(data.dailyBillNumber);
+      if (data.billNumber) order.billNumber = String(data.billNumber);
       if (data.businessDate) order.businessDate = String(data.businessDate);
+      if (data.branch) order.branch = String(data.branch);
       return true;
     }
     return false;

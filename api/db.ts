@@ -847,22 +847,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Real-Time Event Sync: returns change events since given timestamp
+    // Real-Time Event Sync: returns change events since given monotonic ID or timestamp
     if (action === 'fetch-events') {
       try {
-        const since = Number(req.query.since || 0);
+        const sinceId = req.query.since_id !== undefined && req.query.since_id !== ''
+          ? Number(req.query.since_id)
+          : undefined;
+        const sinceTimestamp = Number(req.query.since || 0);
         const branch = req.query.branch as string | undefined;
-        let sql = `SELECT id, entity_type, entity_id, operation, payload_json, server_timestamp
-              FROM sync_events
-              WHERE server_timestamp > ?`;
-        const args: any[] = [since];
+
+        let sql: string;
+        const args: any[] = [];
+
+        if (sinceId !== undefined && !isNaN(sinceId) && sinceId >= 0) {
+          // Strictly monotonic cursor ordering by auto-increment ID
+          sql = `SELECT id, entity_type, entity_id, operation, payload_json, server_timestamp, branch
+                 FROM sync_events
+                 WHERE id > ?`;
+          args.push(sinceId);
+        } else {
+          // Backward compatibility fallback to server timestamp
+          sql = `SELECT id, entity_type, entity_id, operation, payload_json, server_timestamp, branch
+                 FROM sync_events
+                 WHERE server_timestamp > ?`;
+          args.push(sinceTimestamp);
+        }
 
         if (branch && branch !== 'ALL' && branch !== 'all') {
           sql += ` AND (branch = ? OR branch = 'all' OR branch IS NULL)`;
           args.push(branch);
         }
 
-        sql += ` ORDER BY server_timestamp ASC LIMIT 100;`;
+        sql += ` ORDER BY id ASC LIMIT 100;`;
 
         const result = await client.execute({
           sql,
@@ -876,11 +892,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           operation: String(r.operation),
           payload: r.payload_json ? JSON.parse(String(r.payload_json)) : null,
           serverTimestamp: Number(r.server_timestamp),
+          branch: r.branch ? String(r.branch) : 'all',
         }));
+
+        const latestEventId = events.length > 0
+          ? Math.max(...events.map((e) => e.id))
+          : (sinceId !== undefined && !isNaN(sinceId) ? sinceId : 0);
 
         return res.status(200).json({
           success: true,
           events,
+          latestEventId,
           serverTime: Date.now(),
         });
       } catch (err: any) {
@@ -1288,7 +1310,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Save Order (Single Sale or Modification with Atomic Daily Numbering)
+    // Save Order (Single Sale or Modification with Atomic Batch Transaction & Idempotency)
     if (action === 'save-order') {
       const o = payload;
       if (!o || !o.id || !o.billNumber) {
@@ -1308,63 +1330,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
         const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
         const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
-        let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
-        // Check existing order in DB to preserve its assigned daily number across revisions/retries
-        // Scoped strictly to same order ID or (same date + same branch + same bill number)
-        const existingOrder = await client.execute({
-          sql: 'SELECT id, daily_bill_number, business_date, branch FROM orders WHERE id = ? OR (business_date = ? AND branch = ? AND bill_number = ?) LIMIT 1;',
-          args: [o.id, istDate, branch, o.billNumber]
+        // Check if this exact order was already committed (Idempotency Key = o.id)
+        const existingOrderRes = await client.execute({
+          sql: 'SELECT id, bill_number, daily_bill_number, business_date, branch, is_revised, revision_count FROM orders WHERE id = ? LIMIT 1;',
+          args: [o.id]
         });
 
-        if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
-          dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
-        } else {
-          // Verify client-proposed daily bill number doesn't conflict with another order on same date & branch
-          let isConflict = false;
-          if (dailyBillNum > 0) {
-            const conflictCheck = await client.execute({
-              sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? LIMIT 1;',
-              args: [istDate, branch, dailyBillNum, o.id]
-            });
-            if (conflictCheck.rows.length > 0) {
-              isConflict = true;
-            }
-          }
+        const isExisting = existingOrderRes.rows.length > 0;
+        const existing = isExisting ? existingOrderRes.rows[0] : null;
 
-          if (!dailyBillNum || dailyBillNum <= 0 || isConflict) {
-            // Atomically allocate next sequential daily bill number
-            const maxOrderRes = await client.execute({
-              sql: 'SELECT MAX(daily_bill_number) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
-              args: [istDate, branch]
-            });
-            const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
+        // 1. Idempotent Retry Detection:
+        // If the order is already in the database and this is NOT an explicit revision,
+        // return 200 OK immediately without re-deducting stock or creating duplicate events.
+        const isExplicitRevision = Boolean(o.isRevised) || ((Number(o.revisionCount) || 0) > (Number(existing?.revision_count) || 0));
 
-            await client.execute({
-              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                    VALUES (?, ?)
-                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?) + 1;`,
-              args: [counterKey, Math.max(1, maxOrderNum + 1), maxOrderNum]
-            });
-            const counterRes = await client.execute({
-              sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-              args: [counterKey]
-            });
-            dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || (maxOrderNum + 1);
-          } else {
-            // Ensure counter tracks at least this bill number
-            await client.execute({
-              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                    VALUES (?, ?)
-                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?);`,
-              args: [counterKey, dailyBillNum, dailyBillNum]
-            });
-          }
+        if (isExisting && !isExplicitRevision) {
+          recordUsage(client, 'save-order:idempotent_retry', 1);
+          return res.status(200).json({
+            success: true,
+            alreadyCommitted: true,
+            dailyBillNumber: Number(existing!.daily_bill_number) || 1,
+            billNumber: String(existing!.bill_number),
+            businessDate: String(existing!.business_date || istDate),
+            branch: String(existing!.branch || branch)
+          });
         }
 
-        const finalBillNumber = (dailyBillNum > 0) ? `Bill #${dailyBillNum}` : o.billNumber;
+        let dailyBillNum = 1;
+        let finalBillNumber = o.billNumber;
 
-        await client.execute({
+        if (isExisting) {
+          // Keep established daily bill number for revisions
+          dailyBillNum = Number(existing!.daily_bill_number) || 1;
+          finalBillNumber = String(existing!.bill_number);
+        } else {
+          // Brand new order: sequentially allocate the next daily bill number for (business_date, branch)
+          const maxOrderRes = await client.execute({
+            sql: 'SELECT COALESCE(MAX(daily_bill_number), 0) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
+            args: [istDate, branch]
+          });
+          const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
+
+          const counterRes = await client.execute({
+            sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
+            args: [counterKey]
+          });
+          const counterNum = Number(counterRes.rows[0]?.last_bill_number) || 0;
+
+          dailyBillNum = Math.max(maxOrderNum, counterNum) + 1;
+          finalBillNumber = `Bill #${dailyBillNum}`;
+        }
+
+        const savedOrder = {
+          ...o,
+          billNumber: finalBillNumber,
+          businessDate: istDate,
+          dailyBillNumber: dailyBillNum,
+          branch
+        };
+
+        // Prepare atomic ACID batch transaction: Order + Counter + Stock + Movements + Audit + SyncEvent
+        const batchStatements: InStatement[] = [];
+
+        // Counter statement (ensures counter table tracks highest allocated bill)
+        batchStatements.push({
+          sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                VALUES (?, ?)
+                ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, excluded.last_bill_number);`,
+          args: [counterKey, dailyBillNum]
+        });
+
+        // Order statement
+        batchStatements.push({
           sql: `INSERT OR REPLACE INTO orders (
             id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
             payment_method, amount_received, change_given, customer_name, customer_phone, cashier_name, created_at,
@@ -1402,50 +1440,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             istDate,
             dailyBillNum,
             branch
-          ],
+          ]
         });
 
-        // Deduct inventory stock for sold items strictly for new orders (idempotent across retries)
-        const isNewOrder = existingOrder.rows.length === 0;
-        if (isNewOrder && Array.isArray(o.items) && o.items.length > 0) {
+        // Deduct inventory stock for sold items strictly for new orders
+        if (!isExisting && Array.isArray(o.items) && o.items.length > 0) {
           for (const it of o.items) {
             const qty = Number(it.quantity) || 0;
             if (qty > 0) {
               const prodId = it.product?.id || it.id || (it.productId ? String(it.productId) : null);
               const barcode = it.product?.barcode || (it.barcode ? String(it.barcode) : null);
               if (prodId || barcode) {
-                await client.execute({
+                batchStatements.push({
                   sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?);',
-                  args: [qty, prodId || '', barcode || ''],
+                  args: [qty, prodId || '', barcode || '']
                 });
-                await client.execute({
+                batchStatements.push({
                   sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
                         VALUES ((SELECT id FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1), 'SALE', ?, ?, ?, ?);`,
-                  args: [prodId || '', barcode || '', o.id, -qty, `Sale ${finalBillNumber} (-${qty})`, Date.now()],
+                  args: [prodId || '', barcode || '', o.id, -qty, `Sale ${finalBillNumber} (-${qty})`, Date.now()]
                 });
               }
             }
           }
         }
 
-        const savedOrder = {
-          ...o,
-          billNumber: finalBillNumber,
-          businessDate: istDate,
-          dailyBillNumber: dailyBillNum,
-          branch
-        };
-
-        await logFinancialAudit(client, 'RECORD_SALE', 'order', o.id, Number(o.grandTotal) || 0, o.paymentMethod || 'CASH', {
-          billNumber: finalBillNumber,
-          dailyBillNumber: dailyBillNum,
-          businessDate: istDate,
-          itemsCount: o.items?.length,
-          transactionType: o.transactionType
+        // Financial Audit Log statement
+        batchStatements.push({
+          sql: `INSERT INTO financial_audit_logs (action, entity_type, entity_id, amount, payment_method, details_json, actor, timestamp)
+                VALUES (?, 'order', ?, ?, ?, ?, ?, ?);`,
+          args: [
+            isExisting ? 'REVISE_SALE' : 'RECORD_SALE',
+            o.id,
+            Number(o.grandTotal) || 0,
+            o.paymentMethod || 'CASH',
+            JSON.stringify({
+              billNumber: finalBillNumber,
+              dailyBillNumber: dailyBillNum,
+              businessDate: istDate,
+              itemsCount: o.items?.length,
+              transactionType: o.transactionType,
+              isRevised: Boolean(o.isRevised)
+            }),
+            o.cashierName || 'Owner',
+            Date.now()
+          ]
         });
-        await logSyncEvent(client, 'order', o.id, 'save', savedOrder, branch);
-        recordUsage(client, 'save-order', 5);
-        return res.status(200).json({ success: true, dailyBillNumber: dailyBillNum, billNumber: finalBillNumber, businessDate: istDate });
+
+        // Real-Time Monotonic Sync Event statement
+        batchStatements.push({
+          sql: `INSERT INTO sync_events (entity_type, entity_id, operation, payload_json, server_timestamp, branch)
+                VALUES ('order', ?, 'save', ?, ?, ?);`,
+          args: [
+            o.id,
+            JSON.stringify(savedOrder),
+            Date.now(),
+            branch
+          ]
+        });
+
+        // Execute batch atomically in a single network round-trip
+        await client.batch(batchStatements, 'write');
+        recordUsage(client, 'save-order', batchStatements.length);
+
+        return res.status(200).json({
+          success: true,
+          dailyBillNumber: dailyBillNum,
+          billNumber: finalBillNumber,
+          businessDate: istDate,
+          branch
+        });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -1470,54 +1534,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
           const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
           const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
-          let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
-          // Check if order already has an assigned daily_bill_number in Turso (by id or date+branch+billNumber)
+          // Check if order already exists in Turso strictly by ID
           const existingOrder = await client.execute({
-            sql: 'SELECT daily_bill_number, business_date, branch FROM orders WHERE id = ? OR (business_date = ? AND branch = ? AND bill_number = ?) LIMIT 1;',
-            args: [o.id, istDate, branch, o.billNumber || '']
+            sql: 'SELECT daily_bill_number, business_date, branch FROM orders WHERE id = ? LIMIT 1;',
+            args: [o.id]
           });
 
-          if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
-            dailyBillNum = Number(existingOrder.rows[0].daily_bill_number);
-          } else {
-            let isConflict = false;
-            if (dailyBillNum > 0) {
-              const conflictCheck = await client.execute({
-                sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? LIMIT 1;',
-                args: [istDate, branch, dailyBillNum, o.id]
-              });
-              if (conflictCheck.rows.length > 0) {
-                isConflict = true;
-              }
-            }
+          if (existingOrder.rows.length > 0) {
+            // Already committed — preserve existing record without modification
+            continue;
+          }
 
-            if (!dailyBillNum || dailyBillNum <= 0 || isConflict) {
-              const maxOrderRes = await client.execute({
-                sql: 'SELECT MAX(daily_bill_number) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
-                args: [istDate, branch]
-              });
-              const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
+          let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
-              await client.execute({
-                sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                      VALUES (?, ?)
-                      ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?) + 1;`,
-                args: [counterKey, Math.max(1, maxOrderNum + 1), maxOrderNum]
-              });
-              const counterRes = await client.execute({
-                sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-                args: [counterKey]
-              });
-              dailyBillNum = Number(counterRes.rows[0]?.last_bill_number) || (maxOrderNum + 1);
-            } else {
-              await client.execute({
-                sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                      VALUES (?, ?)
-                      ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?);`,
-                args: [counterKey, dailyBillNum, dailyBillNum]
-              });
-            }
+          if (!dailyBillNum || dailyBillNum <= 0) {
+            const maxOrderRes = await client.execute({
+              sql: 'SELECT COALESCE(MAX(daily_bill_number), 0) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
+              args: [istDate, branch]
+            });
+            const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
+
+            const counterRes = await client.execute({
+              sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
+              args: [counterKey]
+            });
+            const counterNum = Number(counterRes.rows[0]?.last_bill_number) || 0;
+
+            dailyBillNum = Math.max(maxOrderNum, counterNum) + 1;
+
+            await client.execute({
+              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                    VALUES (?, ?)
+                    ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, excluded.last_bill_number);`,
+              args: [counterKey, dailyBillNum]
+            });
           }
 
           const finalBillNumber = (dailyBillNum > 0) ? `Bill #${dailyBillNum}` : (o.billNumber || 'Bill #1');
@@ -1565,7 +1616,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           inserted++;
         }
 
-        await logSyncEvent(client, 'order', 'batch', 'batch_save', { count: inserted });
+        if (inserted > 0) {
+          await logSyncEvent(client, 'order', 'batch', 'batch_save', { count: inserted }, 'all');
+        }
         return res.status(200).json({ success: true, count: inserted });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });

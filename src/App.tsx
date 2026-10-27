@@ -50,7 +50,7 @@ import {
   addVendorPaymentOnTurso,
   fetchVendorsFromTurso
 } from './lib/turso';
-import { syncManager } from './lib/syncManager';
+import { syncManager, SyncState } from './lib/syncManager';
 import { getKolkataDateString, extractOrderTimestamp } from './lib/utils';
 import {
   preserveRealCustomersFromOrders,
@@ -90,6 +90,7 @@ import { LoginView } from './components/auth/LoginView';
 import { useAppRoute } from './lib/routing';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { TursoBudgetModal } from './components/dashboard/TursoBudgetModal';
+import { SyncHealthModal } from './components/dashboard/SyncHealthModal';
 
 const DEFAULT_USER: UserProfile = {
   id: 'user-owner',
@@ -344,6 +345,8 @@ export function App() {
   const [editingOrder, setEditingOrder] = useState<OrderBill | null>(null);
   const [barcodeToRegister, setBarcodeToRegister] = useState<string | null>(null);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState<boolean>(false);
+  const [isSyncHealthOpen, setIsSyncHealthOpen] = useState<boolean>(false);
+  const [syncState, setSyncState] = useState<SyncState>(() => syncManager.getState());
 
   // Customer Orders State (Advance bookings, deliveries)
   const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>(() => {
@@ -659,12 +662,16 @@ export function App() {
 
     // Start background sync manager scoped by active branch (event-driven delta feed)
     syncManager.setBranch(activeBranch);
-    syncManager.start(30000); // 30-second active background delta heartbeat with adaptive idle backoff
+    syncManager.start(30000);
+
+    // Subscribe to sync health state
+    const unsubSyncState = syncManager.onSyncStateChange(setSyncState); // 30-second active background delta heartbeat with adaptive idle backoff
 
     // On network reconnect, perform single catch-up sync for durable recovery
     const handleOnlineReconnect = () => {
       if (!isAuthenticated) return;
       syncRemoteData(false);
+      syncManager.flushPendingQueue();
       syncManager.pollForEvents();
     };
 
@@ -682,6 +689,27 @@ export function App() {
             o.branch === ev.payload.branch &&
             o.billNumber === ev.payload.billNumber
           ));
+          // Deduct product stock locally for incoming remote order
+          if (!exists && Array.isArray(ev.payload.items) && ev.payload.items.length > 0) {
+            setProducts((prevProds) => {
+              const updatedProds = prevProds.map((p) => {
+                const sold = ev.payload.items.find((it: any) =>
+                  (it.product?.id === p.id) || (it.id === p.id) ||
+                  (it.product?.barcode && it.product.barcode === p.barcode) ||
+                  (it.barcode && it.barcode === p.barcode)
+                );
+                if (!sold) return p;
+                const isWeight = p.unit === 'KG';
+                const newStock = deductStock(p.stock ?? 0, Number(sold.quantity) || 0, isWeight);
+                return { ...p, stock: newStock };
+              });
+              try {
+                localStorage.setItem('albhurani_products', JSON.stringify(updatedProds));
+              } catch {}
+              return updatedProds;
+            });
+          }
+
           const updated = exists
             ? prev.map((o) => (o.id === ev.payload.id ? ev.payload : o))
             : [ev.payload, ...prev];
@@ -855,6 +883,7 @@ export function App() {
     return () => {
       window.removeEventListener('online', handleOnlineReconnect);
       syncManager.stop();
+      unsubSyncState();
       unsubOrder();
       unsubProduct();
       unsubExpense();
@@ -1022,56 +1051,8 @@ export function App() {
       }
     }
 
-    // 6. Persist to cloud database with durable offline queue tracking
-    if (typeof window !== 'undefined') {
-      try {
-        const rawQueue = localStorage.getItem('albhurani_pending_sales_queue');
-        const queue: OrderBill[] = rawQueue ? JSON.parse(rawQueue) : [];
-        if (!queue.some(q => q.id === newOrder.id)) {
-          queue.push(newOrder);
-          localStorage.setItem('albhurani_pending_sales_queue', JSON.stringify(queue));
-        }
-      } catch {}
-    }
-
-    // Non-blocking background dispatch to Turso database (instant < 5ms POS checkout response)
-    const client = getTursoClient();
-    if (client) {
-      saveOrderToTurso(newOrder).then((orderSaved) => {
-        if (!orderSaved) {
-          console.warn('Turso saveOrder returned false — order kept in durable offline queue');
-          syncManager.setStatus('error');
-        } else {
-          syncManager.setStatus('connected');
-          // Update orders state with server confirmed daily bill number & business date
-          setOrders((prev) => {
-            const next = prev.map((o) =>
-              o.id === newOrder.id
-                ? { ...o, dailyBillNumber: newOrder.dailyBillNumber, businessDate: newOrder.businessDate }
-                : o
-            );
-            try {
-              localStorage.setItem('albhurani_orders', JSON.stringify(next));
-            } catch {}
-            return next;
-          });
-
-          if (typeof window !== 'undefined') {
-            try {
-              const rawQueue = localStorage.getItem('albhurani_pending_sales_queue');
-              if (rawQueue) {
-                const queue: OrderBill[] = JSON.parse(rawQueue);
-                const filtered = queue.filter(q => q.id !== newOrder.id);
-                localStorage.setItem('albhurani_pending_sales_queue', JSON.stringify(filtered));
-              }
-            } catch {}
-          }
-        }
-      }).catch((tursoErr) => {
-        console.warn('Turso dispatch error — order remains in offline queue for auto-retry:', tursoErr);
-        syncManager.setStatus('error');
-      });
-    }
+    // 6. Persist to durable offline queue and trigger reliable retry worker
+    syncManager.enqueuePendingOrder(newOrder);
 
     // Deduct stock for sold items (allows stock to go negative if 0)
     if (Array.isArray(newOrder.items) && newOrder.items.length > 0) {
@@ -1913,6 +1894,8 @@ export function App() {
           onSignOut={handleSignOut}
           onViewPublicWebsite={() => navigate('/')}
           onOpenBudgetDiagnostics={() => setIsBudgetModalOpen(true)}
+          onOpenSyncHealth={() => setIsSyncHealthOpen(true)}
+          syncState={syncState}
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
         />
@@ -2073,6 +2056,15 @@ export function App() {
       <TursoBudgetModal
         isOpen={isBudgetModalOpen}
         onClose={() => setIsBudgetModalOpen(false)}
+      />
+
+      {/* Sync Health & Transaction Durability Modal */}
+      <SyncHealthModal
+        isOpen={isSyncHealthOpen}
+        onClose={() => setIsSyncHealthOpen(false)}
+        syncState={syncState}
+        currentUser={currentUser}
+        onForceReconcile={() => syncRemoteData(true)}
       />
 
     </div>
