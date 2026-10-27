@@ -43,6 +43,14 @@ function getServerTursoClient(): Client | null {
 async function ensureSchema(client: Client): Promise<void> {
   if (isSchemaInitialized) return;
 
+  try {
+    const check = await client.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='orders' LIMIT 1;");
+    if (check.rows.length > 0) {
+      isSchemaInitialized = true;
+      return;
+    }
+  } catch {}
+
   const schemaStatements = [
     `CREATE TABLE IF NOT EXISTS products (
       id TEXT PRIMARY KEY,
@@ -330,8 +338,7 @@ async function ensureSchema(client: Client): Promise<void> {
       VALUES
         ('ALB-INV-2726', 'ALB-INV-2726', CURRENT_TIMESTAMP);`);
 
-    await client.execute(`DELETE FROM orders WHERE id IN (SELECT id FROM deleted_orders)
-      OR (bill_number IS NOT NULL AND bill_number != '' AND bill_number IN (SELECT bill_number FROM deleted_orders WHERE bill_number IS NOT NULL AND bill_number != ''));`);
+    await client.execute(`DELETE FROM orders WHERE id IN (SELECT id FROM deleted_orders);`);
   } catch (tombstoneErr) {
     console.warn('Tombstone table synchronization warning:', tombstoneErr);
   }
@@ -681,7 +688,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        query += ' ORDER BY created_at DESC LIMIT 500;';
+        query += ' ORDER BY COALESCE(timestamp, 0) DESC, created_at DESC LIMIT 500;';
 
         const result = await client.execute({ sql: query, args });
         recordUsage(client, 'fetch-orders', result.rows.length);
@@ -1291,8 +1298,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         // Prevent zombie order resurrection: check if order is in deleted_orders
         const tombstone = await client.execute({
-          sql: 'SELECT 1 FROM deleted_orders WHERE id = ? OR (bill_number IS NOT NULL AND bill_number != "" AND bill_number = ?) LIMIT 1;',
-          args: [o.id, o.billNumber],
+          sql: 'SELECT 1 FROM deleted_orders WHERE id = ? LIMIT 1;',
+          args: [o.id],
         });
         if (tombstone.rows.length > 0) {
           return res.status(200).json({ success: true, ignored: true, reason: 'Order has been tombstoned / deleted' });
@@ -1304,9 +1311,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
         // Check existing order in DB to preserve its assigned daily number across revisions/retries
+        // Scoped strictly to same order ID or (same date + same branch + same bill number)
         const existingOrder = await client.execute({
-          sql: 'SELECT daily_bill_number, business_date, branch FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
-          args: [o.id, o.billNumber]
+          sql: 'SELECT id, daily_bill_number, business_date, branch FROM orders WHERE id = ? OR (business_date = ? AND branch = ? AND bill_number = ?) LIMIT 1;',
+          args: [o.id, istDate, branch, o.billNumber]
         });
 
         if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
@@ -1316,8 +1324,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           let isConflict = false;
           if (dailyBillNum > 0) {
             const conflictCheck = await client.execute({
-              sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? AND bill_number != ? LIMIT 1;',
-              args: [istDate, branch, dailyBillNum, o.id, o.billNumber]
+              sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? LIMIT 1;',
+              args: [istDate, branch, dailyBillNum, o.id]
             });
             if (conflictCheck.rows.length > 0) {
               isConflict = true;
@@ -1354,6 +1362,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
+        const finalBillNumber = (dailyBillNum > 0) ? `Bill #${dailyBillNum}` : o.billNumber;
+
         await client.execute({
           sql: `INSERT OR REPLACE INTO orders (
             id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
@@ -1364,7 +1374,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             o.id,
-            o.billNumber,
+            finalBillNumber,
             o.transactionType || 'CUSTOMER_BILL',
             JSON.stringify(o.items || []),
             Number(o.subtotal) || 0,
@@ -1395,8 +1405,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ],
         });
 
-        // Deduct inventory stock for sold items (allows negative stock if 0)
-        if (Array.isArray(o.items)) {
+        // Deduct inventory stock for sold items strictly for new orders (idempotent across retries)
+        const isNewOrder = existingOrder.rows.length === 0;
+        if (isNewOrder && Array.isArray(o.items) && o.items.length > 0) {
           for (const it of o.items) {
             const qty = Number(it.quantity) || 0;
             if (qty > 0) {
@@ -1410,7 +1421,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 await client.execute({
                   sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
                         VALUES ((SELECT id FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1), 'SALE', ?, ?, ?, ?);`,
-                  args: [prodId || '', barcode || '', o.id, -qty, `Sale ${o.billNumber} (-${qty})`, Date.now()],
+                  args: [prodId || '', barcode || '', o.id, -qty, `Sale ${finalBillNumber} (-${qty})`, Date.now()],
                 });
               }
             }
@@ -1419,21 +1430,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const savedOrder = {
           ...o,
+          billNumber: finalBillNumber,
           businessDate: istDate,
           dailyBillNumber: dailyBillNum,
           branch
         };
 
         await logFinancialAudit(client, 'RECORD_SALE', 'order', o.id, Number(o.grandTotal) || 0, o.paymentMethod || 'CASH', {
-          billNumber: o.billNumber,
+          billNumber: finalBillNumber,
           dailyBillNumber: dailyBillNum,
           businessDate: istDate,
           itemsCount: o.items?.length,
           transactionType: o.transactionType
         });
-        await logSyncEvent(client, 'order', o.id, 'save', savedOrder);
+        await logSyncEvent(client, 'order', o.id, 'save', savedOrder, branch);
         recordUsage(client, 'save-order', 5);
-        return res.status(200).json({ success: true, dailyBillNumber: dailyBillNum, businessDate: istDate });
+        return res.status(200).json({ success: true, dailyBillNumber: dailyBillNum, billNumber: finalBillNumber, businessDate: istDate });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -1447,24 +1459,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       try {
-        const deletedRows = await client.execute('SELECT id, bill_number FROM deleted_orders;');
+        const deletedRows = await client.execute('SELECT id FROM deleted_orders;');
         const deletedIdSet = new Set(deletedRows.rows.map((r: any) => String(r.id)));
-        const deletedBillSet = new Set(deletedRows.rows.map((r: any) => String(r.bill_number)).filter(Boolean));
 
         let inserted = 0;
         for (const o of orders) {
-          if (!o || !o.id || !o.billNumber) continue;
-          if (deletedIdSet.has(o.id) || (o.billNumber && deletedBillSet.has(o.billNumber))) continue;
+          if (!o || !o.id) continue;
+          if (deletedIdSet.has(o.id)) continue;
 
           const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
           const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
           const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
           let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
-          // Check if order already has an assigned daily_bill_number in Turso
+          // Check if order already has an assigned daily_bill_number in Turso (by id or date+branch+billNumber)
           const existingOrder = await client.execute({
-            sql: 'SELECT daily_bill_number, business_date, branch FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
-            args: [o.id, o.billNumber]
+            sql: 'SELECT daily_bill_number, business_date, branch FROM orders WHERE id = ? OR (business_date = ? AND branch = ? AND bill_number = ?) LIMIT 1;',
+            args: [o.id, istDate, branch, o.billNumber || '']
           });
 
           if (existingOrder.rows.length > 0 && existingOrder.rows[0].daily_bill_number) {
@@ -1473,8 +1484,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let isConflict = false;
             if (dailyBillNum > 0) {
               const conflictCheck = await client.execute({
-                sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? AND bill_number != ? LIMIT 1;',
-                args: [istDate, branch, dailyBillNum, o.id, o.billNumber]
+                sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? LIMIT 1;',
+                args: [istDate, branch, dailyBillNum, o.id]
               });
               if (conflictCheck.rows.length > 0) {
                 isConflict = true;
@@ -1509,6 +1520,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
           }
 
+          const finalBillNumber = (dailyBillNum > 0) ? `Bill #${dailyBillNum}` : (o.billNumber || 'Bill #1');
+
           await client.execute({
             sql: `INSERT OR REPLACE INTO orders (
               id, bill_number, transaction_type, items_json, subtotal, discount_amount, gst_amount, grand_total,
@@ -1519,7 +1532,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             args: [
               o.id,
-              o.billNumber,
+              finalBillNumber,
               o.transactionType || 'CUSTOMER_BILL',
               JSON.stringify(o.items || []),
               Number(o.subtotal) || 0,
@@ -1574,8 +1587,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         await client.execute({
-          sql: 'DELETE FROM orders WHERE id = ? OR bill_number = ?;',
-          args: [orderId, targetBill],
+          sql: 'DELETE FROM orders WHERE id = ?;',
+          args: [orderId],
         });
 
         await logFinancialAudit(client, 'DELETE_SALE', 'order', orderId, 0, null, { billNumber: targetBill });

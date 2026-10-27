@@ -285,8 +285,7 @@ export function App() {
           o &&
           o.id &&
           !isDemoOrTestOrder(o) &&
-          !deletedIds.has(o.id) &&
-          (!o.billNumber || !deletedIds.has(o.billNumber))
+          !deletedIds.has(o.id)
       );
 
       return cleanOrders;
@@ -399,17 +398,40 @@ export function App() {
     try {
       setIsSyncing(true);
 
-      // 0. Synchronize remote deleted order tombstones first to prevent resurrection
-      const remoteDeleted = await fetchDeletedOrdersFromTurso(forceRefresh);
+      // Parallel fetch of remote entities (reducing 10s waterfall to < 1s)
+      const branchToQuery = activeBranchRef.current || 'godi_road';
+      const [
+        remoteDeleted,
+        remoteProducts,
+        remoteOrders,
+        remoteExpenses,
+        remoteCustomers,
+        remoteSettings,
+        remoteCustomerOrders,
+        remoteCategories,
+        remotePurchases,
+        remoteVendors
+      ] = await Promise.all([
+        fetchDeletedOrdersFromTurso(forceRefresh),
+        fetchProductsFromTurso(forceRefresh),
+        fetchOrdersFromTurso('ALL', branchToQuery, forceRefresh),
+        fetchExpensesFromTurso(undefined, forceRefresh),
+        fetchCustomersFromTurso(),
+        fetchSettingsFromTurso(),
+        fetchCustomerOrdersFromTurso(),
+        fetchCategoriesFromTurso(forceRefresh),
+        fetchPurchaseBillsFromTurso(undefined, forceRefresh).catch(() => null),
+        fetchVendorsFromTurso(forceRefresh).catch(() => null)
+      ]);
+
+      // 0. Synchronize remote deleted order tombstones
       let deletedIds = getDeletedOrderIds();
       if (remoteDeleted && remoteDeleted.length > 0) {
         deletedIds = syncDeletedOrdersFromRemote(remoteDeleted);
       }
 
       // 1. Synchronize products with safeguarding against partial catalog wipes
-      const remoteProducts = await fetchProductsFromTurso(forceRefresh);
       if (remoteProducts && remoteProducts.length >= 250) {
-        // Check if this device has local products that haven't reached Turso yet
         const remoteIdSet = new Set(remoteProducts.map((p) => p.id));
         const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_products') : null;
         let localProducts: Product[] = [];
@@ -425,7 +447,6 @@ export function App() {
         );
 
         if (unsyncedProducts.length > 0) {
-          // Upload unsynced local products to Turso cloud so other devices see them
           for (const up of unsyncedProducts) {
             await saveProductToTurso(up);
           }
@@ -433,7 +454,6 @@ export function App() {
 
         const mergedProducts = [...remoteProducts, ...unsyncedProducts];
         setProducts((prev) => {
-          // Compare before setting to avoid unnecessary re-renders
           if (prev.length === mergedProducts.length) {
             const hasChange = prev.some((p, i) => p.id !== mergedProducts[i]?.id || p.stock !== mergedProducts[i]?.stock || p.sellingPrice !== mergedProducts[i]?.sellingPrice);
             if (!hasChange) return prev;
@@ -444,8 +464,6 @@ export function App() {
           localStorage.setItem('albhurani_products', JSON.stringify(mergedProducts));
         } catch {}
       } else if (remoteProducts !== null && remoteProducts.length < 250) {
-        // Safeguard: Never allow a partial or empty cloud response (<250 items) to truncate local 305-product catalog.
-        // Instead, ensure local state is complete and backfill the master catalog to Turso.
         setProducts((currentProducts) => {
           const catalogToPreserve = (currentProducts && currentProducts.length >= 250)
             ? currentProducts
@@ -463,23 +481,14 @@ export function App() {
       }
 
       // 2. Synchronize orders scoped to current active branch
-      const branchToQuery = activeBranchRef.current || 'godi_road';
-      const remoteOrders = await fetchOrdersFromTurso('ALL', branchToQuery);
       if (remoteOrders !== null) {
-        // Clear any accidental local tombstones for orders that exist in authoritative remoteOrders and are NOT in remoteDeleted
         const remoteDeletedIdSet = new Set((remoteDeleted || []).map((r) => r.id.trim()));
-        const remoteDeletedBillSet = new Set((remoteDeleted || []).map((r) => (r.billNumber || '').trim()).filter(Boolean));
-
         const localDeletedSet = getDeletedOrderIds();
         let tombstonesCleaned = false;
         for (const ro of remoteOrders) {
-          if (!remoteDeletedIdSet.has(ro.id) && (!ro.billNumber || !remoteDeletedBillSet.has(ro.billNumber))) {
+          if (!remoteDeletedIdSet.has(ro.id)) {
             if (localDeletedSet.has(ro.id)) {
               localDeletedSet.delete(ro.id);
-              tombstonesCleaned = true;
-            }
-            if (ro.billNumber && localDeletedSet.has(ro.billNumber)) {
-              localDeletedSet.delete(ro.billNumber);
               tombstonesCleaned = true;
             }
           }
@@ -491,10 +500,10 @@ export function App() {
         }
 
         const validRemoteOrders = remoteOrders.filter(
-          (ro) => !isDemoOrTestOrder(ro) && !localDeletedSet.has(ro.id) && (!ro.billNumber || !localDeletedSet.has(ro.billNumber))
+          (ro) => !isDemoOrTestOrder(ro) && !localDeletedSet.has(ro.id)
         );
 
-        // Process durable offline queue: only upload orders explicitly created in offline queue
+        // Process durable offline queue: only upload orders strictly keyed by ID
         const pendingQueueRaw = typeof window !== 'undefined' ? localStorage.getItem('albhurani_pending_sales_queue') : null;
         let pendingQueue: OrderBill[] = [];
         if (pendingQueueRaw) {
@@ -505,31 +514,39 @@ export function App() {
         }
 
         const remoteIdSet = new Set(validRemoteOrders.map((o) => o.id));
-        const remoteBillSet = new Set(validRemoteOrders.map((o) => o.billNumber));
 
         const ordersToUpload = pendingQueue.filter(
-          (po) => po && po.id && !remoteIdSet.has(po.id) && (!po.billNumber || !remoteBillSet.has(po.billNumber))
+          (po) => po && po.id && !remoteIdSet.has(po.id)
         );
 
         if (ordersToUpload.length > 0) {
           const uploadedOk = await batchSaveOrdersToTurso(ordersToUpload);
           if (uploadedOk && typeof window !== 'undefined') {
-            const remaining = pendingQueue.filter(
-              (po) => !ordersToUpload.some((uo) => uo.id === po.id || uo.billNumber === po.billNumber)
-            );
+            const uploadedIdSet = new Set(ordersToUpload.map((uo) => uo.id));
+            const remaining = pendingQueue.filter((po) => !uploadedIdSet.has(po.id));
             localStorage.setItem('albhurani_pending_sales_queue', JSON.stringify(remaining));
           }
         }
 
-        // Canonical server orders are the authoritative single source of truth
-        setOrders(validRemoteOrders);
-        try {
-          localStorage.setItem('albhurani_orders', JSON.stringify(validRemoteOrders));
-        } catch {}
+        // Canonical server orders + preserved local pending orders (NEVER wipe unconfirmed local orders!)
+        setOrders((currentOrders) => {
+          const localPending = (currentOrders || []).filter(
+            (co) => co && co.id && !remoteIdSet.has(co.id) && !localDeletedSet.has(co.id)
+          );
+          const combined = [...localPending, ...validRemoteOrders];
+          combined.sort((a, b) => {
+            const tA = a.timestamp || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+            const tB = b.timestamp || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+            return tB - tA;
+          });
+          try {
+            localStorage.setItem('albhurani_orders', JSON.stringify(combined));
+          } catch {}
+          return combined;
+        });
       }
 
       // 3. Synchronize expenses
-      const remoteExpenses = await fetchExpensesFromTurso();
       if (remoteExpenses !== null) {
         const localSaved = typeof window !== 'undefined' ? localStorage.getItem('albhurani_expenses') : null;
         let localExpenses: ExpenseItem[] = [];
@@ -552,13 +569,11 @@ export function App() {
       }
 
       // 4. Synchronize customers
-      const remoteCustomers = await fetchCustomersFromTurso();
       if (remoteCustomers && remoteCustomers.length > 0) {
         setCustomers(remoteCustomers);
       }
 
       // 5. Synchronize shared settings
-      const remoteSettings = await fetchSettingsFromTurso();
       if (remoteSettings) {
         if (remoteSettings.label_preset) {
           localStorage.setItem('albhurani_label_preset', remoteSettings.label_preset);
@@ -572,7 +587,6 @@ export function App() {
       }
 
       // 6. Synchronize customer orders (advance bookings)
-      const remoteCustomerOrders = await fetchCustomerOrdersFromTurso();
       if (remoteCustomerOrders !== null) {
         const localSavedOrders = getSavedCustomerOrders();
         const remoteMap = new Map(remoteCustomerOrders.map((o) => [o.id, o]));
@@ -586,7 +600,6 @@ export function App() {
       }
 
       // 7. Synchronize categories
-      const remoteCategories = await fetchCategoriesFromTurso(forceRefresh);
       if (remoteCategories !== null && remoteCategories.length > 0) {
         const localSavedCats = getSavedCategories(productsRef.current);
         const remoteCatMap = new Map(remoteCategories.map((c) => [c.id, c]));
@@ -607,7 +620,6 @@ export function App() {
 
       // 8. Synchronize Purchase Bills and Vendors
       try {
-        const remotePurchases = await fetchPurchaseBillsFromTurso(undefined, forceRefresh);
         if (remotePurchases !== null && Array.isArray(remotePurchases)) {
           setPurchaseBills(remotePurchases);
           if (typeof window !== 'undefined') {
@@ -616,7 +628,6 @@ export function App() {
             } catch {}
           }
         }
-        const remoteVendors = await fetchVendorsFromTurso(forceRefresh);
         if (remoteVendors !== null && Array.isArray(remoteVendors)) {
           setVendors(remoteVendors);
           if (typeof window !== 'undefined') {
@@ -663,28 +674,47 @@ export function App() {
     const unsubOrder = syncManager.subscribe('order', (ev) => {
       if (ev.operation === 'save' && ev.payload) {
         setOrders((prev) => {
-          const exists = prev.some((o) => o.id === ev.payload.id || (ev.payload.billNumber && o.billNumber === ev.payload.billNumber));
+          const exists = prev.some((o) => o.id === ev.payload.id || (
+            ev.payload.businessDate && o.businessDate &&
+            ev.payload.branch && o.branch &&
+            ev.payload.billNumber &&
+            o.businessDate === ev.payload.businessDate &&
+            o.branch === ev.payload.branch &&
+            o.billNumber === ev.payload.billNumber
+          ));
           const updated = exists
-            ? prev.map((o) => (o.id === ev.payload.id || o.billNumber === ev.payload.billNumber ? ev.payload : o))
+            ? prev.map((o) => (o.id === ev.payload.id ? ev.payload : o))
             : [ev.payload, ...prev];
           try {
             localStorage.setItem('albhurani_orders', JSON.stringify(updated));
           } catch {}
           return updated;
         });
-      } else if (ev.operation === 'delete') {
-        const orderId = ev.entityId;
-        const billNumber = ev.payload?.billNumber;
-        recordDeletedOrder(orderId, billNumber);
+      } else if (ev.operation === 'delete' && ev.payload) {
+        const delId = ev.payload.orderId || ev.entityId;
         setOrders((prev) => {
-          const updated = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
+          const filtered = prev.filter((o) => o.id !== delId);
           try {
-            localStorage.setItem('albhurani_orders', JSON.stringify(updated));
+            localStorage.setItem('albhurani_orders', JSON.stringify(filtered));
           } catch {}
-          return updated;
+          return filtered;
         });
       } else if (ev.operation === 'batch_save' || ev.operation === 'clear_orders') {
-        syncRemoteData(true);
+        const branchToQuery = activeBranchRef.current || 'godi_road';
+        fetchOrdersFromTurso('ALL', branchToQuery, true).then((freshOrders) => {
+          if (freshOrders) {
+            setOrders((prev) => {
+              const remoteIdSet = new Set(freshOrders.map((o) => o.id));
+              const localPending = prev.filter((o) => !remoteIdSet.has(o.id));
+              const combined = [...localPending, ...freshOrders];
+              combined.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+              try {
+                localStorage.setItem('albhurani_orders', JSON.stringify(combined));
+              } catch {}
+              return combined;
+            });
+          }
+        });
       }
     });
 
@@ -1031,7 +1061,7 @@ export function App() {
               const rawQueue = localStorage.getItem('albhurani_pending_sales_queue');
               if (rawQueue) {
                 const queue: OrderBill[] = JSON.parse(rawQueue);
-                const filtered = queue.filter(q => q.id !== newOrder.id && q.billNumber !== newOrder.billNumber);
+                const filtered = queue.filter(q => q.id !== newOrder.id);
                 localStorage.setItem('albhurani_pending_sales_queue', JSON.stringify(filtered));
               }
             } catch {}

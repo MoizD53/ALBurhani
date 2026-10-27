@@ -138,12 +138,17 @@ export function isOrderInDateRange(
 ): boolean {
   if (range === 'all') return true;
 
+  const todayKolkata = getKolkataDateString(Date.now());
+  if (range === 'today' && order.businessDate) {
+    return order.businessDate === todayKolkata;
+  }
+
   const timestamp = extractOrderTimestamp(order);
   // Fail-safe: if date cannot be resolved, include the order so real sales are never lost
   if (timestamp === null) return true;
 
   if (range === 'today') {
-    return getKolkataDateString(timestamp) === getKolkataDateString(Date.now());
+    return getKolkataDateString(timestamp) === todayKolkata;
   }
 
   const now = Date.now();
