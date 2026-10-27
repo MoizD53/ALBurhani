@@ -147,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
       <button
         onClick={onOpenSyncHealth}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] hover:border-[#D4AF37] text-stone-700 hover:text-stone-900 text-xs font-semibold transition-colors shadow-sm"
-        title="Turso cloud database connected and in sync"
+        title="Cloud database connected and in sync"
       >
         <span className="w-2 h-2 rounded-full bg-emerald-500" />
         <span className="hidden sm:inline">Synced</span>

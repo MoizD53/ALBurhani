@@ -85,7 +85,7 @@ export const TursoBudgetModal: React.FC<TursoBudgetModalProps> = ({ isOpen, onCl
             </div>
             <div>
               <h2 className="text-lg font-bold text-stone-900 font-serif">
-                Turso Rows Read Budget
+                Cloud Database Read Budget
               </h2>
               <p className="text-xs text-stone-500 font-medium">
                 Shared 200M Monthly Operational Read Budget Diagnostic
@@ -219,7 +219,7 @@ export const TursoBudgetModal: React.FC<TursoBudgetModalProps> = ({ isOpen, onCl
               <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block">Estimated Application Metric</span>
-                <span>Values shown are application-level row estimations calculated from executed SQL statement profiles and result lengths. Official authoritative rows read are tracked directly in your Turso platform account dashboard.</span>
+                <span>Values shown are application-level row estimations calculated from executed SQL statement profiles and result lengths. Official authoritative rows read are tracked directly in the cloud platform account dashboard.</span>
               </div>
             </div>
           </div>

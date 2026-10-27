@@ -22,7 +22,8 @@ import {
   BillingFilterToolbar,
   BillingTableContainer,
   BillingEmptyState,
-  DeleteInvoiceModal,
+  DeleteBillPopover,
+  PopoverAnchorRect,
   BillingFeedbackToast,
 } from './BillingSharedComponents';
 
@@ -48,8 +49,11 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<OrderBill | null>(null);
 
-  // Deletion modal & feedback state
-  const [pendingDeleteInvoice, setPendingDeleteInvoice] = useState<OrderBill | null>(null);
+  // Deletion popover & feedback state
+  const [pendingDeleteInvoice, setPendingDeleteInvoice] = useState<{
+    bill: OrderBill;
+    rect?: PopoverAnchorRect;
+  } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -213,7 +217,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
 
   // Execute confirmed invoice deletion with instant optimistic 0ms response
   const handleExecuteDelete = (invoiceToDel?: OrderBill) => {
-    const targetInvoice = invoiceToDel || pendingDeleteInvoice;
+    const targetInvoice = invoiceToDel || pendingDeleteInvoice?.bill;
     if (!targetInvoice) return;
 
     const displayBill = `Bill #${resolveDailyBillNumber(targetInvoice, customerBills)}`;
@@ -434,7 +438,18 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPendingDeleteInvoice(b);
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setPendingDeleteInvoice({
+                          bill: b,
+                          rect: {
+                            top: r.top,
+                            left: r.left,
+                            bottom: r.bottom,
+                            right: r.right,
+                            width: r.width,
+                            height: r.height,
+                          },
+                        });
                       }}
                       className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
                       aria-label={`Delete Bill #${resolveDailyBillNumber(b, customerBills)}`}
@@ -591,7 +606,18 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setPendingDeleteInvoice(b);
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setPendingDeleteInvoice({
+                              bill: b,
+                              rect: {
+                                top: r.top,
+                                left: r.left,
+                                bottom: r.bottom,
+                                right: r.right,
+                                width: r.width,
+                                height: r.height,
+                              },
+                            });
                           }}
                           className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/25 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-500/50 cursor-pointer"
                           title={`Delete Bill #${resolveDailyBillNumber(b, customerBills)}`}
@@ -620,13 +646,15 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         />
       )}
 
-      {/* 7. Delete Confirmation Modal */}
+      {/* 7. Delete Confirmation Popover (Anchored Next to Bill) */}
       {pendingDeleteInvoice && (
-        <DeleteInvoiceModal
+        <DeleteBillPopover
           isOpen={Boolean(pendingDeleteInvoice)}
-          invoiceNumber={`Bill #${resolveDailyBillNumber(pendingDeleteInvoice, customerBills)}`}
-          amount={pendingDeleteInvoice.grandTotal}
-          onConfirm={() => handleExecuteDelete(pendingDeleteInvoice)}
+          invoiceNumber={`Bill #${resolveDailyBillNumber(pendingDeleteInvoice.bill, customerBills)}`}
+          amount={pendingDeleteInvoice.bill.grandTotal}
+          anchorRect={pendingDeleteInvoice.rect}
+          isDeleting={isDeleting}
+          onConfirm={() => handleExecuteDelete(pendingDeleteInvoice.bill)}
           onCancel={() => setPendingDeleteInvoice(null)}
           title="Delete Customer Bill"
           isNoBill={false}

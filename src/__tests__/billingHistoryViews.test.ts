@@ -280,5 +280,12 @@ describe('AL-BURHANI POS — Standardized Billing History Architecture', () => {
       );
       expect(searchByCashier.length).toBe(1);
     });
+
+    it('exports DeleteBillPopover and DeleteInvoiceModal for anchored bill deletion', async () => {
+      const { DeleteBillPopover, DeleteInvoiceModal } = await import('../components/bills/BillingSharedComponents');
+      expect(DeleteBillPopover).toBeDefined();
+      expect(DeleteInvoiceModal).toBeDefined();
+      expect(DeleteBillPopover).toBe(DeleteInvoiceModal);
+    });
   });
 });

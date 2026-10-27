@@ -68,7 +68,7 @@ export const SyncHealthModal: React.FC<SyncHealthModalProps> = ({
           dot: 'bg-emerald-500',
           label: 'Connected & In Sync',
           icon: CheckCircle2,
-          description: 'All local records match the Turso cloud database in real time.',
+          description: 'All local records match the cloud database in real time.',
         };
       case 'syncing':
         return {
@@ -125,7 +125,7 @@ export const SyncHealthModal: React.FC<SyncHealthModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm font-bold text-stone-900 font-serif">Cloud Synchronisation & Health</h2>
-              <p className="text-[11px] text-stone-500">Real-time Turso database & transaction durability monitor</p>
+              <p className="text-[11px] text-stone-500">Real-time cloud database & transaction durability monitor</p>
             </div>
           </div>
           <button
@@ -164,7 +164,7 @@ export const SyncHealthModal: React.FC<SyncHealthModalProps> = ({
             <div className="min-w-0">
               <span className="text-xs font-bold text-stone-900 block">Immediate Reconciliation</span>
               <span className="text-[11px] text-stone-600 block">
-                Flush pending queue and pull remote delta updates from Turso
+                Flush pending queue and pull remote delta updates from cloud database
               </span>
             </div>
             <button
@@ -222,7 +222,7 @@ export const SyncHealthModal: React.FC<SyncHealthModalProps> = ({
                 <span>Database</span>
               </div>
               <span className="text-xs font-bold text-stone-900 block truncate">
-                Turso Cloud (ACID)
+                Central Cloud (ACID)
               </span>
             </div>
 
@@ -290,7 +290,7 @@ export const SyncHealthModal: React.FC<SyncHealthModalProps> = ({
               <span>Owner Durability Guarantee</span>
             </span>
             <p>
-              Bills are saved to encrypted browser storage before network transmission and are never discarded until Turso acknowledges successful ACID persistence.
+              Bills are saved to encrypted browser storage before network transmission and are never discarded until the cloud database acknowledges successful persistence.
             </p>
           </div>
 

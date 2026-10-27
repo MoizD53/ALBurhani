@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LucideIcon, 
   Search, 
   X, 
   AlertTriangle, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { cleanBillNumber } from '../../lib/utils';
 
@@ -246,8 +247,17 @@ export const BillingEmptyState: React.FC<BillingEmptyStateProps> = ({
   );
 };
 
-/* ─── 6. Unified Delete Confirmation Modal ─── */
-interface DeleteInvoiceModalProps {
+/* ─── 6. Unified Delete Confirmation Popover (Anchored Next to Bill) ─── */
+export interface PopoverAnchorRect {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+  width: number;
+  height: number;
+}
+
+export interface DeleteBillPopoverProps {
   isOpen: boolean;
   invoiceNumber: string;
   amount: number;
@@ -256,34 +266,150 @@ interface DeleteInvoiceModalProps {
   onCancel: () => void;
   title?: string;
   isNoBill?: boolean;
+  extraWarning?: string;
+  anchorRect?: PopoverAnchorRect | null;
 }
 
-export const DeleteInvoiceModal: React.FC<DeleteInvoiceModalProps> = ({
+export const DeleteBillPopover: React.FC<DeleteBillPopoverProps> = ({
   isOpen,
   invoiceNumber,
   amount,
   isDeleting = false,
   onConfirm,
   onCancel,
-  title = 'Delete Invoice Entry',
+  title = 'Delete Bill',
   isNoBill = false,
+  extraWarning,
+  anchorRect,
 }) => {
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    placement: 'left' | 'right' | 'top' | 'bottom' | 'center';
+  }>({
+    top: 0,
+    left: 0,
+    placement: 'center',
+  });
+
+  useEffect(() => {
+    if (!anchorRect) {
+      setCoords({ top: 0, left: 0, placement: 'center' });
+      return;
+    }
+
+    const popoverWidth = Math.min(320, window.innerWidth - 24);
+    const estimatedHeight = 180;
+    const isMobile = window.innerWidth < 640;
+
+    if (isMobile) {
+      // Place above or below anchor button on mobile screens
+      const showAbove = anchorRect.top > 230;
+      const top = showAbove
+        ? Math.max(12, anchorRect.top - estimatedHeight - 8)
+        : Math.min(window.innerHeight - estimatedHeight - 12, anchorRect.bottom + 8);
+      const left = Math.max(12, Math.min(window.innerWidth - popoverWidth - 12, anchorRect.right - popoverWidth));
+      setCoords({
+        top,
+        left,
+        placement: showAbove ? 'top' : 'bottom',
+      });
+    } else {
+      // Desktop: place directly to the left of the delete button (or to the right if near left edge)
+      const spaceOnLeft = anchorRect.left;
+      const showOnLeft = spaceOnLeft > popoverWidth + 16;
+      const left = showOnLeft
+        ? Math.max(12, anchorRect.left - popoverWidth - 10)
+        : Math.min(window.innerWidth - popoverWidth - 12, anchorRect.right + 10);
+
+      const centerY = anchorRect.top + anchorRect.height / 2;
+      const top = Math.max(12, Math.min(window.innerHeight - estimatedHeight - 12, centerY - (estimatedHeight / 2)));
+      setCoords({
+        top,
+        left,
+        placement: showOnLeft ? 'left' : 'right',
+      });
+    }
+  }, [anchorRect]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isDeleting) {
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, isDeleting, onCancel]);
+
   if (!isOpen) return null;
   const cleanDisplay = cleanBillNumber(invoiceNumber);
 
+  const style: React.CSSProperties = coords.placement === 'center'
+    ? {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 'min(340px, calc(100vw - 32px))',
+        zIndex: 60,
+      }
+    : {
+        position: 'fixed',
+        top: `${coords.top}px`,
+        left: `${coords.left}px`,
+        width: `${Math.min(320, window.innerWidth - 24)}px`,
+        zIndex: 60,
+      };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white border border-[#E8DEC8] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-600 shrink-0">
-              <AlertTriangle className="w-5 h-5" />
+    <>
+      {/* Transparent Click-Outside Backdrop: zero dimming, zero blur */}
+      <div
+        className="fixed inset-0 z-50 bg-transparent select-none"
+        onClick={onCancel}
+        aria-hidden="true"
+      />
+
+      {/* Popover Card Anchored Next to Bill */}
+      <div
+        style={style}
+        className="bg-white border border-[#E8DEC8] rounded-2xl p-4 shadow-2xl space-y-3 animate-fade-in text-stone-800"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-popover-title"
+      >
+        {/* Desktop Arrow Pointer */}
+        {anchorRect && coords.placement === 'left' && (
+          <div
+            className="hidden sm:block absolute -right-1.5 w-3 h-3 bg-white border-t border-r border-[#E8DEC8] rotate-45 pointer-events-none"
+            style={{
+              top: `${Math.max(16, Math.min(145, anchorRect.top + (anchorRect.height / 2) - coords.top - 6))}px`,
+            }}
+          />
+        )}
+        {anchorRect && coords.placement === 'right' && (
+          <div
+            className="hidden sm:block absolute -left-1.5 w-3 h-3 bg-white border-b border-l border-[#E8DEC8] rotate-45 pointer-events-none"
+            style={{
+              top: `${Math.max(16, Math.min(145, anchorRect.top + (anchorRect.height / 2) - coords.top - 6))}px`,
+            }}
+          />
+        )}
+
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+              <AlertTriangle className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#1C1917]">
+              <h3 id="delete-popover-title" className="text-xs font-bold text-stone-900 font-serif uppercase tracking-wider">
                 {title}
               </h3>
-              <p className="text-xs text-stone-500">
+              <p className="text-[10px] text-stone-500">
                 Action requires confirmation
               </p>
             </div>
@@ -292,31 +418,40 @@ export const DeleteInvoiceModal: React.FC<DeleteInvoiceModalProps> = ({
             type="button"
             disabled={isDeleting}
             onClick={onCancel}
-            className="p-1 rounded-lg text-stone-400 hover:text-stone-700 transition-colors"
+            className="p-1 rounded-lg text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+            title="Cancel"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] text-xs text-stone-700 space-y-2">
-          <p>
-            Are you sure you want to permanently delete{' '}
-            <strong className="text-[#1C1917] font-mono">{cleanDisplay}</strong> for{' '}
-            <strong className="text-[#B8860B] font-mono">Rs. {amount.toFixed(2)}</strong>?
-          </p>
-          <p className="text-[11px] text-stone-500">
-            {isNoBill
-              ? 'This removes the recorded entry from sales audit history.'
-              : 'This removes the tax invoice from records. Customer directory and catalog are preserved.'}
-          </p>
+        <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E8DEC8] text-xs space-y-1.5">
+          <div className="text-stone-700">
+            Permanently delete <strong className="text-stone-900 font-mono font-bold">{cleanDisplay}</strong>?
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-stone-600">
+            <span>Total Amount:</span>
+            <strong className="text-[#B8860B] font-mono font-bold">Rs. {amount.toFixed(2)}</strong>
+          </div>
+          {extraWarning ? (
+            <p className="text-[10px] text-rose-600 font-medium pt-0.5">
+              {extraWarning}
+            </p>
+          ) : (
+            <p className="text-[10px] text-stone-500 pt-0.5">
+              {isNoBill
+                ? 'Removes entry from sales audit history.'
+                : 'Removes invoice from records. Catalog & customer directory are preserved.'}
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center justify-end gap-2.5 pt-1">
+        <div className="flex items-center justify-end gap-2 pt-0.5">
           <button
             type="button"
             disabled={isDeleting}
             onClick={onCancel}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 transition-colors cursor-pointer"
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -324,15 +459,24 @@ export const DeleteInvoiceModal: React.FC<DeleteInvoiceModalProps> = ({
             type="button"
             disabled={isDeleting}
             onClick={onConfirm}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-50"
           >
-            {isDeleting ? 'Deleting...' : 'Confirm & Delete'}
+            {isDeleting ? (
+              <span>Deleting...</span>
+            ) : (
+              <>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm & Delete</span>
+              </>
+            )}
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
+
+export const DeleteInvoiceModal = DeleteBillPopover;
 
 /* ─── 7. Unified Action Feedback Toast ─── */
 interface BillingFeedbackToastProps {
