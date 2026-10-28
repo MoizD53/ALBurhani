@@ -47,6 +47,14 @@ async function ensureSchema(client: Client): Promise<void> {
     const check = await client.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='orders' LIMIT 1;");
     if (check.rows.length > 0) {
       isSchemaInitialized = true;
+      // Ensure forward unique constraint index exists even on warm instances
+      try {
+        await client.execute(`
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unique_daily_bill_forward 
+          ON orders (business_date, branch, daily_bill_number) 
+          WHERE business_date >= '2026-10-28';
+        `);
+      } catch {}
       return;
     }
   } catch {}
@@ -1365,20 +1373,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           dailyBillNum = Number(existing!.daily_bill_number) || 1;
           finalBillNumber = String(existing!.bill_number);
         } else {
-          // Brand new order: sequentially allocate the next daily bill number for (business_date, branch)
-          const maxOrderRes = await client.execute({
-            sql: 'SELECT COALESCE(MAX(daily_bill_number), 0) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
-            args: [istDate, branch]
+          // Brand new order: sequentially allocate the next daily bill number atomically via LibSQL RETURNING clause
+          const counterUpsertRes = await client.execute({
+            sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                  VALUES (?, COALESCE((SELECT MAX(daily_bill_number) FROM orders WHERE business_date = ? AND branch = ?), 0) + 1)
+                  ON CONFLICT(business_date) DO UPDATE SET 
+                    last_bill_number = MAX(daily_bill_counters.last_bill_number, COALESCE((SELECT MAX(daily_bill_number) FROM orders WHERE business_date = ? AND branch = ?), 0)) + 1
+                  RETURNING last_bill_number;`,
+            args: [counterKey, istDate, branch, istDate, branch]
           });
-          const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
 
-          const counterRes = await client.execute({
-            sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-            args: [counterKey]
-          });
-          const counterNum = Number(counterRes.rows[0]?.last_bill_number) || 0;
-
-          dailyBillNum = Math.max(maxOrderNum, counterNum) + 1;
+          dailyBillNum = Number(counterUpsertRes.rows[0]?.last_bill_number) || 1;
           finalBillNumber = `Bill #${dailyBillNum}`;
         }
 
@@ -1561,20 +1566,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (!dailyBillNum || dailyBillNum <= 0 || isCollision) {
-            const maxOrderRes = await client.execute({
-              sql: 'SELECT COALESCE(MAX(daily_bill_number), 0) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
-              args: [istDate, branch]
+            const counterUpsertRes = await client.execute({
+              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                    VALUES (?, COALESCE((SELECT MAX(daily_bill_number) FROM orders WHERE business_date = ? AND branch = ?), 0) + 1)
+                    ON CONFLICT(business_date) DO UPDATE SET 
+                      last_bill_number = MAX(daily_bill_counters.last_bill_number, COALESCE((SELECT MAX(daily_bill_number) FROM orders WHERE business_date = ? AND branch = ?), 0)) + 1
+                    RETURNING last_bill_number;`,
+              args: [counterKey, istDate, branch, istDate, branch]
             });
-            const maxOrderNum = Number(maxOrderRes.rows[0]?.max_num) || 0;
 
-            const counterRes = await client.execute({
-              sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
-              args: [counterKey]
-            });
-            const counterNum = Number(counterRes.rows[0]?.last_bill_number) || 0;
-
-            dailyBillNum = Math.max(maxOrderNum, counterNum) + 1;
-
+            dailyBillNum = Number(counterUpsertRes.rows[0]?.last_bill_number) || 1;
+          } else {
             await client.execute({
               sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
                     VALUES (?, ?)

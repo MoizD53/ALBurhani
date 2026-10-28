@@ -4,7 +4,7 @@ import {
   BarChart3, 
   Download 
 } from 'lucide-react';
-import { isOrderInDateRange } from '../../lib/utils';
+import { isOrderInDateRange, cleanBillNumber } from '../../lib/utils';
 import { formatQuantity } from '../../lib/pricing';
 
 interface ReportsViewProps {
@@ -84,7 +84,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       headers = ['Bill / Ref #', 'Type', 'Date & Time', 'Customer Name', 'Phone', 'Items Count', 'Subtotal (INR)', 'GST (INR)', 'Total Amount (INR)', 'Payment Mode', 'Cashier'];
       rows = targetOrders.map((o) => [
-        `="$Bill #{o.dailyBillNumber || o.billNumber.replace(/^[A-Z-]+/, '')}"`,
+        `"${cleanBillNumber(o.billNumber, o.dailyBillNumber)}"`,
         o.transactionType || 'CUSTOMER_BILL',
         `"${o.createdAt}"`,
         `"${o.customerName || 'Walk-in'}"`,

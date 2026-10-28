@@ -259,9 +259,9 @@ describe('P0 Production Incident — Permanent Bill Numbering & Financial Integr
 
       const allOrders = [orderA, orderB];
 
-      // Disambiguation displays the time suffix so cashiers know which bill is which
-      expect(formatDisplayBillNumber(orderA, allOrders)).toBe('Bill #1 (09:22 am)');
-      expect(formatDisplayBillNumber(orderB, allOrders)).toBe('Bill #1 (09:34 am)');
+      // Bill label remains clean "Bill #N" without appending timestamps to disguise collisions
+      expect(formatDisplayBillNumber(orderA, allOrders)).toBe('Bill #1');
+      expect(formatDisplayBillNumber(orderB, allOrders)).toBe('Bill #1');
     });
 
     it('returns clean Bill #N when there are no collisions', () => {

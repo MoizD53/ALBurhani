@@ -31,10 +31,9 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   onAddPayment,
   onViewBill,
 }) => {
-  if (!isOpen || !vendor) return null;
-
   // Filter bills for this vendor
   const vendorBills = useMemo(() => {
+    if (!isOpen || !vendor) return [];
     return bills.filter(
       (b) =>
         (b.vendorId && b.vendorId === vendor.id) ||
@@ -44,6 +43,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
 
   // Build chronological ledger entries
   const ledgerEntries = useMemo(() => {
+    if (!isOpen || !vendor) return [];
     const rawEvents: Array<{
       id: string;
       date: string;
@@ -113,7 +113,9 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
         balance: runningBalance,
       };
     });
-  }, [vendorBills]);
+  }, [vendorBills, isOpen, vendor]);
+
+  if (!isOpen || !vendor) return null;
 
   const totalPurchases = ledgerEntries.reduce((sum, e) => sum + e.debit, 0);
   const totalPaid = ledgerEntries.reduce((sum, e) => sum + e.credit, 0);

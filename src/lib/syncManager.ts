@@ -230,6 +230,29 @@ class SyncManager {
             console.log(`[SYNC:WRITE] Server confirmed persistence for order ${order.id} (${order.billNumber})`);
             this.removePendingOrder(order.id);
             this.retryBackoffMs = 2000;
+
+            // Reconcile local storage and dispatch update with authoritative server-allocated bill number
+            const storage = this.getStorage();
+            if (storage) {
+              try {
+                const saved = storage.getItem('albhurani_orders');
+                if (saved) {
+                  const parsed = JSON.parse(saved);
+                  if (Array.isArray(parsed)) {
+                    const updated = parsed.map((o: OrderBill) => (o.id === order.id ? { ...o, ...order } : o));
+                    storage.setItem('albhurani_orders', JSON.stringify(updated));
+                  }
+                }
+              } catch {}
+            }
+            this.dispatchEntityEvent({
+              id: Date.now(),
+              entityType: 'order',
+              entityId: order.id,
+              operation: 'save',
+              payload: { ...order },
+              serverTimestamp: Date.now(),
+            });
           } else {
             failed++;
             console.warn(`[SYNC:ERROR] Server did not acknowledge order ${order.id}`);
