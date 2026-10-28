@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { OrderBill } from '../../types';
 import { ReceiptModal } from '../pos/ReceiptModal';
+import { getOrderCashReceived } from '../../lib/utils';
 
 interface FinanceViewProps {
   orders: OrderBill[];
@@ -39,7 +40,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ orders }) => {
 
   // Calculations
   const totalRevenue = orders.reduce((sum, o) => sum + o.grandTotal, 0);
-  const cashTotal = orders.filter((o) => o.paymentMethod === 'CASH').reduce((sum, o) => sum + o.grandTotal, 0);
+  const cashTotal = orders.reduce((sum, o) => sum + getOrderCashReceived(o), 0);
   const upiTotal = orders.filter((o) => o.paymentMethod === 'UPI').reduce((sum, o) => sum + o.grandTotal, 0);
   const cardTotal = orders.filter((o) => o.paymentMethod === 'CARD').reduce((sum, o) => sum + o.grandTotal, 0);
 

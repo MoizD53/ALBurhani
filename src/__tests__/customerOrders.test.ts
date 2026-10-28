@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { getKolkataDateString } from '../lib/utils';
 import {
   generateOrderNumber,
   calculateOrderAmounts,
@@ -19,7 +20,7 @@ describe('Customer Orders Utility Tests', () => {
     });
 
     it('increments sequence based on existing orders for today', () => {
-      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const dateStr = getKolkataDateString().replace(/-/g, '');
       const existing: CustomerOrder[] = [
         {
           id: 'ord-1',

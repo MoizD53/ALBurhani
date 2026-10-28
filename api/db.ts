@@ -1507,11 +1507,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const ctrRes = await tx.execute({
               sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                    VALUES (?, ?)
+                    VALUES (?, 1)
                     ON CONFLICT(business_date) DO UPDATE
-                      SET last_bill_number = MAX(last_bill_number, excluded.last_bill_number) + 1
+                      SET last_bill_number = MAX(daily_bill_counters.last_bill_number, ?) + 1
                     RETURNING last_bill_number;`,
-              args: [counterKey, maxFromOrders + 1]
+              args: [counterKey, maxFromOrders]
             });
             dailyBillNum = Number(ctrRes.rows[0]?.last_bill_number) || 1;
             finalBillNumber = `Bill #${dailyBillNum}`;

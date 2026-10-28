@@ -4,6 +4,7 @@ import {
   getKolkataDateString, 
   extractOrderTimestamp, 
   getOrderDue, 
+  getOrderCashReceived,
   isOrderInDateRange 
 } from './utils';
 
@@ -103,8 +104,8 @@ export function computeSalesMetrics(orders: OrderBill[]): SalesMetrics {
     dueAmount += getOrderDue(o);
 
     // Payment methods
-    if (o.paymentMethod === 'CASH') cashTotal += gTotal;
-    else if (o.paymentMethod === 'UPI') upiTotal += gTotal;
+    cashTotal += getOrderCashReceived(o);
+    if (o.paymentMethod === 'UPI') upiTotal += gTotal;
     else if (o.paymentMethod === 'CARD') cardTotal += gTotal;
     else if (o.paymentMethod === 'CREDIT') creditTotal += gTotal;
 

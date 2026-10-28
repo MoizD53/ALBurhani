@@ -14,7 +14,7 @@ import {
   Download
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { getOrderDue, getKolkataDateString, extractOrderTimestamp, resolveDailyBillNumber, formatDisplayBillNumber, exportToCsv } from '../../lib/utils';
+import { getOrderDue, getOrderCashReceived, getKolkataDateString, extractOrderTimestamp, resolveDailyBillNumber, formatDisplayBillNumber, exportToCsv } from '../../lib/utils';
 import { DailyCalendarPicker } from './DailyCalendarPicker';
 import { DailyActivitySummary, DailyActivityMetrics } from './DailyActivitySummary';
 import {
@@ -114,7 +114,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
       totalBills: daySales.length,
       totalCustomers: uniqueCusts.size,
       totalSales: daySales.reduce((sum, s) => sum + s.grandTotal, 0),
-      cashCollection: daySales.filter((s) => s.paymentMethod === 'CASH').reduce((sum, s) => sum + s.grandTotal, 0),
+      cashCollection: daySales.reduce((sum, s) => sum + getOrderCashReceived(s), 0),
       upiCollection: daySales.filter((s) => s.paymentMethod === 'UPI').reduce((sum, s) => sum + s.grandTotal, 0),
       cardCollection: daySales.filter((s) => s.paymentMethod === 'CARD').reduce((sum, s) => sum + s.grandTotal, 0),
       dueAmount: daySales.reduce((sum, s) => sum + getOrderDue(s), 0),
@@ -172,7 +172,7 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
   );
 
   const totalCashNoBill = useMemo(
-    () => noBillSales.filter((s) => s.paymentMethod === 'CASH').reduce((sum, s) => sum + s.grandTotal, 0),
+    () => noBillSales.reduce((sum, s) => sum + getOrderCashReceived(s), 0),
     [noBillSales]
   );
 

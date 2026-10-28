@@ -239,6 +239,32 @@ export function getOrderDue(order: OrderBill): number {
 }
 
 /**
+ * Calculates the exact physical cash tender collected into the drawer from an order,
+ * strictly accounting for unpaid credit/udhar, partial payments, and change given.
+ */
+export function getOrderCashReceived(order: OrderBill): number {
+  if (!order) return 0;
+  const due = getOrderDue(order);
+  const total = Number(order.grandTotal) || 0;
+  
+  if (order.paymentMethod === 'CASH') {
+    if (typeof order.amountReceived === 'number') {
+      return Math.min(total, Math.max(0, order.amountReceived));
+    }
+    return Math.max(0, total - due);
+  }
+  
+  if (order.paymentMethod === 'CREDIT') {
+    if (typeof order.amountReceived === 'number' && order.amountReceived > 0) {
+      return Math.min(total, order.amountReceived);
+    }
+    return 0;
+  }
+  
+  return 0;
+}
+
+/**
  * Aggregates all due orders and totals
  */
 export function calculateDueSummary(orders: OrderBill[]): {

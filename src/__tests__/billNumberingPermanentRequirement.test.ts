@@ -29,6 +29,7 @@ import {
   formatDisplayBillNumber,
   cleanBillNumber,
   getKolkataDateString,
+  getOrderCashReceived,
 } from '../lib/utils';
 import { OrderBill, CompleteSaleResult } from '../types';
 
@@ -1012,5 +1013,75 @@ describe('12. Gap detection — resolveDailyBillNumber fallback for missing dail
     const second = resolveDailyBillNumber(orders[1], orders);
     expect(first).toBe(second);   // deterministic
     expect(first).toBe(2);
+  });
+
+  describe('13. Strictly monotonic +1 counter increment (prevents +2 double-increment defect)', () => {
+    it('simulates atomic counter UPSERT and ensures gapless 1..N step without +2 skipping', () => {
+      // Simulates the backend counter table logic:
+      // INSERT INTO daily_bill_counters VALUES (?, 1)
+      // ON CONFLICT DO UPDATE SET last_bill_number = MAX(daily_bill_counters.last_bill_number, maxFromOrders) + 1
+      let tableLastBillNumber: number | null = null;
+      const orderBills: number[] = [];
+
+      for (let sale = 1; sale <= 20; sale++) {
+        const maxFromOrders = orderBills.length > 0 ? Math.max(...orderBills) : 0;
+        let allocated: number;
+        if (tableLastBillNumber === null) {
+          allocated = 1;
+        } else {
+          allocated = Math.max(tableLastBillNumber, maxFromOrders) + 1;
+        }
+        tableLastBillNumber = allocated;
+        orderBills.push(allocated);
+      }
+
+      // Verify sequence is strictly 1..20
+      expect(orderBills).toEqual([
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+        11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+      ]);
+      // Verify no odd/even gaps exist
+      for (let i = 0; i < orderBills.length - 1; i++) {
+        expect(orderBills[i + 1] - orderBills[i]).toBe(1);
+      }
+    });
+
+    it('cash tender calculation strictly excludes unpaid udhar and accounts for amountReceived', () => {
+      // Standard full cash sale
+      const fullCash = createMockOrder({
+        grandTotal: 500,
+        amountReceived: 500,
+        dueAmount: 0,
+        paymentMethod: 'CASH'
+      });
+      expect(getOrderCashReceived(fullCash)).toBe(500);
+
+      // Udhar sale saved as CASH with 60 due and 0 received (like Ali bhai's bill)
+      const cashWithUdhar = createMockOrder({
+        grandTotal: 60,
+        amountReceived: 0,
+        dueAmount: 60,
+        paymentMethod: 'CASH'
+      });
+      expect(getOrderCashReceived(cashWithUdhar)).toBe(0);
+
+      // Credit sale with 0 downpayment (like Zainab's bill)
+      const pureCredit = createMockOrder({
+        grandTotal: 420,
+        amountReceived: 0,
+        dueAmount: 420,
+        paymentMethod: 'CREDIT'
+      });
+      expect(getOrderCashReceived(pureCredit)).toBe(0);
+
+      // Credit sale with partial downpayment (200 down, 300 due)
+      const partialCredit = createMockOrder({
+        grandTotal: 500,
+        amountReceived: 200,
+        dueAmount: 300,
+        paymentMethod: 'CREDIT'
+      });
+      expect(getOrderCashReceived(partialCredit)).toBe(200);
+    });
   });
 });
