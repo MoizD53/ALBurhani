@@ -22,6 +22,7 @@ import {
   batchSaveOrdersToTurso,
   saveProductToTurso,
   updateStockOnTurso,
+  adjustStockOnTurso,
   invalidateProductsCache,
   deleteProductFromTurso,
   batchSaveProductsToTurso,
@@ -64,7 +65,8 @@ import {
   syncDeletedOrdersFromRemote,
   isOrderDeleted,
   isDemoOrTestOrder,
-  DELETED_ORDERS_STORAGE_KEY
+  DELETED_ORDERS_STORAGE_KEY,
+  computeStockAdjustments
 } from './lib/orders';
 import { getSavedCustomerOrders, saveCustomerOrdersLocally } from './lib/customerOrders';
 import { getSavedCategories, saveCategoriesLocally } from './lib/categories';
@@ -91,6 +93,7 @@ import { useAppRoute } from './lib/routing';
 import { PublicWebsite } from './components/public/PublicWebsite';
 import { TursoBudgetModal } from './components/dashboard/TursoBudgetModal';
 import { SyncHealthModal } from './components/dashboard/SyncHealthModal';
+import { EditBillModal } from './components/bills/EditBillModal';
 
 const DEFAULT_USER: UserProfile = {
   id: 'user-owner',
@@ -343,6 +346,7 @@ export function App() {
 
   const [stickerModalProduct, setStickerModalProduct] = useState<Product | null>(null);
   const [editingOrder, setEditingOrder] = useState<OrderBill | null>(null);
+  const [editingBillModalOrder, setEditingBillModalOrder] = useState<OrderBill | null>(null);
   const [barcodeToRegister, setBarcodeToRegister] = useState<string | null>(null);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState<boolean>(false);
   const [isSyncHealthOpen, setIsSyncHealthOpen] = useState<boolean>(false);
@@ -1178,12 +1182,15 @@ export function App() {
   };
 
   const handleStartModifyOrder = (order: OrderBill) => {
+    // Open in-place EditBillModal on the current screen (Sales Bills, Customer Bills, etc.)
+    // Do NOT switch activeTab to 'pos' — owner edits right where they are!
+    setEditingBillModalOrder(order);
     setEditingOrder(order);
-    setActiveTab('pos');
   };
 
   const handleCancelModifyOrder = () => {
     setEditingOrder(null);
+    setEditingBillModalOrder(null);
   };
 
   const handleSettleOrder = async (order: OrderBill): Promise<void> => {
@@ -1218,7 +1225,8 @@ export function App() {
   };
 
   const handleSaveModifiedOrder = async (
-    updatedOrder: OrderBill
+    updatedOrder: OrderBill,
+    originalOrder?: OrderBill
   ): Promise<CompleteSaleResult> => {
     try {
       // 1. Update orders array replacing the original order
@@ -1231,8 +1239,47 @@ export function App() {
 
       setOrders(updatedOrders);
       setEditingOrder(null);
+      setEditingBillModalOrder(null);
 
-      // 3. Update customer spend if additional payment was made
+      // 3. Stock Adjustment Delta for Item Changes
+      if (originalOrder && Array.isArray(originalOrder.items) && Array.isArray(updatedOrder.items)) {
+        try {
+          const adjustments = computeStockAdjustments(originalOrder.items, updatedOrder.items);
+          if (adjustments.length > 0) {
+            setProducts((prevProducts) => {
+              const updatedProducts = prevProducts.map((p) => {
+                const adj = adjustments.find((a) => a.productId === p.id);
+                if (!adj) return p;
+                const isWeight = isWeightBasedProduct(p);
+                const currentStock = p.stock ?? 0;
+                // deltaQuantity > 0 means items were added/increased (deduct from inventory)
+                // deltaQuantity < 0 means items were removed/decreased (restore to inventory)
+                const newStock = adj.deltaQuantity > 0
+                  ? deductStock(currentStock, adj.deltaQuantity, isWeight)
+                  : restoreStock(currentStock, Math.abs(adj.deltaQuantity), isWeight);
+
+                // Sync stock change to Turso
+                adjustStockOnTurso(p.id, -adj.deltaQuantity).catch((err) =>
+                  console.warn('Error adjusting stock on Turso during bill revision:', err)
+                );
+
+                return { ...p, stock: newStock };
+              });
+
+              if (typeof window !== 'undefined') {
+                try {
+                  localStorage.setItem('albhurani_products', JSON.stringify(updatedProducts));
+                } catch {}
+              }
+              return updatedProducts;
+            });
+          }
+        } catch (stockErr) {
+          console.warn('Error computing stock adjustments on bill edit:', stockErr);
+        }
+      }
+
+      // 4. Update customer spend if additional payment was made
       if (
         (updatedOrder.customerName || updatedOrder.customerPhone) &&
         updatedOrder.additionalAmountPaid &&
@@ -1251,9 +1298,18 @@ export function App() {
         }
       }
 
-      // 4. Remote backup if configured
+      // 5. Remote backup if configured
       try {
-        saveOrderToTurso(updatedOrder).catch((err) =>
+        saveOrderToTurso(updatedOrder).then((success) => {
+          if (success) {
+            syncManager.broadcast({
+              entityType: 'order',
+              entityId: updatedOrder.id,
+              operation: 'save',
+              payload: { ...updatedOrder }
+            });
+          }
+        }).catch((err) =>
           console.warn('Turso saveOrder background error:', err)
         );
       } catch (tursoErr) {
@@ -2086,6 +2142,17 @@ export function App() {
         currentUser={currentUser}
         onForceReconcile={() => syncRemoteData(true)}
       />
+
+      {/* In-Place Bill Editor Modal */}
+      {editingBillModalOrder && (
+        <EditBillModal
+          isOpen={Boolean(editingBillModalOrder)}
+          order={editingBillModalOrder}
+          products={products}
+          onClose={() => setEditingBillModalOrder(null)}
+          onSave={handleSaveModifiedOrder}
+        />
+      )}
 
     </div>
   );
