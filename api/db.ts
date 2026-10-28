@@ -47,12 +47,13 @@ async function ensureSchema(client: Client): Promise<void> {
     const check = await client.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='orders' LIMIT 1;");
     if (check.rows.length > 0) {
       isSchemaInitialized = true;
-      // Ensure forward unique constraint index exists even on warm instances
+      // Ensure the full unique constraint index exists (no date filter — covers all rows).
+      // Drop the old partial index first if it exists, then create the full one.
       try {
+        await client.execute(`DROP INDEX IF EXISTS idx_orders_unique_daily_bill_forward;`);
         await client.execute(`
-          CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unique_daily_bill_forward 
-          ON orders (business_date, branch, daily_bill_number) 
-          WHERE business_date >= '2026-10-28';
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_unique_daily_bill
+          ON orders (business_date, branch, daily_bill_number);
         `);
       } catch {}
       return;
@@ -1337,7 +1338,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
         const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
-        const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
+        // Normalised counter key always encodes both date and branch to avoid cross-branch interference.
+        const counterKey = `${istDate}_${branch}`;
 
         // Check if this exact order was already committed (Idempotency Key = o.id)
         const existingOrderRes = await client.execute({
@@ -1373,18 +1375,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           dailyBillNum = Number(existing!.daily_bill_number) || 1;
           finalBillNumber = String(existing!.bill_number);
         } else {
-          // Brand new order: sequentially allocate the next daily bill number atomically via LibSQL RETURNING clause
-          const counterUpsertRes = await client.execute({
-            sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                  VALUES (?, COALESCE((SELECT MAX(daily_bill_number) FROM orders WHERE business_date = ? AND branch = ?), 0) + 1)
-                  ON CONFLICT(business_date) DO UPDATE SET 
-                    last_bill_number = MAX(daily_bill_counters.last_bill_number, COALESCE((SELECT MAX(daily_bill_number) FROM orders WHERE business_date = ? AND branch = ?), 0)) + 1
-                  RETURNING last_bill_number;`,
-            args: [counterKey, istDate, branch, istDate, branch]
-          });
+          // Brand new order: allocate next daily bill number inside a serialisable write
+          // transaction so the MAX() read and counter increment are atomic even under
+          // concurrent serverless invocations.
+          const tx = await client.transaction('write');
+          try {
+            const maxRes = await tx.execute({
+              sql: 'SELECT COALESCE(MAX(daily_bill_number), 0) AS m FROM orders WHERE business_date = ? AND branch = ?;',
+              args: [istDate, branch]
+            });
+            const maxFromOrders = Number(maxRes.rows[0]?.m) || 0;
 
-          dailyBillNum = Number(counterUpsertRes.rows[0]?.last_bill_number) || 1;
-          finalBillNumber = `Bill #${dailyBillNum}`;
+            const ctrRes = await tx.execute({
+              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                    VALUES (?, ?)
+                    ON CONFLICT(business_date) DO UPDATE
+                      SET last_bill_number = MAX(last_bill_number, excluded.last_bill_number) + 1
+                    RETURNING last_bill_number;`,
+              args: [counterKey, maxFromOrders + 1]
+            });
+            dailyBillNum = Number(ctrRes.rows[0]?.last_bill_number) || 1;
+            finalBillNumber = `Bill #${dailyBillNum}`;
+            await tx.commit();
+          } catch (allocErr) {
+            await tx.rollback();
+            throw allocErr;
+          }
         }
 
         const savedOrder = {
@@ -1538,7 +1554,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           const branch = o.branch === 'mg_road' ? 'mg_road' : 'godi_road';
           const istDate = o.businessDate || getKolkataDate(o.timestamp || o.createdAt);
-          const counterKey = branch === 'mg_road' ? `${istDate}_mg_road` : istDate;
+          // Normalised counter key always encodes both date and branch.
+          const counterKey = `${istDate}_${branch}`;
 
           // Check if order already exists in Turso strictly by ID
           const existingOrder = await client.execute({

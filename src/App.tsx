@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Product, 
   OrderBill, 
@@ -1044,8 +1044,35 @@ export function App() {
       }
     }
 
-    // 6. Persist to durable offline queue and trigger reliable retry worker
-    syncManager.enqueuePendingOrder(newOrder);
+    // 6. Persist to durable offline queue and trigger reliable retry worker.
+    //    After the server confirms the bill number, reconcile React state so the
+    //    UI shows the authoritative sequential number without a page reload.
+    syncManager.enqueuePendingOrder(newOrder).then(() => {
+      // newOrder.billNumber and .dailyBillNumber are mutated in-place by
+      // saveOrderToTurso (turso.ts lines 555-556) once the server responds.
+      // Re-apply the confirmed values to component state.
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === newOrder.id
+            ? { ...o, billNumber: newOrder.billNumber, dailyBillNumber: newOrder.dailyBillNumber }
+            : o
+        )
+      );
+      try {
+        const saved = localStorage.getItem('albhurani_orders');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const updated = parsed.map((o: OrderBill) =>
+              o.id === newOrder.id
+                ? { ...o, billNumber: newOrder.billNumber, dailyBillNumber: newOrder.dailyBillNumber }
+                : o
+            );
+            localStorage.setItem('albhurani_orders', JSON.stringify(updated));
+          }
+        }
+      } catch {}
+    }).catch(() => {});
 
     // Deduct stock for sold items (allows stock to go negative if 0)
     if (Array.isArray(newOrder.items) && newOrder.items.length > 0) {

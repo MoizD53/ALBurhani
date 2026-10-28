@@ -778,16 +778,20 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
         return;
       }
 
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      const billNumber = `Bill #${randomNum}`;
+      // Bill number and ID are placeholders here; the authoritative sequential
+      // daily_bill_number is assigned by the server in handleCompleteSale and
+      // returned via onCompleteSale's result.order. Use a local monotonic sequence
+      // number to keep the ID unique even within the same millisecond.
       const timestamp = Date.now();
+      const localSeq = timestamp % 100000; // 5-digit suffix derived from timestamp
+      const billNumber = 'Bill #PENDING'; // overwritten by handleCompleteSale
       const todayDate = getKolkataDateString(timestamp);
 
       const finalReceived = (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') ? receivedNum : grandTotal;
       const finalDue = (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') ? pendingDue : 0;
 
       const newOrder: OrderBill = {
-        id: `sale-${timestamp}-${randomNum}`,
+        id: `sale-${timestamp}-${localSeq}`,
         billNumber,
         businessDate: todayDate,
         transactionType,
@@ -824,8 +828,13 @@ export const PosBillingView: React.FC<PosBillingViewProps> = ({
 
       playBeep('success');
 
+      // Use the server-confirmed order (with authoritative bill number) for the receipt.
+      // handleCompleteSale mutates newOrder.billNumber and newOrder.dailyBillNumber in-place,
+      // so result.order reflects the correct sequential number.
+      const confirmedOrder = (result && (result as any).order) ? (result as any).order : newOrder;
+
       // Present the optional receipt choice modal (Print, WhatsApp PDF, or No Receipt)
-      setCompletedOrder(newOrder);
+      setCompletedOrder(confirmedOrder);
 
       // Reset local billing state and advance held bills ONLY after successful save
       setHeldBills((prev) => {
