@@ -1548,7 +1548,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           let dailyBillNum = o.dailyBillNumber ? Number(o.dailyBillNumber) : 0;
 
-          if (!dailyBillNum || dailyBillNum <= 0) {
+          // Check if this dailyBillNum is already taken by a different order on this businessDate and branch
+          let isCollision = false;
+          if (dailyBillNum > 0) {
+            const checkCollision = await client.execute({
+              sql: 'SELECT id FROM orders WHERE business_date = ? AND branch = ? AND daily_bill_number = ? AND id != ? LIMIT 1;',
+              args: [istDate, branch, dailyBillNum, o.id]
+            });
+            if (checkCollision.rows.length > 0) {
+              isCollision = true;
+            }
+          }
+
+          if (!dailyBillNum || dailyBillNum <= 0 || isCollision) {
             const maxOrderRes = await client.execute({
               sql: 'SELECT COALESCE(MAX(daily_bill_number), 0) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
               args: [istDate, branch]

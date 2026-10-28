@@ -289,19 +289,6 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
 
-              {onViewPublicWebsite && (
-                <button
-                  onClick={() => {
-                    setIsProfileMenuOpen(false);
-                    onViewPublicWebsite();
-                  }}
-                  className="w-full px-3.5 py-2 text-left text-stone-700 hover:text-stone-900 hover:bg-[#FAF8F5] flex items-center gap-2.5 transition-colors font-medium rounded-lg group cursor-pointer"
-                >
-                  <Globe className="w-3.5 h-3.5 text-[#C99A18] group-hover:text-amber-600" />
-                  <span>Public Website</span>
-                </button>
-              )}
-
               {onOpenBudgetDiagnostics && (
                 <button
                   onClick={() => {

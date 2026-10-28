@@ -13,7 +13,7 @@ import {
   Download
 } from 'lucide-react';
 import { ReceiptModal } from '../pos/ReceiptModal';
-import { getOrderDue, getKolkataDateString, extractOrderTimestamp, resolveDailyBillNumber, exportToCsv } from '../../lib/utils';
+import { getOrderDue, getKolkataDateString, extractOrderTimestamp, resolveDailyBillNumber, formatDisplayBillNumber, exportToCsv } from '../../lib/utils';
 import { DailyCalendarPicker } from './DailyCalendarPicker';
 import { DailyActivitySummary, DailyActivityMetrics } from './DailyActivitySummary';
 import {
@@ -291,16 +291,26 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         }
       />
 
+      {/* Scope Transparency Banner */}
+      <div className="bg-blue-50 border border-blue-200/80 rounded-xl p-3 px-4 flex items-center justify-between text-xs text-blue-900 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+          <span>
+            <strong>Scope: Customer Tax Invoices ({customerBills.length} invoices)</strong> — Showing GST customer tax invoices. Retail counter sales without GST are recorded under <em>Daily Sales Bills</em>.
+          </span>
+        </div>
+      </div>
+
       {/* 2. Unified Metric Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <BillingSummaryCard
-          label="Total Bills"
+          label="Customer Bills — All Time"
           value={`${customerBills.length} Invoices`}
           accent="zinc"
           icon={Receipt}
         />
         <BillingSummaryCard
-          label="Billed Revenue"
+          label="Billed Revenue — All Time"
           value={`Rs. ${totalBilledRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           accent="gold"
           icon={IndianRupee}
@@ -378,7 +388,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <span className="font-mono font-bold text-[#A67D0C] text-sm block">
-                    Bill #{resolveDailyBillNumber(b, customerBills)}
+                    {formatDisplayBillNumber(b, customerBills)}
                   </span>
                   <span className="text-stone-400 font-mono text-[10px] block">
                     {b.createdAt}
@@ -509,7 +519,7 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
                   {/* 1. Daily Bill # */}
                   <td className="py-3 px-4 whitespace-nowrap">
                     <div className="font-mono font-bold text-[#A67D0C] text-sm">
-                      Bill #{resolveDailyBillNumber(b, customerBills)}
+                      {formatDisplayBillNumber(b, customerBills)}
                     </div>
                   </td>
 

@@ -28,6 +28,7 @@ import {
 import { ReceiptModal } from '../pos/ReceiptModal';
 import { DueBillsModal } from './DueBillsModal';
 import { isOrderInDateRange, isExpenseInDateRange, calculateDueSummary, getKolkataDateString } from '../../lib/utils';
+import { generateMasterSalesReport, isEligibleOrder } from '../../lib/salesReporting';
 import {
   isOrderActive,
   getNearestUpcomingDeliveryDate,
@@ -75,38 +76,36 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
     day: 'numeric'
   }).toUpperCase();
 
-  // Filter orders by date range
+  // Master Sales Report (Unified Single Source of Truth for reporting)
+  const salesReport = React.useMemo(
+    () => generateMasterSalesReport(orders, dateFilter),
+    [orders, dateFilter]
+  );
+
+  // Filter orders by date range for lists
   const filteredOrders = orders.filter((o) => isOrderInDateRange(o, dateFilter));
 
-  // Today-specific orders for top KPI cards
-  const todayOrders = orders.filter((o) => isOrderInDateRange(o, 'today'));
-
-  const todayRevenue = todayOrders.reduce((sum, o) => sum + o.grandTotal, 0);
-  const lifetimeRevenue = orders.reduce((sum, o) => sum + o.grandTotal, 0);
-
-  // Note: Purchase costs are not tracked yet.
-  // Profit tracking is preserved below for when product purchase costs become available.
-  // const todayCost = todayOrders.reduce((sum, o) => sum + o.items.reduce((itemSum, it) => itemSum + ((it.product.costPrice || 0) * it.quantity), 0), 0);
-  // const todayProfit = todayRevenue > 0 && todayCost > 0 ? Math.max(0, todayRevenue - todayCost) : 0;
+  const todayRevenue = salesReport.todayCombined.grandTotal;
+  const lifetimeRevenue = salesReport.combinedLifetime.grandTotal;
 
   // Customer transactions count
-  const todayCustomersCount = todayOrders.length;
-  const lifetimeCustomersCount = orders.length;
+  const todayCustomersCount = salesReport.todayCombined.count;
+  const lifetimeCustomersCount = salesReport.combinedLifetime.count;
 
   // Expenses
   const todayExpenses = expenses.filter((e) => isExpenseInDateRange(e, 'today')).reduce((sum, e) => sum + e.amount, 0);
   const lifetimeExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   // Payment Breakdown
-  const cashTotal = filteredOrders.filter((o) => o.paymentMethod === 'CASH').reduce((sum, o) => sum + o.grandTotal, 0);
-  const upiTotal = filteredOrders.filter((o) => o.paymentMethod === 'UPI').reduce((sum, o) => sum + o.grandTotal, 0);
-  const cardTotal = filteredOrders.filter((o) => o.paymentMethod === 'CARD').reduce((sum, o) => sum + o.grandTotal, 0);
+  const cashTotal = salesReport.filteredCombined.cashTotal;
+  const upiTotal = salesReport.filteredCombined.upiTotal;
+  const cardTotal = salesReport.filteredCombined.cardTotal;
 
   // Customer Bills vs No-Bill split
   const customerBills = filteredOrders.filter((o) => o.transactionType === 'CUSTOMER_BILL' || !o.transactionType);
   const noBillSales = filteredOrders.filter((o) => o.transactionType === 'NO_BILL');
-  const customerBillsPercent = filteredOrders.length > 0 
-    ? Math.round((customerBills.length / filteredOrders.length) * 100) 
+  const customerBillsPercent = salesReport.filteredCombined.count > 0 
+    ? Math.round((salesReport.filteredCustomerBills.count / salesReport.filteredCombined.count) * 100) 
     : 100;
 
   // Top products sold
@@ -222,6 +221,21 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
         </div>
       </div>
 
+      {/* 100% Reconciled Master Sales Scope Notice */}
+      {salesReport.reconciliation.isReconciled && (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-xs font-medium text-emerald-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span>
+              <strong>Sales 100% Reconciled:</strong> Combined Lifetime ₹{salesReport.combinedLifetime.grandTotal.toLocaleString('en-IN')} = Retail No-Bill (₹{salesReport.noBillLifetime.grandTotal.toLocaleString('en-IN')}) + Customer Tax Invoices (₹{salesReport.customerBillsLifetime.grandTotal.toLocaleString('en-IN')})
+            </span>
+          </div>
+          <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider hidden sm:inline">
+            Zero Discrepancy
+          </span>
+        </div>
+      )}
+
       {/* 2. Top Primary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         
@@ -251,24 +265,30 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
-            <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Lifetime</span>
-            <span className="text-[#A67D0C] font-bold">{formatAmount(lifetimeRevenue)}</span>
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] space-y-1">
+            <div className="flex items-center justify-between text-[11px] font-mono text-stone-500">
+              <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Combined Lifetime</span>
+              <span className="text-[#A67D0C] font-bold">{formatAmount(lifetimeRevenue)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-stone-400 font-sans">
+              <span>No-Bill: {formatAmount(salesReport.noBillLifetime.grandTotal)}</span>
+              <span>Tax Bills: {formatAmount(salesReport.customerBillsLifetime.grandTotal)}</span>
+            </div>
           </div>
         </div>
 
-        {/* Card 2: CUSTOMERS (TODAY) */}
+        {/* Card 2: TODAY'S BILLS */}
         <div className="ten-card p-5 rounded-2xl flex flex-col justify-between hover:border-[#D4AF37]/60 transition-all group bg-white border border-[#E8DEC8] shadow-sm">
           <div>
             <div className="flex items-center justify-between">
               <div className="w-10 h-10 rounded-full bg-[#FAF8F5] border border-[#C99A18]/30 flex items-center justify-center text-[#C99A18] group-hover:border-[#C99A18] transition-colors shadow-sm">
-                <Users className="w-4 h-4" />
+                <Receipt className="w-4 h-4" />
               </div>
             </div>
 
             <div className="mt-4">
               <span className="text-[11px] font-bold tracking-wider text-stone-500 uppercase block">
-                Customers (Today)
+                Today's Bills
               </span>
               <div className="text-2xl sm:text-3xl font-bold text-[#1C1917] mt-1 font-mono tracking-tight">
                 {formatNumber(todayCustomersCount)}
@@ -276,9 +296,15 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
-            <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Total Customers</span>
-            <span className="text-stone-700 font-bold">{formatNumber(lifetimeCustomersCount)}</span>
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] space-y-1">
+            <div className="flex items-center justify-between text-[11px] font-mono text-stone-500">
+              <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Combined Lifetime Bills</span>
+              <span className="text-stone-700 font-bold">{formatNumber(lifetimeCustomersCount)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-stone-400 font-sans">
+              <span>No-Bill: {formatNumber(salesReport.noBillLifetime.count)}</span>
+              <span>Tax Bills: {formatNumber(salesReport.customerBillsLifetime.count)}</span>
+            </div>
           </div>
         </div>
 
@@ -507,7 +533,7 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F0EBE0]">
-                  {orders.slice(0, 5).map((order) => {
+                  {orders.filter(isEligibleOrder).slice(0, 5).map((order) => {
                     const primaryItem = order.items[0]?.product.name || 'Counter Sale';
                     const moreCount = order.items.length - 1;
                     const itemsSummary = moreCount > 0 ? `${primaryItem} +${moreCount} more` : primaryItem;

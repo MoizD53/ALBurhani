@@ -261,6 +261,29 @@ export function calculateDueSummary(orders: OrderBill[]): {
  */
 export function formatDisplayBillNumber(order: OrderBill, allOrders: OrderBill[] = []): string {
   const num = resolveDailyBillNumber(order, allOrders);
+
+  // If there are collisions for this daily bill number on the same business date and branch,
+  // disambiguate with timestamp so cashiers can clearly tell them apart
+  if (allOrders.length > 0 && num > 0) {
+    const orderDate = order.businessDate || getKolkataDateString(extractOrderTimestamp(order) || Date.now());
+    const orderBranch = order.branch || 'godi_road';
+    const collisions = allOrders.filter((o) => {
+      const oDate = o.businessDate || getKolkataDateString(extractOrderTimestamp(o) || Date.now());
+      const oBranch = o.branch || 'godi_road';
+      const oNum = resolveDailyBillNumber(o, allOrders);
+      return oDate === orderDate && oBranch === orderBranch && oNum === num;
+    });
+
+    if (collisions.length > 1) {
+      const timeStr = order.createdAt 
+        ? (order.createdAt.includes(',') ? order.createdAt.split(',')[1]?.trim() : order.createdAt)
+        : '';
+      if (timeStr) {
+        return `Bill #${num} (${timeStr})`;
+      }
+    }
+  }
+
   return `Bill #${num}`;
 }
 

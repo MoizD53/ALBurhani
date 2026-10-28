@@ -681,14 +681,7 @@ export function App() {
     const unsubOrder = syncManager.subscribe('order', (ev) => {
       if (ev.operation === 'save' && ev.payload) {
         setOrders((prev) => {
-          const exists = prev.some((o) => o.id === ev.payload.id || (
-            ev.payload.businessDate && o.businessDate &&
-            ev.payload.branch && o.branch &&
-            ev.payload.billNumber &&
-            o.businessDate === ev.payload.businessDate &&
-            o.branch === ev.payload.branch &&
-            o.billNumber === ev.payload.billNumber
-          ));
+          const exists = prev.some((o) => o.id === ev.payload.id);
           // Deduct product stock locally for incoming remote order
           if (!exists && Array.isArray(ev.payload.items) && ev.payload.items.length > 0) {
             setProducts((prevProds) => {
@@ -999,7 +992,7 @@ export function App() {
     }
 
     // 2. Duplicate prevention guard
-    if (orders.some((o) => o.id === newOrder.id || o.billNumber === newOrder.billNumber)) {
+    if (orders.some((o) => o.id === newOrder.id)) {
       return { success: false, error: `Duplicate order: ${newOrder.billNumber} is already recorded` };
     }
 
@@ -1140,7 +1133,7 @@ export function App() {
 
     // 2. Immediately update state and localStorage consistently (instant 0ms UI response)
     setOrders((prev) => {
-      const updatedOrders = prev.filter((o) => o.id !== orderId && (!billNumber || o.billNumber !== billNumber));
+      const updatedOrders = prev.filter((o) => o.id !== orderId);
       try {
         localStorage.setItem('albhurani_orders', JSON.stringify(updatedOrders));
       } catch (storageErr) {
