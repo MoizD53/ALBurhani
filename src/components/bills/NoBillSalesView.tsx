@@ -301,15 +301,6 @@ export const NoBillSalesView: React.FC<NoBillSalesViewProps> = ({
         }
       />
 
-      {/* Scope Transparency Banner */}
-      <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 px-4 flex items-center justify-between text-xs text-amber-900 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-          <span>
-            <strong>Scope: Retail No-Bill Sales ({noBillSales.length} sales)</strong> — Showing counter sales. Customer Tax Invoices are recorded separately under <em>Customer Bills</em>.
-          </span>
-        </div>
-      </div>
 
       {/* 2. Unified Metric Summary Cards (5-Card Grid) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

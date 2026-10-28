@@ -10,8 +10,6 @@ import {
   Calendar,
   LogOut,
   Globe,
-  Database,
-  Cloud,
   RefreshCw,
   WifiOff,
   AlertTriangle,
@@ -275,32 +273,6 @@ export const Header: React.FC<HeaderProps> = ({
                   Owner · {currentUser.counter || (currentUser.branchId === 'mg_road' ? 'MG Road Store' : 'Godi Road Store')}
                 </span>
               </div>
-
-              {onOpenSyncHealth && (
-                <button
-                  onClick={() => {
-                    setIsProfileMenuOpen(false);
-                    onOpenSyncHealth();
-                  }}
-                  className="w-full px-3.5 py-2 text-left text-stone-700 hover:text-stone-900 hover:bg-[#FAF8F5] flex items-center gap-2.5 transition-colors font-medium rounded-lg group cursor-pointer"
-                >
-                  <Cloud className="w-3.5 h-3.5 text-[#C99A18] group-hover:text-amber-600" />
-                  <span>Sync & Durability Health</span>
-                </button>
-              )}
-
-              {onOpenBudgetDiagnostics && (
-                <button
-                  onClick={() => {
-                    setIsProfileMenuOpen(false);
-                    onOpenBudgetDiagnostics();
-                  }}
-                  className="w-full px-3.5 py-2 text-left text-stone-700 hover:text-stone-900 hover:bg-[#FAF8F5] flex items-center gap-2.5 transition-colors font-medium rounded-lg group cursor-pointer"
-                >
-                  <Database className="w-3.5 h-3.5 text-[#C99A18] group-hover:text-amber-600" />
-                  <span>200M Read Budget</span>
-                </button>
-              )}
 
               <button
                 onClick={() => {

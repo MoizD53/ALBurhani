@@ -221,20 +221,6 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* 100% Reconciled Master Sales Scope Notice */}
-      {salesReport.reconciliation.isReconciled && (
-        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-xs font-medium text-emerald-900 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            <span>
-              <strong>Sales 100% Reconciled:</strong> Combined Lifetime ₹{salesReport.combinedLifetime.grandTotal.toLocaleString('en-IN')} = Retail No-Bill (₹{salesReport.noBillLifetime.grandTotal.toLocaleString('en-IN')}) + Customer Tax Invoices (₹{salesReport.customerBillsLifetime.grandTotal.toLocaleString('en-IN')})
-            </span>
-          </div>
-          <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider hidden sm:inline">
-            Zero Discrepancy
-          </span>
-        </div>
-      )}
 
       {/* 2. Top Primary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">

@@ -291,15 +291,6 @@ export const CustomerBillsView: React.FC<CustomerBillsViewProps> = ({
         }
       />
 
-      {/* Scope Transparency Banner */}
-      <div className="bg-blue-50 border border-blue-200/80 rounded-xl p-3 px-4 flex items-center justify-between text-xs text-blue-900 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-          <span>
-            <strong>Scope: Customer Tax Invoices ({customerBills.length} invoices)</strong> — Showing GST customer tax invoices. Retail counter sales without GST are recorded under <em>Daily Sales Bills</em>.
-          </span>
-        </div>
-      </div>
 
       {/* 2. Unified Metric Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
