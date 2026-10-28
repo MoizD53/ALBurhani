@@ -56,6 +56,29 @@ async function ensureSchema(client: Client): Promise<void> {
           ON orders (business_date, branch, daily_bill_number);
         `);
       } catch {}
+      // Migrate any legacy bare-date counter keys (godi_road) to normalised ${date}_godi_road format.
+      try {
+        const legacyKeys = await client.execute(
+          `SELECT business_date, last_bill_number FROM daily_bill_counters WHERE business_date NOT LIKE '%\\_godi_road' AND business_date NOT LIKE '%\\_mg_road';`
+        );
+        if (legacyKeys.rows.length > 0) {
+          const migBatch: InStatement[] = [];
+          for (const row of legacyKeys.rows) {
+            const key = String(row.business_date);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+              const normKey = `${key}_godi_road`;
+              const val = Number(row.last_bill_number);
+              migBatch.push({ sql: 'DELETE FROM daily_bill_counters WHERE business_date = ?;', args: [key] });
+              migBatch.push({
+                sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number) VALUES (?, ?)
+                      ON CONFLICT(business_date) DO UPDATE SET last_bill_number = MAX(last_bill_number, ?);`,
+                args: [normKey, val, val]
+              });
+            }
+          }
+          if (migBatch.length > 0) await client.batch(migBatch, 'write');
+        }
+      } catch {}
       return;
     }
   } catch {}
@@ -947,6 +970,102 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           summary: orderSummary.rows,
           totalActiveOrders: totalOrders.rows[0]?.count || 0,
           totalDeletedOrders: totalDeleted.rows[0]?.count || 0,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
+    // ── Bill Number Integrity Audit ─────────────────────────────────────────────
+    // Scans each (business_date, branch) group for duplicate daily_bill_numbers,
+    // gaps in the sequence, and counter drift. Returns a structured report.
+    // Safe for scheduled post-sync calls — scopes to last N days by default.
+    if (action === 'audit-bill-numbers') {
+      try {
+        const targetDate = (req.query.date || req.query.business_date) as string | undefined;
+        const daysBack = Math.min(Number(req.query.days) || 7, 60);
+
+        let groupQuery: string;
+        let groupArgs: any[];
+        if (targetDate) {
+          groupQuery = `SELECT business_date, branch, COUNT(*) as total,
+            MIN(daily_bill_number) as min_num, MAX(daily_bill_number) as max_num
+            FROM orders WHERE business_date = ? GROUP BY business_date, branch;`;
+          groupArgs = [targetDate];
+        } else {
+          groupQuery = `SELECT business_date, branch, COUNT(*) as total,
+            MIN(daily_bill_number) as min_num, MAX(daily_bill_number) as max_num
+            FROM orders WHERE business_date >= date('now', '-${daysBack} days')
+            GROUP BY business_date, branch ORDER BY business_date DESC;`;
+          groupArgs = [];
+        }
+        const groups = await client.execute({ sql: groupQuery, args: groupArgs });
+
+        const issues: any[] = [];
+        const clean: any[] = [];
+
+        for (const g of groups.rows) {
+          const bdate = String(g.business_date);
+          const br = String(g.branch);
+          const total = Number(g.total);
+
+          const dups = await client.execute({
+            sql: `SELECT daily_bill_number, COUNT(*) as cnt FROM orders
+                  WHERE business_date = ? AND branch = ? GROUP BY daily_bill_number HAVING cnt > 1;`,
+            args: [bdate, br]
+          });
+
+          const nums = await client.execute({
+            sql: `SELECT daily_bill_number FROM orders
+                  WHERE business_date = ? AND branch = ? ORDER BY daily_bill_number ASC;`,
+            args: [bdate, br]
+          });
+          const numArr = nums.rows.map((r: any) => Number(r.daily_bill_number));
+          const gaps: number[] = [];
+          if (numArr.length > 0 && numArr[0] !== 1) {
+            for (let n = 1; n < numArr[0]; n++) gaps.push(n);
+          }
+          for (let i = 0; i < numArr.length - 1; i++) {
+            if (numArr[i + 1] - numArr[i] > 1) {
+              for (let n = numArr[i] + 1; n < numArr[i + 1]; n++) gaps.push(n);
+            }
+          }
+
+          const counterKey = `${bdate}_${br}`;
+          const ctr = await client.execute({
+            sql: 'SELECT last_bill_number FROM daily_bill_counters WHERE business_date = ?;',
+            args: [counterKey]
+          });
+          const counterVal = ctr.rows.length > 0 ? Number(ctr.rows[0].last_bill_number) : null;
+          const maxInOrders = numArr.length > 0 ? numArr[numArr.length - 1] : 0;
+          const counterDrift = counterVal !== null && counterVal < maxInOrders;
+
+          if (dups.rows.length > 0 || gaps.length > 0 || counterDrift) {
+            issues.push({
+              business_date: bdate,
+              branch: br,
+              total,
+              duplicates: dups.rows.map((r: any) => ({ daily_bill_number: Number(r.daily_bill_number), count: Number(r.cnt) })),
+              gaps,
+              counter_value: counterVal,
+              max_in_orders: maxInOrders,
+              counter_drift: counterDrift,
+            });
+          } else {
+            clean.push({ business_date: bdate, branch: br, total, sequence: `#1–#${maxInOrders}` });
+          }
+        }
+
+        recordUsage(client, 'audit-bill-numbers', groups.rows.length * 3);
+
+        return res.status(200).json({
+          success: true,
+          scanned: groups.rows.length,
+          clean: clean.length,
+          issues: issues.length,
+          issueDetails: issues,
+          cleanGroups: clean,
+          auditedAt: new Date().toISOString(),
         });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });

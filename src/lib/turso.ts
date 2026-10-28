@@ -664,6 +664,48 @@ export async function checkDatabaseReconciliation(): Promise<any> {
 /**
  * Fetch expenses from remote database (with TTL caching)
  */
+
+/**
+ * Audit bill number integrity for a specific date or the last N days.
+ * Returns a structured report of duplicates, gaps, and counter drift.
+ * Call this after every sync flush to surface integrity issues early.
+ */
+export async function auditBillNumbers(options: {
+  date?: string;
+  days?: number;
+} = {}): Promise<{
+  success: boolean;
+  scanned: number;
+  clean: number;
+  issues: number;
+  issueDetails: Array<{
+    business_date: string;
+    branch: string;
+    total: number;
+    duplicates: Array<{ daily_bill_number: number; count: number }>;
+    gaps: number[];
+    counter_value: number | null;
+    max_in_orders: number;
+    counter_drift: boolean;
+  }>;
+  cleanGroups: Array<{ business_date: string; branch: string; total: number; sequence: string }>;
+  auditedAt: string;
+} | null> {
+  try {
+    const params = new URLSearchParams({ action: 'audit-bill-numbers', _t: String(Date.now()) });
+    if (options.date) params.set('date', options.date);
+    if (options.days) params.set('days', String(options.days));
+    const res = await fetch(`${API_ENDPOINT}?${params.toString()}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchExpensesFromTurso(branch?: string, forceRefresh = false): Promise<ExpenseItem[] | null> {
   const cacheKey = branch || 'all';
   const now = Date.now();

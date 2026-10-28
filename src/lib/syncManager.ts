@@ -10,7 +10,7 @@
  */
 
 import { OrderBill } from '../types';
-import { saveOrderToTurso } from './turso';
+import { saveOrderToTurso, auditBillNumbers } from './turso';
 
 export type SyncStatus = 'connected' | 'syncing' | 'offline' | 'error';
 
@@ -275,6 +275,24 @@ class SyncManager {
         this.setStatus('connected');
         this.lastSyncTime = Date.now();
         this.lastError = null;
+        // Run a lightweight post-sync bill number integrity audit (today only).
+        // Fires in the background — never blocks the sync result or UI.
+        if (synced > 0) {
+          auditBillNumbers({ days: 1 }).then((report) => {
+            if (report && report.issues > 0) {
+              console.warn(
+                `[SYNC:AUDIT] ⚠️ Bill number integrity issues detected after sync:`,
+                report.issueDetails
+              );
+              // Surface to state listeners so the admin UI can show an alert
+              this.lastError = `Bill numbering issue detected — ${report.issues} date/branch pair(s) have duplicates or gaps. Check audit log.`;
+              this.setStatus('error');
+              this.notifyStateChange();
+            } else {
+              console.log(`[SYNC:AUDIT] ✅ Bill number integrity OK after sync (${report?.scanned ?? 0} group(s) clean)`);
+            }
+          }).catch(() => {});
+        }
       }
     } finally {
       this.isFlushingQueue = false;
