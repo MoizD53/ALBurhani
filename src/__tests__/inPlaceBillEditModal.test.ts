@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { EditBillModal } from '../components/bills/EditBillModal';
 import { computeStockAdjustments } from '../lib/orders';
+import { buildCartItem } from '../lib/pricing';
 import { CartItem, OrderBill, Product } from '../types';
 
 describe('AL-BURHANI POS — In-Place Bill Editing Modal & Non-Redirecting Flow', () => {
@@ -38,26 +39,21 @@ describe('AL-BURHANI POS — In-Place Bill Editing Modal & Non-Redirecting Flow'
   const sampleOrder: OrderBill = {
     id: 'sale-1793071461459-5620',
     billNumber: 'Bill #1',
-    daily_bill_number: 1,
-    business_date: '2026-10-27',
+    dailyBillNumber: 1,
+    businessDate: '2026-10-27',
     branch: 'godi_road',
-    timestamp: '2026-10-27T08:54:00.000Z',
-    items: [
-      {
-        product: sampleProducts[0],
-        quantity: 2,
-        unitPrice: 250,
-        manualPriceApplied: false,
-        lineTotal: 500,
-      },
-    ],
+    timestamp: Date.now(),
+    createdAt: new Date().toISOString(),
+    cashierName: 'Owner',
+    items: [buildCartItem(sampleProducts[0], 2)],
     subtotal: 500,
-    discount: 0,
-    tax: 0,
-    total: 500,
+    discountAmount: 0,
+    gstAmount: 0,
+    grandTotal: 500,
     paymentMethod: 'CASH',
     amountReceived: 500,
-    changeDue: 0,
+    changeGiven: 0,
+    transactionType: 'NO_BILL',
   };
 
   it('exports EditBillModal component properly', () => {
@@ -88,31 +84,13 @@ describe('AL-BURHANI POS — In-Place Bill Editing Modal & Non-Redirecting Flow'
 
   it('calculates inventory delta correctly when editing items in the bill', () => {
     const originalItems: CartItem[] = [
-      {
-        product: sampleProducts[0],
-        quantity: 2,
-        unitPrice: 250,
-        manualPriceApplied: false,
-        lineTotal: 500,
-      },
+      buildCartItem(sampleProducts[0], 2),
     ];
 
     // Customer increased KAJU KATLI from 2 to 3, and added 1 GATHIYA
     const updatedItems: CartItem[] = [
-      {
-        product: sampleProducts[0],
-        quantity: 3,
-        unitPrice: 250,
-        manualPriceApplied: false,
-        lineTotal: 750,
-      },
-      {
-        product: sampleProducts[1],
-        quantity: 1,
-        unitPrice: 80,
-        manualPriceApplied: false,
-        lineTotal: 80,
-      },
+      buildCartItem(sampleProducts[0], 3),
+      buildCartItem(sampleProducts[1], 1),
     ];
 
     const adjustments = computeStockAdjustments(originalItems, updatedItems);
@@ -124,31 +102,13 @@ describe('AL-BURHANI POS — In-Place Bill Editing Modal & Non-Redirecting Flow'
 
   it('calculates inventory restoration correctly when items are removed or reduced', () => {
     const originalItems: CartItem[] = [
-      {
-        product: sampleProducts[0],
-        quantity: 3,
-        unitPrice: 250,
-        manualPriceApplied: false,
-        lineTotal: 750,
-      },
-      {
-        product: sampleProducts[1],
-        quantity: 2,
-        unitPrice: 80,
-        manualPriceApplied: false,
-        lineTotal: 160,
-      },
+      buildCartItem(sampleProducts[0], 3),
+      buildCartItem(sampleProducts[1], 2),
     ];
 
     // Reduced KAJU KATLI to 1, completely removed GATHIYA
     const updatedItems: CartItem[] = [
-      {
-        product: sampleProducts[0],
-        quantity: 1,
-        unitPrice: 250,
-        manualPriceApplied: false,
-        lineTotal: 250,
-      },
+      buildCartItem(sampleProducts[0], 1),
     ];
 
     const adjustments = computeStockAdjustments(originalItems, updatedItems);
