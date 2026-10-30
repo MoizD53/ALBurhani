@@ -79,11 +79,54 @@ async function ensureSchema(client: Client): Promise<void> {
           if (migBatch.length > 0) await client.batch(migBatch, 'write');
         }
       } catch {}
+      // Ensure branch_stock table exists and is backfilled for multi-branch isolation
+      try {
+        await client.execute(`
+          CREATE TABLE IF NOT EXISTS branch_stock (
+            product_id TEXT NOT NULL,
+            branch TEXT NOT NULL,
+            stock REAL NOT NULL DEFAULT 0,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (product_id, branch)
+          );
+        `);
+        await client.execute(`CREATE INDEX IF NOT EXISTS idx_branch_stock_branch ON branch_stock (branch);`);
+        await client.execute(`CREATE INDEX IF NOT EXISTS idx_branch_stock_product ON branch_stock (product_id);`);
+
+        // Backfill branch_stock if empty
+        const countRes = await client.execute('SELECT COUNT(*) as c FROM branch_stock;');
+        if (Number(countRes.rows[0]?.c) === 0) {
+          await client.execute(`
+            INSERT OR IGNORE INTO branch_stock (product_id, branch, stock, updated_at)
+            SELECT id, 'godi_road', stock, updated_at FROM products;
+          `);
+          await client.execute(`
+            INSERT OR IGNORE INTO branch_stock (product_id, branch, stock, updated_at)
+            SELECT id, 'mg_road', 0, CURRENT_TIMESTAMP FROM products;
+          `);
+        }
+      } catch {}
+
+      // Ensure stock_movements has branch column
+      try {
+        await client.execute("ALTER TABLE stock_movements ADD COLUMN branch TEXT DEFAULT 'godi_road';");
+      } catch {}
+
       return;
     }
   } catch {}
 
   const schemaStatements = [
+    `CREATE TABLE IF NOT EXISTS branch_stock (
+      product_id TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      stock REAL NOT NULL DEFAULT 0,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (product_id, branch)
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_branch_stock_branch ON branch_stock (branch);`,
+    `CREATE INDEX IF NOT EXISTS idx_branch_stock_product ON branch_stock (product_id);`,
+
     `CREATE TABLE IF NOT EXISTS products (
       id TEXT PRIMARY KEY,
       sku TEXT,
@@ -671,9 +714,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'fetch-products') {
       try {
         const since = req.query.since as string | undefined;
+        const branch = req.query.branch === 'mg_road' ? 'mg_road' : 'godi_road';
+
         if (since) {
-          // Usage-conscious optimization: check if catalogue has changed since client timestamp
-          const checkRes = await client.execute('SELECT MAX(updated_at) as last_updated, COUNT(*) as count FROM products;');
+          // Usage-conscious optimization: check if catalogue or branch stock has changed since client timestamp
+          const checkRes = await client.execute(`
+            SELECT MAX(p.updated_at) as last_updated, COUNT(*) as count 
+            FROM products p;
+          `);
           const checkRow = checkRes.rows[0];
           const lastUpdated = checkRow?.last_updated ? String(checkRow.last_updated) : null;
           
@@ -684,16 +732,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               notModified: true,
               count: Number(checkRow?.count) || 0,
               lastUpdated,
+              branch,
             });
           }
         }
 
-        const result = await client.execute('SELECT * FROM products ORDER BY category ASC, name ASC;');
+        const result = await client.execute({
+          sql: `SELECT p.*,
+                  COALESCE(bs_active.stock, CASE WHEN ? = 'godi_road' THEN p.stock ELSE 0 END) as branch_stock,
+                  COALESCE(bs_godi.stock, p.stock, 0) as stock_godi_road,
+                  COALESCE(bs_mg.stock, 0) as stock_mg_road
+                FROM products p
+                LEFT JOIN branch_stock bs_active ON p.id = bs_active.product_id AND bs_active.branch = ?
+                LEFT JOIN branch_stock bs_godi ON p.id = bs_godi.product_id AND bs_godi.branch = 'godi_road'
+                LEFT JOIN branch_stock bs_mg ON p.id = bs_mg.product_id AND bs_mg.branch = 'mg_road'
+                ORDER BY p.category ASC, p.name ASC;`,
+          args: [branch, branch]
+        });
+
         const checkRes = await client.execute('SELECT MAX(updated_at) as last_updated FROM products;');
         const lastUpdated = checkRes.rows[0]?.last_updated ? String(checkRes.rows[0].last_updated) : null;
 
-        recordUsage(client, 'fetch-products:full', result.rows.length + 1);
-        return res.status(200).json({ success: true, rows: result.rows, lastUpdated });
+        const rows = result.rows.map((row: any) => ({
+          ...row,
+          stock: Number(row.branch_stock),
+          branch_stock: {
+            godi_road: Number(row.stock_godi_road),
+            mg_road: Number(row.stock_mg_road),
+          },
+          branchStock: {
+            godi_road: Number(row.stock_godi_road),
+            mg_road: Number(row.stock_mg_road),
+          },
+        }));
+
+        recordUsage(client, 'fetch-products:full', rows.length + 1);
+        return res.status(200).json({ success: true, rows, lastUpdated, branch });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -1217,52 +1291,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ success: false, error: 'Invalid product payload' });
       }
 
-      try {
-        await client.execute({
-          sql: `INSERT INTO products (
-            id, sku, barcode, name, category, unit, price_basis, net_weight, cost_price, selling_price,
-            stock, min_stock, shelf_life_days, batch_no, mfg_date, expiry_date, price_tiers, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-          ON CONFLICT(id) DO UPDATE SET
-            sku=excluded.sku,
-            barcode=excluded.barcode,
-            name=excluded.name,
-            category=excluded.category,
-            unit=excluded.unit,
-            price_basis=excluded.price_basis,
-            net_weight=excluded.net_weight,
-            cost_price=excluded.cost_price,
-            selling_price=excluded.selling_price,
-            stock=excluded.stock,
-            min_stock=excluded.min_stock,
-            shelf_life_days=excluded.shelf_life_days,
-            batch_no=excluded.batch_no,
-            mfg_date=excluded.mfg_date,
-            expiry_date=excluded.expiry_date,
-            price_tiers=excluded.price_tiers,
-            updated_at=CURRENT_TIMESTAMP;`,
-          args: [
-            p.id,
-            p.sku || p.barcode,
-            p.barcode,
-            p.name,
-            p.category,
-            p.unit,
-            p.priceBasis || '₹/pc',
-            p.netWeight || '',
-            Number(p.costPrice) || 0,
-            Number(p.sellingPrice) || 0,
-            Number(p.stock) || 0,
-            Number(p.minStock) || 0,
-            Number(p.shelfLifeDays) || 90,
-            p.batchNo || '',
-            p.mfgDate || '',
-            p.expiryDate || '',
-            p.priceTiers ? JSON.stringify(p.priceTiers) : null,
-          ],
-        });
+      const branch = p.branch === 'mg_road' ? 'mg_road' : 'godi_road';
 
-        await logSyncEvent(client, 'product', p.id, 'save', p);
+      try {
+        const batchStatements: InStatement[] = [
+          {
+            sql: `INSERT INTO products (
+              id, sku, barcode, name, category, unit, price_basis, net_weight, cost_price, selling_price,
+              stock, min_stock, shelf_life_days, batch_no, mfg_date, expiry_date, price_tiers, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+              sku=excluded.sku,
+              barcode=excluded.barcode,
+              name=excluded.name,
+              category=excluded.category,
+              unit=excluded.unit,
+              price_basis=excluded.price_basis,
+              net_weight=excluded.net_weight,
+              cost_price=excluded.cost_price,
+              selling_price=excluded.selling_price,
+              min_stock=excluded.min_stock,
+              shelf_life_days=excluded.shelf_life_days,
+              batch_no=excluded.batch_no,
+              mfg_date=excluded.mfg_date,
+              expiry_date=excluded.expiry_date,
+              price_tiers=excluded.price_tiers,
+              updated_at=CURRENT_TIMESTAMP;`,
+            args: [
+              p.id,
+              p.sku || p.barcode,
+              p.barcode,
+              p.name,
+              p.category,
+              p.unit,
+              p.priceBasis || '₹/pc',
+              p.netWeight || '',
+              Number(p.costPrice) || 0,
+              Number(p.sellingPrice) || 0,
+              Number(p.stock) || 0,
+              Number(p.minStock) || 0,
+              Number(p.shelfLifeDays) || 90,
+              p.batchNo || '',
+              p.mfgDate || '',
+              p.expiryDate || '',
+              p.priceTiers ? JSON.stringify(p.priceTiers) : null,
+            ],
+          },
+          // Ensure branch_stock is initialized / preserved for both branches
+          {
+            sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                  VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                  ON CONFLICT(product_id, branch) DO UPDATE SET
+                    stock = CASE WHEN excluded.stock != 0 THEN excluded.stock ELSE branch_stock.stock END,
+                    updated_at = CURRENT_TIMESTAMP;`,
+            args: [p.id, branch, Number(p.stock) || 0],
+          },
+          {
+            sql: `INSERT OR IGNORE INTO branch_stock (product_id, branch, stock, updated_at)
+                  VALUES (?, ?, 0, CURRENT_TIMESTAMP);`,
+            args: [p.id, branch === 'mg_road' ? 'godi_road' : 'mg_road'],
+          }
+        ];
+
+        await client.batch(batchStatements, 'write');
+
+        await logSyncEvent(client, 'product', p.id, 'save', { ...p, branch });
         return res.status(200).json({ success: true });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
@@ -1282,6 +1375,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           args: [productId],
         });
 
+        // Also clean up branch_stock
+        try {
+          await client.execute({
+            sql: 'DELETE FROM branch_stock WHERE product_id = ?;',
+            args: [productId],
+          });
+        } catch {}
+
         await logSyncEvent(client, 'product', productId, 'delete', { productId });
         return res.status(200).json({ success: true });
       } catch (err: any) {
@@ -1291,52 +1392,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Update Stock
     if (action === 'update-stock') {
-      const { productId, stock, delta, reason, actor } = payload || {};
+      const { productId, stock, delta, reason, actor, branch: reqBranch } = payload || {};
       if (!productId) {
         return res.status(400).json({ success: false, error: 'Invalid stock update payload: missing productId' });
       }
 
+      const branch = reqBranch === 'mg_road' ? 'mg_road' : 'godi_road';
+
       try {
         if (typeof delta === 'number') {
-          // Atomic relative stock adjustment — safe for concurrent multi-device sales
+          // Atomic relative stock adjustment for specific branch
           await client.execute({
-            sql: 'UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-            args: [delta, productId],
+            sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                  VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                  ON CONFLICT(product_id, branch) DO UPDATE SET stock = branch_stock.stock + ?, updated_at = CURRENT_TIMESTAMP;`,
+            args: [productId, branch, delta, delta],
           });
-          // Fetch the actual resulting stock for the sync event
+
+          if (branch === 'godi_road') {
+            await client.execute({
+              sql: 'UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+              args: [delta, productId],
+            });
+          }
+
+          // Fetch the actual resulting stock for the branch
           const result = await client.execute({
-            sql: 'SELECT stock, name FROM products WHERE id = ?;',
-            args: [productId],
+            sql: 'SELECT stock FROM branch_stock WHERE product_id = ? AND branch = ?;',
+            args: [productId, branch],
           });
           const actualStock = result.rows[0] ? Number(result.rows[0].stock) : 0;
           await client.execute({
-            sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
-                  VALUES (?, 'STOCK_DELTA', ?, ?, ?, ?);`,
-            args: [productId, `adj-${Date.now()}`, delta, `${reason || 'Stock delta adjustment'} (${delta >= 0 ? '+' : ''}${delta})`, Date.now()],
+            sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp, branch)
+                  VALUES (?, 'STOCK_DELTA', ?, ?, ?, ?, ?);`,
+            args: [productId, `adj-${Date.now()}`, delta, `${reason || 'Stock delta adjustment'} (${delta >= 0 ? '+' : ''}${delta}) [${branch}]`, Date.now(), branch],
           });
-          await logSyncEvent(client, 'product', productId, 'stock', { productId, stock: actualStock, delta, actor: actor || 'Admin' });
-          return res.status(200).json({ success: true, stock: actualStock });
+          await logSyncEvent(client, 'product', productId, 'stock', { productId, stock: actualStock, delta, actor: actor || 'Admin', branch });
+          return res.status(200).json({ success: true, stock: actualStock, branch });
         } else if (typeof stock === 'number') {
-          // Absolute stock set — used for manual inventory entry with full audit trail
+          // Absolute stock set for specific branch
           const prevRes = await client.execute({
-            sql: 'SELECT stock, name FROM products WHERE id = ? LIMIT 1;',
-            args: [productId],
+            sql: 'SELECT stock FROM branch_stock WHERE product_id = ? AND branch = ? LIMIT 1;',
+            args: [productId, branch],
           });
           const prevStock = prevRes.rows[0] ? Number(prevRes.rows[0].stock) : 0;
-          const prodName = prevRes.rows[0] ? String(prevRes.rows[0].name) : '';
+          const prodRes = await client.execute({
+            sql: 'SELECT name FROM products WHERE id = ? LIMIT 1;',
+            args: [productId],
+          });
+          const prodName = prodRes.rows[0] ? String(prodRes.rows[0].name) : '';
           const diff = stock - prevStock;
           const actingUser = actor || 'Admin';
           const adjustmentReason = reason || 'Manual inventory edit';
 
           const batchStatements: InStatement[] = [
             {
-              sql: 'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-              args: [stock, productId],
+              sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(product_id, branch) DO UPDATE SET stock = ?, updated_at = CURRENT_TIMESTAMP;`,
+              args: [productId, branch, stock, stock],
             },
             {
-              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
-                    VALUES (?, 'MANUAL_EDIT', ?, ?, ?, ?);`,
-              args: [productId, `adj-${Date.now()}`, diff, `${adjustmentReason} by ${actingUser}: ${prevStock} -> ${stock} (${diff >= 0 ? '+' : ''}${diff})`, Date.now()],
+              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp, branch)
+                    VALUES (?, 'MANUAL_EDIT', ?, ?, ?, ?, ?);`,
+              args: [productId, `adj-${Date.now()}`, diff, `${adjustmentReason} by ${actingUser}: ${prevStock} -> ${stock} (${diff >= 0 ? '+' : ''}${diff}) [${branch}]`, Date.now(), branch],
             },
             {
               sql: `INSERT INTO financial_audit_logs (action, entity_type, entity_id, amount, payment_method, details_json, actor, timestamp)
@@ -1345,6 +1464,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 productId,
                 JSON.stringify({
                   productName: prodName,
+                  branch,
                   previousStock: prevStock,
                   newStock: stock,
                   difference: diff,
@@ -1357,6 +1477,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
           ];
 
+          if (branch === 'godi_road') {
+            batchStatements.push({
+              sql: 'UPDATE products SET stock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+              args: [stock, productId],
+            });
+          }
+
           await client.batch(batchStatements, 'write');
 
           await logSyncEvent(client, 'product', productId, 'stock', {
@@ -1366,9 +1493,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             difference: diff,
             reason: adjustmentReason,
             actor: actingUser,
+            branch,
           });
 
-          return res.status(200).json({ success: true, stock, previousStock: prevStock, difference: diff });
+          return res.status(200).json({ success: true, stock, previousStock: prevStock, difference: diff, branch });
         } else {
           return res.status(400).json({ success: false, error: 'Invalid stock update payload: need stock or delta' });
         }
@@ -1583,7 +1711,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ]
         });
 
-        // Deduct inventory stock for sold items strictly for new orders
+        // Deduct inventory stock for sold items strictly for new orders against this order's branch
         if (!isExisting && Array.isArray(o.items) && o.items.length > 0) {
           for (const it of o.items) {
             const qty = Number(it.quantity) || 0;
@@ -1592,13 +1720,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const barcode = it.product?.barcode || (it.barcode ? String(it.barcode) : null);
               if (prodId || barcode) {
                 batchStatements.push({
-                  sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?);',
-                  args: [qty, prodId || '', barcode || '']
+                  sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                        VALUES ((SELECT id FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1), ?, -?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(product_id, branch) DO UPDATE SET stock = branch_stock.stock - ?, updated_at = CURRENT_TIMESTAMP;`,
+                  args: [prodId || '', barcode || '', branch, qty, qty]
                 });
+                if (branch === 'godi_road') {
+                  batchStatements.push({
+                    sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?);',
+                    args: [qty, prodId || '', barcode || '']
+                  });
+                }
                 batchStatements.push({
-                  sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
-                        VALUES ((SELECT id FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1), 'SALE', ?, ?, ?, ?);`,
-                  args: [prodId || '', barcode || '', o.id, -qty, `Sale ${finalBillNumber} (-${qty})`, Date.now()]
+                  sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp, branch)
+                        VALUES ((SELECT id FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1), 'SALE', ?, ?, ?, ?, ?);`,
+                  args: [prodId || '', barcode || '', o.id, -qty, `Sale ${finalBillNumber} (-${qty}) [${branch}]`, Date.now(), branch]
                 });
               }
             }
@@ -2231,6 +2367,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Apply stock deltas, bill record, and payments atomically via batch transaction
         const batchStatements: InStatement[] = [];
+        const purchaseBranch = b.branch === 'mg_road' ? 'mg_road' : 'godi_road';
         const allProductIds = new Set([...Object.keys(oldProductQtyMap), ...Object.keys(newProductQtyMap)]);
         for (const prodId of allProductIds) {
           const oldQty = oldProductQtyMap[prodId] || 0;
@@ -2239,14 +2376,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           if (delta !== 0) {
             batchStatements.push({
-              sql: 'UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-              args: [delta, prodId],
+              sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(product_id, branch) DO UPDATE SET stock = branch_stock.stock + ?, updated_at = CURRENT_TIMESTAMP;`,
+              args: [prodId, purchaseBranch, delta, delta],
             });
 
+            if (purchaseBranch === 'godi_road') {
+              batchStatements.push({
+                sql: 'UPDATE products SET stock = stock + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+                args: [delta, prodId],
+              });
+            }
+
             batchStatements.push({
-              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
-                    VALUES (?, 'PURCHASE', ?, ?, ?, ?);`,
-              args: [prodId, b.id, delta, `Purchase Bill ${purchaseNum} (${delta > 0 ? '+' : ''}${delta})`, Date.now()],
+              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp, branch)
+                    VALUES (?, 'PURCHASE', ?, ?, ?, ?, ?);`,
+              args: [prodId, b.id, delta, `Purchase Bill ${purchaseNum} (${delta > 0 ? '+' : ''}${delta}) [${purchaseBranch}]`, Date.now(), purchaseBranch],
             });
           }
         }
@@ -2409,25 +2555,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({ success: true, message: 'Already cancelled' });
         }
 
-        // Reverse stock on linked products
+        // Reverse stock on linked products for this purchase bill's branch
         let items: any[] = [];
         try {
           items = bill.items_json ? JSON.parse(String(bill.items_json)) : [];
         } catch {}
 
         const batchStatements: InStatement[] = [];
+        const purchaseBranch = bill.branch === 'mg_road' ? 'mg_road' : 'godi_road';
 
         for (const it of items) {
           if (it.productId && typeof it.quantity === 'number') {
+            const qty = Number(it.quantity);
             batchStatements.push({
-              sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
-              args: [Number(it.quantity), it.productId],
+              sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                    VALUES (?, ?, -?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(product_id, branch) DO UPDATE SET stock = branch_stock.stock - ?, updated_at = CURRENT_TIMESTAMP;`,
+              args: [it.productId, purchaseBranch, qty, qty],
             });
 
+            if (purchaseBranch === 'godi_road') {
+              batchStatements.push({
+                sql: 'UPDATE products SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;',
+                args: [qty, it.productId],
+              });
+            }
+
             batchStatements.push({
-              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
-                    VALUES (?, 'PURCHASE_CANCEL', ?, ?, ?, ?);`,
-              args: [it.productId, billId, -Number(it.quantity), `Cancelled Purchase ${bill.purchase_number}`, Date.now()],
+              sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp, branch)
+                    VALUES (?, 'PURCHASE_CANCEL', ?, ?, ?, ?, ?);`,
+              args: [it.productId, billId, -qty, `Cancelled Purchase ${bill.purchase_number} [${purchaseBranch}]`, Date.now(), purchaseBranch],
             });
           }
         }
@@ -2482,22 +2639,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             items = bill.items_json ? JSON.parse(String(bill.items_json)) : [];
           } catch {}
 
+          const purchaseBranch = bill.branch === 'mg_road' ? 'mg_road' : 'godi_road';
+
           for (const it of items) {
             if (it.productId && typeof it.quantity === 'number') {
               const qty = Number(it.quantity);
-              // Conditional update: only decrement stock if the bill is still present and active (prevents duplicate reversals on concurrent requests)
+              // Decrement branch_stock for this purchase bill's branch
               batchStatements.push({
-                sql: `UPDATE products 
-                      SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP 
-                      WHERE id = ? AND EXISTS (SELECT 1 FROM purchase_bills WHERE id = ? AND status != 'Cancelled');`,
-                args: [qty, it.productId, billId],
+                sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                      SELECT ?, ?, -?, CURRENT_TIMESTAMP
+                      WHERE EXISTS (SELECT 1 FROM purchase_bills WHERE id = ? AND status != 'Cancelled')
+                      ON CONFLICT(product_id, branch) DO UPDATE SET stock = branch_stock.stock - ?, updated_at = CURRENT_TIMESTAMP;`,
+                args: [it.productId, purchaseBranch, qty, billId, qty],
               });
 
+              if (purchaseBranch === 'godi_road') {
+                batchStatements.push({
+                  sql: `UPDATE products 
+                        SET stock = stock - ?, updated_at = CURRENT_TIMESTAMP 
+                        WHERE id = ? AND EXISTS (SELECT 1 FROM purchase_bills WHERE id = ? AND status != 'Cancelled');`,
+                  args: [qty, it.productId, billId],
+                });
+              }
+
               batchStatements.push({
-                sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp)
-                      SELECT ?, 'PURCHASE_DELETED', ?, ?, ?, ?
+                sql: `INSERT INTO stock_movements (product_id, movement_type, reference_id, quantity_delta, notes, timestamp, branch)
+                      SELECT ?, 'PURCHASE_DELETED', ?, ?, ?, ?, ?
                       WHERE EXISTS (SELECT 1 FROM purchase_bills WHERE id = ? AND status != 'Cancelled');`,
-                args: [it.productId, billId, -qty, `Deleted Purchase ${bill.purchase_number}`, now, billId],
+                args: [it.productId, billId, -qty, `Deleted Purchase ${bill.purchase_number} [${purchaseBranch}]`, now, purchaseBranch, billId],
               });
             }
           }

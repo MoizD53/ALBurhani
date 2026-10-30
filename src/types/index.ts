@@ -13,7 +13,12 @@ export interface Product {
   netWeight?: string;
   costPrice: number;
   sellingPrice: number; // Price per KG or price per piece
-  stock?: number; // legacy optional (stock management removed)
+  stock?: number; // Active branch's stock (for current terminal context)
+  branchStock?: {
+    godi_road?: number;
+    mg_road?: number;
+    [branch: string]: number | undefined;
+  };
   minStock?: number; // legacy optional
   shelfLifeDays?: number;
   batchNo?: string;

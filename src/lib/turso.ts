@@ -174,7 +174,7 @@ export function getTursoClient() {
 /**
  * Fetch all products from remote database (with shared in-memory TTL caching and request deduplication)
  */
-export async function fetchProductsFromTurso(forceRefresh = false): Promise<Product[] | null> {
+export async function fetchProductsFromTurso(forceRefresh = false, branch = 'godi_road'): Promise<Product[] | null> {
   const now = Date.now();
   if (!forceRefresh && productsCache && (now - productsCache.timestamp < PRODUCTS_CACHE_TTL)) {
     return productsCache.data;
@@ -208,7 +208,8 @@ export async function fetchProductsFromTurso(forceRefresh = false): Promise<Prod
   productsFetchPromise = (async () => {
     try {
       const sinceParam = (!forceRefresh && lastProductsUpdatedAt) ? `&since=${encodeURIComponent(lastProductsUpdatedAt)}` : '';
-      const res = await fetch(`${API_ENDPOINT}?action=fetch-products${sinceParam}&_t=${Date.now()}`, { cache: 'no-store' });
+      const branchParam = `&branch=${encodeURIComponent(branch)}`;
+      const res = await fetch(`${API_ENDPOINT}?action=fetch-products${sinceParam}${branchParam}&_t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) return null;
 
       const data = await res.json();
@@ -234,26 +235,36 @@ export async function fetchProductsFromTurso(forceRefresh = false): Promise<Prod
       if (data.lastUpdated) {
         lastProductsUpdatedAt = String(data.lastUpdated);
       }
-      const products: Product[] = data.rows.map((row: any) => ({
-        id: String(row.id),
-        sku: String(row.sku || row.barcode),
-        barcode: String(row.barcode),
-        name: String(row.name),
-        category: row.category as any,
-        unit: String(row.unit),
-        priceBasis: row.price_basis ? String(row.price_basis) : undefined,
-        netWeight: row.net_weight ? String(row.net_weight) : undefined,
-        costPrice: Number(row.cost_price),
-        sellingPrice: Number(row.selling_price),
-        stock: Number(row.stock),
-        minStock: Number(row.min_stock),
-        shelfLifeDays: Number(row.shelf_life_days || 90),
-        batchNo: String(row.batch_no || ''),
-        mfgDate: String(row.mfg_date || ''),
-        expiryDate: String(row.expiry_date || ''),
-        priceTiers: row.price_tiers ? (typeof row.price_tiers === 'string' ? JSON.parse(row.price_tiers) : row.price_tiers) : undefined,
-        isActive: true,
-      }));
+      const products: Product[] = data.rows.map((row: any) => {
+        const stockGodi = typeof row.stock_godi_road === 'number' ? Number(row.stock_godi_road) : (typeof row.branch_stock?.godi_road === 'number' ? Number(row.branch_stock.godi_road) : Number(row.stock || 0));
+        const stockMg = typeof row.stock_mg_road === 'number' ? Number(row.stock_mg_road) : (typeof row.branch_stock?.mg_road === 'number' ? Number(row.branch_stock.mg_road) : 0);
+        const activeStock = typeof row.branch_stock === 'number' ? Number(row.branch_stock) : (branch === 'mg_road' ? stockMg : stockGodi);
+
+        return {
+          id: String(row.id),
+          sku: String(row.sku || row.barcode),
+          barcode: String(row.barcode),
+          name: String(row.name),
+          category: row.category as any,
+          unit: String(row.unit),
+          priceBasis: row.price_basis ? String(row.price_basis) : undefined,
+          netWeight: row.net_weight ? String(row.net_weight) : undefined,
+          costPrice: Number(row.cost_price),
+          sellingPrice: Number(row.selling_price),
+          stock: Number(activeStock),
+          branchStock: {
+            godi_road: stockGodi,
+            mg_road: stockMg,
+          },
+          minStock: Number(row.min_stock),
+          shelfLifeDays: Number(row.shelf_life_days || 90),
+          batchNo: String(row.batch_no || ''),
+          mfgDate: String(row.mfg_date || ''),
+          expiryDate: String(row.expiry_date || ''),
+          priceTiers: row.price_tiers ? (typeof row.price_tiers === 'string' ? JSON.parse(row.price_tiers) : row.price_tiers) : undefined,
+          isActive: true,
+        };
+      });
 
       // Ensure remote products are converted to per-kg and cannot overwrite local state with stale rates
       const { products: cleanProducts } = migrateCatalogPrices(products);
@@ -272,7 +283,7 @@ export async function fetchProductsFromTurso(forceRefresh = false): Promise<Prod
 /**
  * Save / Update a product via serverless proxy
  */
-export async function saveProductToTurso(product: Product): Promise<boolean> {
+export async function saveProductToTurso(product: Product, branch = 'godi_road'): Promise<boolean> {
   invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
@@ -283,7 +294,7 @@ export async function saveProductToTurso(product: Product): Promise<boolean> {
       },
       body: JSON.stringify({
         action: 'save-product',
-        payload: product,
+        payload: { ...product, branch },
       }),
     });
 
@@ -328,7 +339,8 @@ export async function updateStockOnTurso(
   productId: string, 
   newStock: number, 
   reason = 'Manual adjustment', 
-  actor = 'Admin'
+  actor = 'Admin',
+  branch = 'godi_road'
 ): Promise<boolean> {
   invalidateProductsCache();
   try {
@@ -345,6 +357,7 @@ export async function updateStockOnTurso(
           stock: newStock,
           reason,
           actor,
+          branch,
         },
       }),
     });
@@ -362,7 +375,11 @@ export async function updateStockOnTurso(
  * Use negative delta for deductions (sales) and positive for additions (restocking).
  * This is safe for concurrent multi-device operations.
  */
-export async function adjustStockOnTurso(productId: string, delta: number): Promise<{ success: boolean; stock?: number }> {
+export async function adjustStockOnTurso(
+  productId: string, 
+  delta: number,
+  branch = 'godi_road'
+): Promise<{ success: boolean; stock?: number }> {
   invalidateProductsCache();
   try {
     const res = await fetch(API_ENDPOINT, {
@@ -376,6 +393,7 @@ export async function adjustStockOnTurso(productId: string, delta: number): Prom
         payload: {
           productId,
           delta,
+          branch,
         },
       }),
     });

@@ -42,10 +42,11 @@ interface ProductManagementViewProps {
   onUpdateCategory: (category: CategoryItem, oldName?: string) => Promise<boolean>;
   onToggleCategoryActive?: (categoryId: string) => Promise<boolean>;
   onDeleteProduct?: (productId: string) => Promise<boolean> | boolean | void;
-  onUpdateStock?: (productId: string, newStock: number, reason?: string, actor?: string) => Promise<boolean> | boolean | void;
+  onUpdateStock?: (productId: string, newStock: number, reason?: string, actor?: string, branch?: string) => Promise<boolean> | boolean | void;
   initialBarcodeToRegister?: string | null;
   onClearInitialBarcode?: () => void;
   actingUser?: string;
+  activeBranch?: string;
 }
 
 export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
@@ -62,6 +63,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   initialBarcodeToRegister,
   onClearInitialBarcode,
   actingUser = "Admin",
+  activeBranch = "godi_road",
 }) => {
   // Main view active tab: 'items' or 'categories' (Default to 'items')
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'categories'>('items');
@@ -93,6 +95,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   };
   // Manual Edit Stock Modal State
   const [editingStockProduct, setEditingStockProduct] = useState<Product | null>(null);
+  const [selectedStockBranch, setSelectedStockBranch] = useState<'godi_road' | 'mg_road'>('godi_road');
   const [manualStockInput, setManualStockInput] = useState<string>('0');
   const [stockAdjustmentReason, setStockAdjustmentReason] = useState<string>('Physical Inventory Count');
   const [stockCustomNotes, setStockCustomNotes] = useState<string>('');
@@ -100,8 +103,11 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
   const [stockModalError, setStockModalError] = useState<string | null>(null);
 
   const handleOpenEditStockModal = (product: Product) => {
+    const defaultBranch = (activeBranch === 'mg_road' ? 'mg_road' : 'godi_road') as 'godi_road' | 'mg_road';
     setEditingStockProduct(product);
-    setManualStockInput(String(product.stock ?? 0));
+    setSelectedStockBranch(defaultBranch);
+    const branchStockVal = product.branchStock?.[defaultBranch] ?? product.stock ?? 0;
+    setManualStockInput(String(branchStockVal));
     setStockAdjustmentReason('Physical Inventory Count');
     setStockCustomNotes('');
     setStockModalError(null);
@@ -121,13 +127,22 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
         ? `${stockAdjustmentReason}: ${stockCustomNotes.trim()}`
         : stockAdjustmentReason;
       if (onUpdateStock) {
-        await onUpdateStock(editingStockProduct.id, val, fullReason, actingUser || 'Admin');
+        await onUpdateStock(editingStockProduct.id, val, fullReason, actingUser || 'Admin', selectedStockBranch);
       } else {
-        onUpdateProduct({ ...editingStockProduct, stock: val });
+        const updatedBranchStock = {
+          ...(editingStockProduct.branchStock || {}),
+          [selectedStockBranch]: val,
+        };
+        onUpdateProduct({
+          ...editingStockProduct,
+          stock: selectedStockBranch === activeBranch ? val : editingStockProduct.stock,
+          branchStock: updatedBranchStock,
+        });
       }
+      const branchLabel = selectedStockBranch === 'mg_road' ? 'MG Road' : 'Godi Road';
       setFeedback({
         type: 'success',
-        message: `Stock for "${editingStockProduct.name}" updated to ${val} ${editingStockProduct.unit}`,
+        message: `${branchLabel} stock for "${editingStockProduct.name}" updated to ${val} ${editingStockProduct.unit}`,
       });
       setEditingStockProduct(null);
     } catch (err: any) {
@@ -811,30 +826,42 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center justify-center gap-1.5 group">
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full font-mono text-[11px] font-bold border transition-colors ${
-                                  (p.stock ?? 0) > 0
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                    : (p.stock ?? 0) === 0
-                                    ? 'bg-stone-100 text-stone-600 border-stone-200'
-                                    : 'bg-red-50 text-red-700 border-red-200 font-extrabold'
-                                }`}
-                                title={(p.stock ?? 0) < 0 ? 'Negative stock (sold beyond recorded stock)' : `Current stock: ${p.stock ?? 0} ${p.unit}`}
-                              >
-                                {(p.stock ?? 0) > 0 ? `+${p.stock}` : `${p.stock ?? 0}`} {p.unit}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingStockId(p.id);
-                                  setInlineStockVal(String(p.stock ?? 0));
-                                }}
-                                className="p-1 rounded-md text-stone-400 hover:text-[#B8860B] hover:bg-amber-50 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
-                                title="Click to edit stock number"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <div className="flex items-center justify-center gap-1.5 group">
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full font-mono text-[11px] font-bold border transition-colors ${
+                                    (p.stock ?? 0) > 0
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      : (p.stock ?? 0) === 0
+                                      ? 'bg-stone-100 text-stone-600 border-stone-200'
+                                      : 'bg-red-50 text-red-700 border-red-200 font-extrabold'
+                                  }`}
+                                  title={(p.stock ?? 0) < 0 ? 'Negative stock (sold beyond recorded stock)' : `Active branch stock: ${p.stock ?? 0} ${p.unit}`}
+                                >
+                                  {(p.stock ?? 0) > 0 ? `+${p.stock}` : `${p.stock ?? 0}`} {p.unit}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingStockId(p.id);
+                                    setInlineStockVal(String(p.stock ?? 0));
+                                  }}
+                                  className="p-1 rounded-md text-stone-400 hover:text-[#B8860B] hover:bg-amber-50 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                                  title="Click to edit stock number"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                              {p.branchStock && (
+                                <div className="flex items-center justify-center gap-1 text-[9px] font-mono">
+                                  <span title="Godi Road stock" className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                    Godi: {p.branchStock.godi_road ?? 0}
+                                  </span>
+                                  <span title="MG Road stock" className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                                    MG: {p.branchStock.mg_road ?? 0}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </td>
@@ -1597,10 +1624,47 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
                 </div>
               </div>
 
+              {/* Branch Selection for Stock Adjustment */}
+              <div>
+                <label className="text-xs font-bold text-stone-800 block mb-1.5">
+                  Target Branch Inventory
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStockBranch('godi_road');
+                      setManualStockInput(String(editingStockProduct.branchStock?.godi_road ?? editingStockProduct.stock ?? 0));
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      selectedStockBranch === 'godi_road'
+                        ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
+                        : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                    }`}
+                  >
+                    Godi Road ({editingStockProduct.branchStock?.godi_road ?? (selectedStockBranch === 'godi_road' ? (editingStockProduct.stock ?? 0) : 0)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStockBranch('mg_road');
+                      setManualStockInput(String(editingStockProduct.branchStock?.mg_road ?? 0));
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      selectedStockBranch === 'mg_road'
+                        ? 'bg-blue-100 text-blue-900 border-blue-300 shadow-xs'
+                        : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                    }`}
+                  >
+                    MG Road ({editingStockProduct.branchStock?.mg_road ?? 0})
+                  </button>
+                </div>
+              </div>
+
               {/* New Stock Input */}
               <div>
                 <label className="text-xs font-bold text-stone-800 block mb-1.5">
-                  New Stock Quantity ({editingStockProduct.unit}) <span className="text-rose-600">*</span>
+                  New Stock Quantity ({editingStockProduct.unit}) for {selectedStockBranch === 'mg_road' ? 'MG Road' : 'Godi Road'} <span className="text-rose-600">*</span>
                 </label>
                 <div className="relative">
                   <input

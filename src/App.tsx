@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   Product, 
   OrderBill, 
@@ -394,6 +394,19 @@ export function App() {
 
   useEffect(() => {
     activeBranchRef.current = activeBranch;
+    // Update active stock display for products when switching active branch
+    setProducts((prev) => {
+      let changed = false;
+      const updated = prev.map((p) => {
+        const branchStockVal = p.branchStock?.[activeBranch];
+        if (typeof branchStockVal === 'number' && p.stock !== branchStockVal) {
+          changed = true;
+          return { ...p, stock: branchStockVal };
+        }
+        return p;
+      });
+      return changed ? updated : prev;
+    });
   }, [activeBranch]);
 
   const syncRemoteData = useCallback(async (forceRefresh = false) => {
@@ -420,7 +433,7 @@ export function App() {
         remoteVendors
       ] = await Promise.all([
         fetchDeletedOrdersFromTurso(forceRefresh),
-        fetchProductsFromTurso(forceRefresh),
+        fetchProductsFromTurso(forceRefresh, branchToQuery),
         fetchOrdersFromTurso('ALL', branchToQuery, forceRefresh),
         fetchExpensesFromTurso(undefined, forceRefresh),
         fetchCustomersFromTurso(),
@@ -748,9 +761,45 @@ export function App() {
         // Immediate local state update for zero-latency cross-device feedback
         if (ev.payload.id) {
           setProducts((prev) => {
-            const exists = prev.some((p) => p.id === ev.payload.id || (p.barcode && p.barcode === ev.payload.barcode));
-            const clean = { ...ev.payload, isActive: true };
-            const next = exists ? prev.map((p) => (p.id === ev.payload.id ? clean : p)) : [clean, ...prev];
+            const existing = prev.find((p) => p.id === ev.payload.id || (p.barcode && p.barcode === ev.payload.barcode));
+            const mergedBranchStock = {
+              ...(existing?.branchStock || {}),
+              ...(ev.payload.branchStock || {}),
+            };
+            if (ev.payload.branch && typeof ev.payload.stock === 'number') {
+              mergedBranchStock[ev.payload.branch] = ev.payload.stock;
+            }
+            const activeStock = mergedBranchStock[activeBranch] ?? existing?.stock ?? ev.payload.stock ?? 0;
+            const clean = {
+              ...ev.payload,
+              stock: activeStock,
+              branchStock: mergedBranchStock,
+              isActive: true,
+            };
+            const next = existing ? prev.map((p) => (p.id === clean.id ? clean : p)) : [clean, ...prev];
+            try {
+              localStorage.setItem('albhurani_products', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
+      } else if (ev.operation === 'stock' && ev.payload) {
+        const { productId, stock, branch: eventBranch } = ev.payload;
+        if (productId && typeof stock === 'number') {
+          setProducts((prev) => {
+            const next = prev.map((p) => {
+              if (p.id !== productId) return p;
+              const targetBranch = eventBranch || 'godi_road';
+              const updatedBranchStock = {
+                ...(p.branchStock || {}),
+                [targetBranch]: stock,
+              };
+              return {
+                ...p,
+                stock: targetBranch === activeBranch ? stock : p.stock,
+                branchStock: updatedBranchStock,
+              };
+            });
             try {
               localStorage.setItem('albhurani_products', JSON.stringify(next));
             } catch {}
@@ -1078,15 +1127,24 @@ export function App() {
       } catch {}
     }).catch(() => {});
 
-    // Deduct stock for sold items (allows stock to go negative if 0)
+    // Deduct stock for sold items strictly for this order's branch (permits negative stock if sold beyond recorded stock)
     if (Array.isArray(newOrder.items) && newOrder.items.length > 0) {
+      const orderBranch = newOrder.branch || activeBranch;
       setProducts((prev) => {
         const updated = prev.map((p) => {
           const sold = newOrder.items.find((it) => (it.product?.id === p.id) || (it.product?.barcode && it.product.barcode === p.barcode));
           if (!sold) return p;
-          const isWeight = p.unit === 'KG';
-          const newStock = deductStock(p.stock ?? 0, Number(sold.quantity) || 0, isWeight);
-          return { ...p, stock: newStock };
+          const isWeight = isWeightBasedProduct(p);
+          const currentBranchStock = p.branchStock?.[orderBranch] ?? p.stock ?? 0;
+          const newBranchStock = deductStock(currentBranchStock, Number(sold.quantity) || 0, isWeight);
+          return {
+            ...p,
+            stock: orderBranch === activeBranch ? newBranchStock : p.stock,
+            branchStock: {
+              ...(p.branchStock || {}),
+              [orderBranch]: newBranchStock,
+            },
+          };
         });
         try {
           localStorage.setItem('albhurani_products', JSON.stringify(updated));
@@ -1246,24 +1304,32 @@ export function App() {
         try {
           const adjustments = computeStockAdjustments(originalOrder.items, updatedOrder.items);
           if (adjustments.length > 0) {
+            const orderBranch = updatedOrder.branch || originalOrder?.branch || activeBranch;
             setProducts((prevProducts) => {
               const updatedProducts = prevProducts.map((p) => {
                 const adj = adjustments.find((a) => a.productId === p.id);
                 if (!adj) return p;
                 const isWeight = isWeightBasedProduct(p);
-                const currentStock = p.stock ?? 0;
+                const currentBranchStock = p.branchStock?.[orderBranch] ?? p.stock ?? 0;
                 // deltaQuantity > 0 means items were added/increased (deduct from inventory)
                 // deltaQuantity < 0 means items were removed/decreased (restore to inventory)
-                const newStock = adj.deltaQuantity > 0
-                  ? deductStock(currentStock, adj.deltaQuantity, isWeight)
-                  : restoreStock(currentStock, Math.abs(adj.deltaQuantity), isWeight);
+                const newBranchStock = adj.deltaQuantity > 0
+                  ? deductStock(currentBranchStock, adj.deltaQuantity, isWeight)
+                  : restoreStock(currentBranchStock, Math.abs(adj.deltaQuantity), isWeight);
 
-                // Sync stock change to Turso
-                adjustStockOnTurso(p.id, -adj.deltaQuantity).catch((err) =>
+                // Sync stock change to Turso for this specific branch
+                adjustStockOnTurso(p.id, -adj.deltaQuantity, orderBranch).catch((err) =>
                   console.warn('Error adjusting stock on Turso during bill revision:', err)
                 );
 
-                return { ...p, stock: newStock };
+                return {
+                  ...p,
+                  stock: orderBranch === activeBranch ? newBranchStock : p.stock,
+                  branchStock: {
+                    ...(p.branchStock || {}),
+                    [orderBranch]: newBranchStock,
+                  },
+                };
               });
 
               if (typeof window !== 'undefined') {
@@ -1327,12 +1393,20 @@ export function App() {
   };
 
   const handleAddProduct = async (newProduct: Product) => {
-    const updated = [newProduct, ...products];
+    const prodWithBranchStock: Product = {
+      ...newProduct,
+      branchStock: {
+        godi_road: activeBranch === 'godi_road' ? (newProduct.stock ?? 0) : 0,
+        mg_road: activeBranch === 'mg_road' ? (newProduct.stock ?? 0) : 0,
+        ...(newProduct.branchStock || {}),
+      },
+    };
+    const updated = [prodWithBranchStock, ...products];
     setProducts(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem('albhurani_products', JSON.stringify(updated));
     }
-    const saved = await saveProductToTurso(newProduct);
+    const saved = await saveProductToTurso(prodWithBranchStock, activeBranch);
     if (!saved) {
       console.warn('Failed to persist new product to Turso cloud database');
       syncManager.setStatus('error');
@@ -1345,13 +1419,25 @@ export function App() {
     productId: string, 
     newStock: number, 
     reason = 'Manual adjustment', 
-    actor = 'Admin'
+    actor = 'Admin',
+    branch: string = activeBranch
   ): Promise<boolean> => {
     const prevProd = products.find(p => p.id === productId);
-    const prevStock = prevProd ? (prevProd.stock ?? 0) : 0;
+    const prevStock = prevProd ? (prevProd.branchStock?.[branch] ?? prevProd.stock ?? 0) : 0;
 
     setProducts((prev) => {
-      const updated = prev.map((p) => (p.id === productId ? { ...p, stock: newStock } : p));
+      const updated = prev.map((p) => {
+        if (p.id !== productId) return p;
+        const updatedBranchStock = {
+          ...(p.branchStock || {}),
+          [branch]: newStock,
+        };
+        return {
+          ...p,
+          stock: branch === activeBranch ? newStock : p.stock,
+          branchStock: updatedBranchStock,
+        };
+      });
       try {
         localStorage.setItem('albhurani_products', JSON.stringify(updated));
       } catch {}
@@ -1359,12 +1445,12 @@ export function App() {
     });
     invalidateProductsCache();
     try {
-      await updateStockOnTurso(productId, newStock, reason, actor);
+      await updateStockOnTurso(productId, newStock, reason, actor, branch);
       syncManager.broadcast({
         entityType: 'product',
         entityId: productId,
         operation: 'stock',
-        payload: { productId, stock: newStock, previousStock: prevStock, reason, actor },
+        payload: { productId, stock: newStock, previousStock: prevStock, reason, actor, branch },
       });
       return true;
     } catch (err) {
@@ -1374,12 +1460,21 @@ export function App() {
   };
 
   const handleUpdateProduct = async (updatedProd: Product) => {
-    const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
+    const existing = products.find(p => p.id === updatedProd.id);
+    const merged: Product = {
+      ...updatedProd,
+      // preserve branchStock across shared master updates
+      branchStock: updatedProd.branchStock || existing?.branchStock || {
+        godi_road: existing?.stock ?? 0,
+        mg_road: 0,
+      },
+    };
+    const updated = products.map((p) => (p.id === merged.id ? merged : p));
     setProducts(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem('albhurani_products', JSON.stringify(updated));
     }
-    const saved = await saveProductToTurso(updatedProd);
+    const saved = await saveProductToTurso(merged, activeBranch);
     if (!saved) {
       console.warn('Failed to update product on Turso cloud database');
       syncManager.setStatus('error');
@@ -1669,6 +1764,7 @@ export function App() {
           newQtyMap[key] = (newQtyMap[key] || 0) + Number(item.quantity || 0);
         }
 
+        const purchaseBranch = billWithBranch.branch || activeBranch;
         setProducts((prev) => {
           let updated = [...prev];
           for (const item of billWithBranch.items) {
@@ -1680,10 +1776,17 @@ export function App() {
             const matchedIdx = updated.findIndex((p) => (item.productId && p.id === item.productId) || p.name.trim().toLowerCase() === item.productName.trim().toLowerCase());
             if (matchedIdx >= 0) {
               if (delta !== 0) {
+                const targetProd = updated[matchedIdx];
+                const prevBranchStock = targetProd.branchStock?.[purchaseBranch] ?? targetProd.stock ?? 0;
+                const newBranchStock = prevBranchStock + delta;
                 updated[matchedIdx] = {
-                  ...updated[matchedIdx],
-                  stock: (updated[matchedIdx].stock || 0) + delta,
-                  costPrice: Number(item.unitPrice) > 0 ? Number(item.unitPrice) : updated[matchedIdx].costPrice,
+                  ...targetProd,
+                  stock: purchaseBranch === activeBranch ? newBranchStock : targetProd.stock,
+                  branchStock: {
+                    ...(targetProd.branchStock || {}),
+                    [purchaseBranch]: newBranchStock,
+                  },
+                  costPrice: Number(item.unitPrice) > 0 ? Number(item.unitPrice) : targetProd.costPrice,
                 };
               }
             } else {
@@ -1696,7 +1799,11 @@ export function App() {
                 unit: (item.unit as any) || 'PCS',
                 costPrice: Number(item.unitPrice) || 0,
                 sellingPrice: Math.round((Number(item.unitPrice) || 0) * 1.25) || 100,
-                stock: Number(item.quantity) || 0,
+                stock: purchaseBranch === activeBranch ? (Number(item.quantity) || 0) : 0,
+                branchStock: {
+                  godi_road: purchaseBranch === 'godi_road' ? (Number(item.quantity) || 0) : 0,
+                  mg_road: purchaseBranch === 'mg_road' ? (Number(item.quantity) || 0) : 0,
+                },
                 minStock: 5,
                 isActive: true,
               };
@@ -1781,11 +1888,21 @@ export function App() {
 
       // 2. Instant inward stock reversal locally (permits negative stock if sold)
       if (cancelledBill.items && cancelledBill.items.length > 0) {
+        const purchaseBranch = cancelledBill.branch || activeBranch;
         setProducts((prev) => {
           const updated = prev.map((p) => {
             const matched = cancelledBill.items.find((item) => item.productId === p.id);
             if (!matched) return p;
-            return { ...p, stock: (p.stock || 0) - Number(matched.quantity || 0) };
+            const prevBranchStock = p.branchStock?.[purchaseBranch] ?? p.stock ?? 0;
+            const newBranchStock = prevBranchStock - Number(matched.quantity || 0);
+            return {
+              ...p,
+              stock: purchaseBranch === activeBranch ? newBranchStock : p.stock,
+              branchStock: {
+                ...(p.branchStock || {}),
+                [purchaseBranch]: newBranchStock,
+              },
+            };
           });
           if (typeof window !== 'undefined') {
             try {
@@ -1822,11 +1939,21 @@ export function App() {
 
       // 2. Instant stock reversal locally if not already cancelled (permits negative stock)
       if (billToDelete && billToDelete.items && billToDelete.items.length > 0 && billToDelete.status !== 'Cancelled') {
+        const purchaseBranch = billToDelete.branch || activeBranch;
         setProducts((prev) => {
           const updated = prev.map((p) => {
             const matched = billToDelete.items.find((item) => item.productId === p.id);
             if (!matched) return p;
-            return { ...p, stock: (p.stock || 0) - Number(matched.quantity || 0) };
+            const prevBranchStock = p.branchStock?.[purchaseBranch] ?? p.stock ?? 0;
+            const newBranchStock = prevBranchStock - Number(matched.quantity || 0);
+            return {
+              ...p,
+              stock: purchaseBranch === activeBranch ? newBranchStock : p.stock,
+              branchStock: {
+                ...(p.branchStock || {}),
+                [purchaseBranch]: newBranchStock,
+              },
+            };
           });
           if (typeof window !== 'undefined') {
             try {
@@ -2068,6 +2195,7 @@ export function App() {
               onDeleteProduct={handleDeleteProduct}
               onUpdateStock={handleUpdateStock}
               actingUser="Admin"
+              activeBranch={activeBranch}
               onOpenStickerModal={(p) => setStickerModalProduct(p)}
               onAddCategory={handleAddCategory}
               onUpdateCategory={handleUpdateCategory}
