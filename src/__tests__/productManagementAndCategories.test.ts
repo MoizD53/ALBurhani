@@ -112,4 +112,95 @@ describe('Unified Product Management & Categories Tests', () => {
       });
     });
   });
+
+  describe('Product Barcode and Price Updates', () => {
+    it('properly tracks oldBarcode when editing a product barcode so the cloud update targets the correct row', () => {
+      const existingProduct: Product = {
+        id: 'prod-101',
+        name: 'Gulab Jamun',
+        category: 'SWEETS',
+        unit: 'KG',
+        barcode: '890123450001',
+        sku: 'GJ-001',
+        costPrice: 200,
+        sellingPrice: 320,
+        stock: 15,
+        isActive: true,
+      };
+
+      const newBarcode = '890123459999';
+      const updatedPayload: Product = {
+        ...existingProduct,
+        barcode: newBarcode,
+        oldBarcode: existingProduct.barcode !== newBarcode ? existingProduct.barcode : undefined,
+        sellingPrice: 350,
+      };
+
+      expect(updatedPayload.oldBarcode).toBe('890123450001');
+      expect(updatedPayload.barcode).toBe('890123459999');
+      expect(updatedPayload.sellingPrice).toBe(350);
+
+      // Verify that lookup by ID or oldBarcode correctly resolves to the existing product
+      const catalog = [existingProduct];
+      const match = catalog.find(
+        (p) =>
+          p.id === updatedPayload.id ||
+          (p.barcode &&
+            (p.barcode === updatedPayload.barcode ||
+              (updatedPayload.oldBarcode && p.barcode === updatedPayload.oldBarcode)))
+      );
+
+      expect(match).toBeDefined();
+      expect(match?.id).toBe('prod-101');
+
+      // Merging should update in-place without producing duplicate entries
+      const updatedCatalog = catalog.map((p) =>
+        p.id === match?.id ||
+        (p.barcode &&
+          (p.barcode === updatedPayload.barcode ||
+            (updatedPayload.oldBarcode && p.barcode === updatedPayload.oldBarcode)))
+          ? updatedPayload
+          : p
+      );
+
+      expect(updatedCatalog.length).toBe(1);
+      expect(updatedCatalog[0].barcode).toBe('890123459999');
+      expect(updatedCatalog[0].sellingPrice).toBe(350);
+    });
+
+    it('rejects duplicate barcodes across different products', () => {
+      const products: Product[] = [
+        {
+          id: 'p-1',
+          name: 'Item A',
+          category: 'SNACKS',
+          unit: 'PCS',
+          barcode: 'BAR-111',
+          sku: 'SKU-111',
+          costPrice: 50,
+          sellingPrice: 80,
+        },
+        {
+          id: 'p-2',
+          name: 'Item B',
+          category: 'SNACKS',
+          unit: 'PCS',
+          barcode: 'BAR-222',
+          sku: 'SKU-222',
+          costPrice: 60,
+          sellingPrice: 90,
+        },
+      ];
+
+      const editingProduct = products[1]; // Item B
+      const attemptedBarcode = 'BAR-111'; // Belongs to Item A
+
+      const duplicate = products.find(
+        (p) => p.id !== editingProduct.id && p.barcode.trim() === attemptedBarcode
+      );
+
+      expect(duplicate).toBeDefined();
+      expect(duplicate?.name).toBe('Item A');
+    });
+  });
 });

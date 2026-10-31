@@ -1295,9 +1295,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       try {
         // Find existing product by ID or barcode to avoid SQLite UNIQUE constraint conflicts
+        const oldBc = p.oldBarcode || p.barcode;
         const existingProdRes = await client.execute({
-          sql: 'SELECT id, barcode FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1;',
-          args: [p.id, p.barcode]
+          sql: `SELECT id, barcode FROM products 
+                WHERE id = ? OR (barcode IS NOT NULL AND (barcode = ? OR barcode = ?))
+                ORDER BY CASE 
+                  WHEN id = ? THEN 1 
+                  WHEN barcode = ? THEN 2 
+                  ELSE 3 
+                END LIMIT 1;`,
+          args: [p.id, p.barcode, oldBc, p.id, oldBc]
         });
 
         const isExisting = existingProdRes.rows.length > 0;
@@ -1758,16 +1765,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
             const maxFromOrders = Number(maxRes.rows[0]?.m) || 0;
 
-            const ctrRes = await tx.execute({
-              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
-                    VALUES (?, 1)
-                    ON CONFLICT(business_date) DO UPDATE
-                      SET last_bill_number = MAX(daily_bill_counters.last_bill_number, ?) + 1
-                    RETURNING last_bill_number;`,
-              args: [counterKey, maxFromOrders]
-            });
-            dailyBillNum = Number(ctrRes.rows[0]?.last_bill_number) || 1;
+            // Sequential bill number is strictly MAX(existing active bills) + 1
+            // When a demo/test bill (e.g. Bill #4) is deleted, the next bill immediately reclaims Bill #4
+            dailyBillNum = maxFromOrders + 1;
             finalBillNumber = `Bill #${dailyBillNum}`;
+
+            await tx.execute({
+              sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                    VALUES (?, ?)
+                    ON CONFLICT(business_date) DO UPDATE
+                      SET last_bill_number = excluded.last_bill_number;`,
+              args: [counterKey, dailyBillNum]
+            });
             await tx.commit();
           } catch (allocErr) {
             await tx.rollback();
@@ -2045,15 +2054,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       try {
         const targetBill = billNumber || orderId;
+
+        // Fetch order details before deleting to re-align daily_bill_counters
+        const orderInfoRes = await client.execute({
+          sql: 'SELECT business_date, branch, timestamp, created_at, daily_bill_number FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
+          args: [orderId, targetBill]
+        });
+
         await client.execute({
           sql: 'INSERT OR REPLACE INTO deleted_orders (id, bill_number, deleted_at) VALUES (?, ?, CURRENT_TIMESTAMP);',
           args: [orderId, targetBill],
         });
 
         await client.execute({
-          sql: 'DELETE FROM orders WHERE id = ?;',
-          args: [orderId],
+          sql: 'DELETE FROM orders WHERE id = ? OR bill_number = ?;',
+          args: [orderId, targetBill],
         });
+
+        // Re-align daily_bill_counters so deleting a bill (e.g. demo #4) frees that number for the next bill
+        if (orderInfoRes.rows.length > 0) {
+          const row = orderInfoRes.rows[0];
+          const bdate = String(row.business_date || getKolkataDate(row.timestamp || row.created_at));
+          const br = row.branch === 'mg_road' ? 'mg_road' : 'godi_road';
+          const counterKey = `${bdate}_${br}`;
+
+          const maxRemainingRes = await client.execute({
+            sql: 'SELECT COALESCE(MAX(daily_bill_number), 0) as max_num FROM orders WHERE business_date = ? AND branch = ?;',
+            args: [bdate, br]
+          });
+          const maxRemaining = Number(maxRemainingRes.rows[0]?.max_num) || 0;
+
+          await client.execute({
+            sql: `INSERT INTO daily_bill_counters (business_date, last_bill_number)
+                  VALUES (?, ?)
+                  ON CONFLICT(business_date) DO UPDATE SET last_bill_number = excluded.last_bill_number;`,
+            args: [counterKey, maxRemaining]
+          });
+        }
 
         await logFinancialAudit(client, 'DELETE_SALE', 'order', orderId, 0, null, { billNumber: targetBill });
         await logSyncEvent(client, 'order', orderId, 'delete', { orderId, billNumber: targetBill });

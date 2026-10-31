@@ -1490,7 +1490,7 @@ export function App() {
   };
 
   const handleUpdateProduct = async (updatedProd: Product) => {
-    const existing = products.find(p => p.id === updatedProd.id || (p.barcode && p.barcode === updatedProd.barcode));
+    const existing = products.find(p => p.id === updatedProd.id || (p.barcode && (p.barcode === updatedProd.barcode || (updatedProd.oldBarcode && p.barcode === updatedProd.oldBarcode))));
     const targetId = existing?.id || updatedProd.id;
     const merged: Product = {
       ...updatedProd,
@@ -1501,7 +1501,7 @@ export function App() {
         mg_road: 0,
       },
     };
-    const updated = products.map((p) => (p.id === targetId || (p.barcode && p.barcode === merged.barcode) ? merged : p));
+    const updated = products.map((p) => (p.id === targetId || (p.barcode && (p.barcode === merged.barcode || (updatedProd.oldBarcode && p.barcode === updatedProd.oldBarcode))) ? merged : p));
     setProducts(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem('albhurani_products', JSON.stringify(updated));

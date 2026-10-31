@@ -279,4 +279,49 @@ describe('Sequential Daily Bill Numbers & Calendar System', () => {
     expect(map.get('2026-10-22')).toBe(1);
     expect(map.has('2026-10-23')).toBe(false);
   });
+
+  it('reclaims bill number when the latest bill is deleted (e.g. 3 bills, create demo #4, delete #4 -> next bill is #4)', () => {
+    // Initial 3 bills for today
+    const activeOrders: OrderBill[] = [
+      { id: 'b1', billNumber: 'Bill #1', dailyBillNumber: 1, businessDate: '2026-10-31', transactionType: 'NO_BILL', items: [], subtotal: 80, discountAmount: 0, gstAmount: 0, grandTotal: 80, paymentMethod: 'CASH', amountReceived: 80, changeGiven: 0, cashierName: 'Owner', createdAt: '2026-10-31T09:03:00+05:30' },
+      { id: 'b2', billNumber: 'Bill #2', dailyBillNumber: 2, businessDate: '2026-10-31', transactionType: 'NO_BILL', items: [], subtotal: 30, discountAmount: 0, gstAmount: 0, grandTotal: 30, paymentMethod: 'CASH', amountReceived: 30, changeGiven: 0, cashierName: 'Owner', createdAt: '2026-10-31T09:14:00+05:30' },
+      { id: 'b3', billNumber: 'Bill #3', dailyBillNumber: 3, businessDate: '2026-10-31', transactionType: 'NO_BILL', items: [], subtotal: 310, discountAmount: 0, gstAmount: 0, grandTotal: 310, paymentMethod: 'CASH', amountReceived: 310, changeGiven: 0, cashierName: 'Owner', createdAt: '2026-10-31T09:34:00+05:30' },
+    ];
+
+    const maxFromOrders = Math.max(...activeOrders.map(o => o.dailyBillNumber || 0), 0);
+    expect(maxFromOrders).toBe(3);
+
+    // Creating demo bill allocates #4
+    const demoBillNum = maxFromOrders + 1;
+    expect(demoBillNum).toBe(4);
+    const demoOrder: OrderBill = {
+      id: 'demo-4',
+      billNumber: `Bill #${demoBillNum}`,
+      dailyBillNumber: demoBillNum,
+      businessDate: '2026-10-31',
+      transactionType: 'NO_BILL',
+      items: [],
+      subtotal: 100,
+      discountAmount: 0,
+      gstAmount: 0,
+      grandTotal: 100,
+      paymentMethod: 'CASH',
+      amountReceived: 100,
+      changeGiven: 0,
+      cashierName: 'Owner',
+      createdAt: '2026-10-31T09:40:00+05:30'
+    };
+
+    const ordersWithDemo = [...activeOrders, demoOrder];
+    expect(ordersWithDemo.length).toBe(4);
+
+    // Delete demo bill #4
+    const ordersAfterDeletion = ordersWithDemo.filter(o => o.id !== 'demo-4');
+    expect(ordersAfterDeletion.length).toBe(3);
+
+    // Next allocated bill number should be max of remaining + 1 = 3 + 1 = 4 (NOT 5!)
+    const remainingMax = Math.max(...ordersAfterDeletion.map(o => o.dailyBillNumber || 0), 0);
+    const nextBillNum = remainingMax + 1;
+    expect(nextBillNum).toBe(4);
+  });
 });

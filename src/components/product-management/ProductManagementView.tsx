@@ -296,6 +296,7 @@ export const ProductManagementView: React.FC<ProductManagementViewProps> = ({
       name: cleanName,
       sku: cleanSku,
       barcode: cleanBarcode,
+      oldBarcode: editingProduct && editingProduct.barcode !== cleanBarcode ? editingProduct.barcode : undefined,
       category: productCategory,
       unit,
       priceBasis,

@@ -6,6 +6,7 @@ export interface Product {
   id: string;
   sku: string; // Product Code / SKU (e.g. 'SKU-001', '0042', preserves leading zeroes)
   barcode: string; // Barcode string (preserves leading zeroes)
+  oldBarcode?: string; // Previous barcode before edit (for robust serverless lookup)
   name: string;
   category: ProductCategory;
   unit: SellingUnit | string; // 'KG' | 'PCS' etc.
