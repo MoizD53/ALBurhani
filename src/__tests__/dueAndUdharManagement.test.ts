@@ -87,4 +87,58 @@ describe('Due and Udhar Management', () => {
     expect(summary.dueOrdersCount).toBe(2);
     expect(summary.dueOrders.map((o) => o.billNumber)).toEqual(['ALB-INV-1005', 'ALB-INV-1006']);
   });
+
+  it('reconciles local settled status against lagging remote orders to prevent resurrection', () => {
+    // Order 5 was settled locally
+    const locallySettledOrder5: OrderBill = {
+      ...baseOrder,
+      id: 'sale-5',
+      billNumber: 'ALB-INV-1005',
+      grandTotal: 1000,
+      amountReceived: 1000,
+      dueAmount: 0,
+      isSettled: true,
+      settledAt: '31 Oct 2026, 09:30 AM',
+    };
+
+    // Stale server order still reports pending due
+    const staleRemoteOrder5: OrderBill = {
+      ...baseOrder,
+      id: 'sale-5',
+      billNumber: 'ALB-INV-1005',
+      grandTotal: 1000,
+      amountReceived: 400,
+      dueAmount: 600,
+      isSettled: false,
+    };
+
+    const currentOrders: OrderBill[] = [locallySettledOrder5];
+    const validRemoteOrders: OrderBill[] = [staleRemoteOrder5];
+
+    const localSettledMap = new Map<string, OrderBill>();
+    for (const co of currentOrders) {
+      if (co && co.isSettled) {
+        localSettledMap.set(co.id, co);
+        if (co.billNumber) localSettledMap.set(co.billNumber, co);
+      }
+    }
+
+    const reconciled = validRemoteOrders.map((ro) => {
+      const localSettled = localSettledMap.get(ro.id) || (ro.billNumber ? localSettledMap.get(ro.billNumber) : undefined);
+      if (localSettled && localSettled.isSettled && !ro.isSettled) {
+        return {
+          ...ro,
+          isSettled: true,
+          settledAt: localSettled.settledAt,
+          dueAmount: 0,
+          amountReceived: ro.grandTotal,
+        };
+      }
+      return ro;
+    });
+
+    expect(reconciled[0].isSettled).toBe(true);
+    expect(reconciled[0].dueAmount).toBe(0);
+    expect(getOrderDue(reconciled[0])).toBe(0);
+  });
 });

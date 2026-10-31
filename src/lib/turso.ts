@@ -60,6 +60,7 @@ const DELETED_ORDERS_CACHE_TTL = 60 * 1000; // 60 seconds
 
 export function invalidateProductsCache() {
   productsCache = null;
+  lastProductsUpdatedAt = null;
 }
 
 export function invalidateOrdersCache(branch?: string) {
@@ -552,6 +553,41 @@ export async function fetchOrdersFromTurso(
 /**
  * Save an order to remote database
  */
+/**
+ * Mark an order as fully settled / paid on remote database
+ */
+export async function settleOrderOnTurso(order: OrderBill): Promise<boolean> {
+  invalidateOrdersCache(order.branch);
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-albhurani-role': 'Owner',
+      },
+      body: JSON.stringify({
+        action: 'settle-order',
+        payload: {
+          orderId: order.id,
+          billNumber: order.billNumber,
+          amountReceived: order.grandTotal,
+          settledAt: order.settledAt || new Date().toISOString(),
+          branch: order.branch || 'godi_road',
+          actor: order.cashierName || 'Owner',
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      return await saveOrderToTurso(order);
+    }
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return await saveOrderToTurso(order).catch(() => false);
+  }
+}
+
 export async function saveOrderToTurso(order: OrderBill): Promise<boolean> {
   invalidateOrdersCache(order.branch);
   try {

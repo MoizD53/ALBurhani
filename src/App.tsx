@@ -18,7 +18,8 @@ import {
   getTursoClient, 
   fetchOrdersFromTurso, 
   fetchDeletedOrdersFromTurso,
-  saveOrderToTurso, 
+  saveOrderToTurso,
+  settleOrderOnTurso, 
   batchSaveOrdersToTurso,
   saveProductToTurso,
   updateStockOnTurso,
@@ -550,10 +551,34 @@ export function App() {
 
         // Canonical server orders + preserved local pending orders (NEVER wipe unconfirmed local orders!)
         setOrders((currentOrders) => {
+          const localSettledMap = new Map<string, OrderBill>();
+          for (const co of (currentOrders || [])) {
+            if (co && co.isSettled) {
+              localSettledMap.set(co.id, co);
+              if (co.billNumber) localSettledMap.set(co.billNumber, co);
+            }
+          }
+
           const localPending = (currentOrders || []).filter(
             (co) => co && co.id && !remoteIdSet.has(co.id) && !localDeletedSet.has(co.id)
           );
-          const combined = [...localPending, ...validRemoteOrders];
+
+          // Preserve settled status so remote lag does not resurrect settled dues
+          const reconciledRemoteOrders = validRemoteOrders.map((ro) => {
+            const localSettled = localSettledMap.get(ro.id) || (ro.billNumber ? localSettledMap.get(ro.billNumber) : undefined);
+            if (localSettled && localSettled.isSettled && !ro.isSettled) {
+              return {
+                ...ro,
+                isSettled: true,
+                settledAt: localSettled.settledAt,
+                dueAmount: 0,
+                amountReceived: ro.grandTotal
+              };
+            }
+            return ro;
+          });
+
+          const combined = [...localPending, ...reconciledRemoteOrders];
           combined.sort((a, b) => {
             const tA = a.timestamp || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
             const tB = b.timestamp || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
@@ -759,7 +784,7 @@ export function App() {
     const unsubProduct = syncManager.subscribe('product', (ev) => {
       if (ev.operation === 'save' && ev.payload) {
         // Immediate local state update for zero-latency cross-device feedback
-        if (ev.payload.id) {
+        if (ev.payload.id || ev.payload.barcode) {
           setProducts((prev) => {
             const existing = prev.find((p) => p.id === ev.payload.id || (p.barcode && p.barcode === ev.payload.barcode));
             const mergedBranchStock = {
@@ -771,12 +796,15 @@ export function App() {
             }
             const activeStock = mergedBranchStock[activeBranch] ?? existing?.stock ?? ev.payload.stock ?? 0;
             const clean = {
+              ...existing,
               ...ev.payload,
               stock: activeStock,
               branchStock: mergedBranchStock,
               isActive: true,
             };
-            const next = existing ? prev.map((p) => (p.id === clean.id ? clean : p)) : [clean, ...prev];
+            const next = existing
+              ? prev.map((p) => (p.id === clean.id || (p.barcode && p.barcode === clean.barcode) ? clean : p))
+              : [clean, ...prev];
             try {
               localStorage.setItem('albhurani_products', JSON.stringify(next));
             } catch {}
@@ -1268,7 +1296,9 @@ export function App() {
     };
 
     setOrders((prev) => {
-      const updated = prev.map((o) => (o.id === order.id ? settledOrder : o));
+      const updated = prev.map((o) =>
+        (o.id === order.id || (o.billNumber && o.billNumber === order.billNumber)) ? settledOrder : o
+      );
       try {
         localStorage.setItem('albhurani_orders', JSON.stringify(updated));
       } catch {}
@@ -1276,7 +1306,7 @@ export function App() {
     });
 
     try {
-      await saveOrderToTurso(settledOrder);
+      await settleOrderOnTurso(settledOrder);
     } catch (err) {
       console.warn('Error syncing settled order to Turso:', err);
     }
@@ -1460,20 +1490,23 @@ export function App() {
   };
 
   const handleUpdateProduct = async (updatedProd: Product) => {
-    const existing = products.find(p => p.id === updatedProd.id);
+    const existing = products.find(p => p.id === updatedProd.id || (p.barcode && p.barcode === updatedProd.barcode));
+    const targetId = existing?.id || updatedProd.id;
     const merged: Product = {
       ...updatedProd,
+      id: targetId,
       // preserve branchStock across shared master updates
       branchStock: updatedProd.branchStock || existing?.branchStock || {
         godi_road: existing?.stock ?? 0,
         mg_road: 0,
       },
     };
-    const updated = products.map((p) => (p.id === merged.id ? merged : p));
+    const updated = products.map((p) => (p.id === targetId || (p.barcode && p.barcode === merged.barcode) ? merged : p));
     setProducts(updated);
     if (typeof window !== 'undefined') {
       localStorage.setItem('albhurani_products', JSON.stringify(updated));
     }
+    invalidateProductsCache();
     const saved = await saveProductToTurso(merged, activeBranch);
     if (!saved) {
       console.warn('Failed to update product on Turso cloud database');

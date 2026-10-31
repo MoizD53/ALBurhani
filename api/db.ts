@@ -1294,31 +1294,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const branch = p.branch === 'mg_road' ? 'mg_road' : 'godi_road';
 
       try {
-        const batchStatements: InStatement[] = [
-          {
-            sql: `INSERT INTO products (
-              id, sku, barcode, name, category, unit, price_basis, net_weight, cost_price, selling_price,
-              stock, min_stock, shelf_life_days, batch_no, mfg_date, expiry_date, price_tiers, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(id) DO UPDATE SET
-              sku=excluded.sku,
-              barcode=excluded.barcode,
-              name=excluded.name,
-              category=excluded.category,
-              unit=excluded.unit,
-              price_basis=excluded.price_basis,
-              net_weight=excluded.net_weight,
-              cost_price=excluded.cost_price,
-              selling_price=excluded.selling_price,
-              min_stock=excluded.min_stock,
-              shelf_life_days=excluded.shelf_life_days,
-              batch_no=excluded.batch_no,
-              mfg_date=excluded.mfg_date,
-              expiry_date=excluded.expiry_date,
-              price_tiers=excluded.price_tiers,
-              updated_at=CURRENT_TIMESTAMP;`,
+        // Find existing product by ID or barcode to avoid SQLite UNIQUE constraint conflicts
+        const existingProdRes = await client.execute({
+          sql: 'SELECT id, barcode FROM products WHERE id = ? OR (barcode IS NOT NULL AND barcode = ?) LIMIT 1;',
+          args: [p.id, p.barcode]
+        });
+
+        const isExisting = existingProdRes.rows.length > 0;
+        const targetId = isExisting ? String(existingProdRes.rows[0].id) : String(p.id);
+
+        const batchStatements: InStatement[] = [];
+
+        if (isExisting) {
+          batchStatements.push({
+            sql: `UPDATE products SET
+                    sku = ?,
+                    barcode = ?,
+                    name = ?,
+                    category = ?,
+                    unit = ?,
+                    price_basis = ?,
+                    net_weight = ?,
+                    cost_price = ?,
+                    selling_price = ?,
+                    min_stock = ?,
+                    shelf_life_days = ?,
+                    batch_no = ?,
+                    mfg_date = ?,
+                    expiry_date = ?,
+                    price_tiers = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?;`,
             args: [
-              p.id,
+              p.sku || p.barcode,
+              p.barcode,
+              p.name,
+              p.category,
+              p.unit,
+              p.priceBasis || '₹/pc',
+              p.netWeight || '',
+              Number(p.costPrice) || 0,
+              Number(p.sellingPrice) || 0,
+              Number(p.minStock) || 0,
+              Number(p.shelfLifeDays) || 90,
+              p.batchNo || '',
+              p.mfgDate || '',
+              p.expiryDate || '',
+              p.priceTiers ? JSON.stringify(p.priceTiers) : null,
+              targetId
+            ],
+          });
+        } else {
+          batchStatements.push({
+            sql: `INSERT INTO products (
+                    id, sku, barcode, name, category, unit, price_basis, net_weight, cost_price, selling_price,
+                    stock, min_stock, shelf_life_days, batch_no, mfg_date, expiry_date, price_tiers, updated_at
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP);`,
+            args: [
+              targetId,
               p.sku || p.barcode,
               p.barcode,
               p.name,
@@ -1336,27 +1369,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               p.expiryDate || '',
               p.priceTiers ? JSON.stringify(p.priceTiers) : null,
             ],
-          },
-          // Ensure branch_stock is initialized / preserved for both branches
-          {
-            sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
-                  VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                  ON CONFLICT(product_id, branch) DO UPDATE SET
-                    stock = CASE WHEN excluded.stock != 0 THEN excluded.stock ELSE branch_stock.stock END,
-                    updated_at = CURRENT_TIMESTAMP;`,
-            args: [p.id, branch, Number(p.stock) || 0],
-          },
-          {
-            sql: `INSERT OR IGNORE INTO branch_stock (product_id, branch, stock, updated_at)
-                  VALUES (?, ?, 0, CURRENT_TIMESTAMP);`,
-            args: [p.id, branch === 'mg_road' ? 'godi_road' : 'mg_road'],
-          }
-        ];
+          });
+        }
+
+        // Ensure branch_stock is initialized / preserved for both branches
+        batchStatements.push({
+          sql: `INSERT INTO branch_stock (product_id, branch, stock, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(product_id, branch) DO UPDATE SET
+                  stock = CASE WHEN excluded.stock != 0 THEN excluded.stock ELSE branch_stock.stock END,
+                  updated_at = CURRENT_TIMESTAMP;`,
+          args: [targetId, branch, Number(p.stock) || 0],
+        });
+        batchStatements.push({
+          sql: `INSERT OR IGNORE INTO branch_stock (product_id, branch, stock, updated_at)
+                VALUES (?, ?, 0, CURRENT_TIMESTAMP);`,
+          args: [targetId, branch === 'mg_road' ? 'godi_road' : 'mg_road'],
+        });
 
         await client.batch(batchStatements, 'write');
 
-        await logSyncEvent(client, 'product', p.id, 'save', { ...p, branch });
-        return res.status(200).json({ success: true });
+        await logSyncEvent(client, 'product', targetId, 'save', { ...p, id: targetId, branch });
+        return res.status(200).json({ success: true, id: targetId });
       } catch (err: any) {
         return res.status(500).json({ success: false, error: err?.message });
       }
@@ -1566,6 +1600,96 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Settle Order (Mark Udhar / Due Bill as Fully Paid)
+    if (action === 'settle-order') {
+      const { orderId, billNumber, amountReceived, settledAt, actor, branch: reqBranch } = payload || {};
+      if (!orderId && !billNumber) {
+        return res.status(400).json({ success: false, error: 'Missing orderId or billNumber' });
+      }
+
+      try {
+        const existingRes = await client.execute({
+          sql: 'SELECT id, bill_number, grand_total, amount_received, due_amount, is_settled, branch, payment_method FROM orders WHERE id = ? OR bill_number = ? LIMIT 1;',
+          args: [orderId || '', billNumber || '']
+        });
+
+        if (existingRes.rows.length === 0) {
+          return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        const existing = existingRes.rows[0];
+        const targetId = String(existing.id);
+        const targetBillNumber = String(existing.bill_number);
+        const grandTotal = Number(existing.grand_total) || 0;
+        const previousDue = Number(existing.due_amount) || Math.max(0, grandTotal - (Number(existing.amount_received) || 0));
+        const finalReceived = typeof amountReceived === 'number' ? amountReceived : grandTotal;
+        const nowSettledAt = settledAt || new Date().toISOString();
+        const branch = String(existing.branch || reqBranch || 'godi_road');
+
+        const batchStatements: InStatement[] = [
+          {
+            sql: `UPDATE orders SET
+                    amount_received = ?,
+                    due_amount = 0,
+                    is_settled = 1,
+                    settled_at = ?
+                  WHERE id = ?;`,
+            args: [finalReceived, nowSettledAt, targetId]
+          },
+          {
+            sql: `INSERT INTO financial_audit_logs (action, entity_type, entity_id, amount, payment_method, details_json, actor, timestamp)
+                  VALUES ('SETTLE_DUE', 'order', ?, ?, ?, ?, ?, ?);`,
+            args: [
+              targetId,
+              previousDue,
+              String(existing.payment_method || 'CASH'),
+              JSON.stringify({
+                billNumber: targetBillNumber,
+                previousDue,
+                amountReceived: finalReceived,
+                settledAt: nowSettledAt
+              }),
+              actor || 'Owner',
+              Date.now()
+            ]
+          },
+          {
+            sql: `INSERT INTO sync_events (entity_type, entity_id, operation, payload_json, server_timestamp, branch)
+                  VALUES ('order', ?, 'save', ?, ?, ?);`,
+            args: [
+              targetId,
+              JSON.stringify({
+                id: targetId,
+                billNumber: targetBillNumber,
+                amountReceived: finalReceived,
+                dueAmount: 0,
+                isSettled: true,
+                settledAt: nowSettledAt,
+                branch
+              }),
+              Date.now(),
+              branch
+            ]
+          }
+        ];
+
+        await client.batch(batchStatements, 'write');
+        recordUsage(client, 'settle-order', batchStatements.length);
+
+        return res.status(200).json({
+          success: true,
+          orderId: targetId,
+          billNumber: targetBillNumber,
+          amountReceived: finalReceived,
+          dueAmount: 0,
+          isSettled: true,
+          settledAt: nowSettledAt
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message });
+      }
+    }
+
     // Save Order (Single Sale or Modification with Atomic Batch Transaction & Idempotency)
     if (action === 'save-order') {
       const o = payload;
@@ -1600,7 +1724,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 1. Idempotent Retry Detection:
         // If the order is already in the database and this is NOT an explicit revision,
         // return 200 OK immediately without re-deducting stock or creating duplicate events.
-        const isExplicitRevision = Boolean(o.isRevised) || ((Number(o.revisionCount) || 0) > (Number(existing?.revision_count) || 0));
+        const isSettlement = Boolean(o.isSettled) || (o.dueAmount === 0 && Number(o.amountReceived) >= Number(o.grandTotal) && Number(existing?.due_amount) > 0);
+        const isExplicitRevision = Boolean(o.isRevised) || ((Number(o.revisionCount) || 0) > (Number(existing?.revision_count) || 0)) || isSettlement;
 
         if (isExisting && !isExplicitRevision) {
           recordUsage(client, 'save-order:idempotent_retry', 1);

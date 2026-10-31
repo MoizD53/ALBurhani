@@ -34,13 +34,14 @@ export const DueBillsModal: React.FC<DueBillsModalProps> = ({
   const [search, setSearch] = useState('');
   const [settlingOrderId, setSettlingOrderId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [locallySettledIds, setLocallySettledIds] = useState<Set<string>>(new Set());
 
   // Filter all orders with outstanding due
   const dueOrders = useMemo(() => {
     return orders
-      .filter((o) => getOrderDue(o) > 0)
+      .filter((o) => !locallySettledIds.has(o.id) && !(o.billNumber && locallySettledIds.has(o.billNumber)) && getOrderDue(o) > 0)
       .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  }, [orders]);
+  }, [orders, locallySettledIds]);
 
   // Search filter
   const filteredDueOrders = useMemo(() => {
@@ -68,17 +69,30 @@ export const DueBillsModal: React.FC<DueBillsModalProps> = ({
   const handleSettle = async (order: OrderBill) => {
     if (!onSettleOrder) return;
     const due = getOrderDue(order);
-    if (!window.confirm(`Mark Bill ${order.billNumber} as fully paid?\nDue Amount: Rs. ${due.toFixed(2)}`)) {
+    const displayBill = order.billNumber.startsWith('Bill #') ? order.billNumber : `Bill #${order.dailyBillNumber || order.billNumber}`;
+    if (!window.confirm(`Mark ${displayBill} as fully paid?\nDue Amount: Rs. ${due.toFixed(2)}`)) {
       return;
     }
 
     try {
       setSettlingOrderId(order.id);
+      setLocallySettledIds((prev) => {
+        const next = new Set(prev);
+        next.add(order.id);
+        if (order.billNumber) next.add(order.billNumber);
+        return next;
+      });
       await onSettleOrder(order);
-      setFeedback(`Bill ${order.billNumber} (Rs. ${due.toFixed(2)}) marked as fully settled.`);
+      setFeedback(`${displayBill} (Rs. ${due.toFixed(2)}) marked as fully settled.`);
       setTimeout(() => setFeedback(null), 3500);
     } catch {
-      setFeedback(`Could not settle Bill ${order.billNumber}. Please try again.`);
+      setLocallySettledIds((prev) => {
+        const next = new Set(prev);
+        next.delete(order.id);
+        if (order.billNumber) next.delete(order.billNumber);
+        return next;
+      });
+      setFeedback(`Could not settle ${displayBill}. Please try again.`);
       setTimeout(() => setFeedback(null), 3500);
     } finally {
       setSettlingOrderId(null);
