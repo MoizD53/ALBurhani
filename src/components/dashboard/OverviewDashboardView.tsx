@@ -251,15 +251,9 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-[#F0EBE0] space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-mono text-stone-500">
-              <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Combined Lifetime</span>
-              <span className="text-[#A67D0C] font-bold">{formatAmount(lifetimeRevenue)}</span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-stone-400 font-sans">
-              <span>No-Bill: {formatAmount(salesReport.noBillLifetime.grandTotal)}</span>
-              <span>Tax Bills: {formatAmount(salesReport.customerBillsLifetime.grandTotal)}</span>
-            </div>
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
+            <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Combined Lifetime</span>
+            <span className="text-[#A67D0C] font-bold">{formatAmount(lifetimeRevenue)}</span>
           </div>
         </div>
 
@@ -282,15 +276,9 @@ export const OverviewDashboardView: React.FC<OverviewDashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-[#F0EBE0] space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-mono text-stone-500">
-              <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Combined Lifetime Bills</span>
-              <span className="text-stone-700 font-bold">{formatNumber(lifetimeCustomersCount)}</span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-stone-400 font-sans">
-              <span>No-Bill: {formatNumber(salesReport.noBillLifetime.count)}</span>
-              <span>Tax Bills: {formatNumber(salesReport.customerBillsLifetime.count)}</span>
-            </div>
+          <div className="mt-5 pt-3 border-t border-[#F0EBE0] flex items-center justify-between text-[11px] font-mono text-stone-500">
+            <span className="uppercase tracking-wider font-sans text-stone-500 text-[10px] font-semibold">Combined Lifetime Bills</span>
+            <span className="text-stone-700 font-bold">{formatNumber(lifetimeCustomersCount)}</span>
           </div>
         </div>
 
